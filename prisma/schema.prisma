@@ -1,0 +1,2422 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── NextAuth Models ───────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  phone         String?   @unique
+  passwordHash  String?
+  currency      String    @default("NGN")
+  isSuspended   Boolean   @default(false)
+  suspendedAt   DateTime?
+  suspendedById String?
+  suspensionReason String?
+  settings       Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  circlesCreated         Circle[]              @relation("CircleCreator")
+  accounts               Account[]
+  sessions               Session[]
+  circleMembers          CircleMember[]
+  contributions          Contribution[]        @relation("ContributionPayer")
+  contributionsRecorded  Contribution[]        @relation("ContributionRecorder")
+  contributionPlansCreated ContributionPlan[]  @relation("ContributionPlanCreator")
+  expensesPaid           Expense[]             @relation("ExpensePayer")
+  expensesCreated        Expense[]             @relation("ExpenseCreator")
+  expenseSplits          ExpenseSplit[]
+  notifications          Notification[]
+  invitationsSent        Invitation[]          @relation("Inviter")
+  balancesAsDebtor       Balance[]             @relation("Debtor")
+  balancesAsCreditor     Balance[]             @relation("Creditor")
+  settlementsAsDebtor    Settlement[]          @relation("SettlementDebtor")
+  settlementsAsCreditor  Settlement[]          @relation("SettlementCreditor")
+  settlementsCreated     Settlement[]          @relation("SettlementCreator")
+  settlementsConfirmed   Settlement[]          @relation("SettlementConfirmer")
+  goalsCreated           Goal[]
+  goalAllocationsReceived GoalAllocation[]    @relation("GoalAllocationReceiver")
+  goalAllocationsCreated  GoalAllocation[]    @relation("GoalAllocationCreator")
+  transactions           Transaction[]
+  subscription           UserSubscription?
+  paymentTransactions    PaymentTransaction[]
+  internalAdmin          InternalAdmin?
+  auditLogs              AuditLog[]
+  joinRequests           JoinRequest[]       @relation("JoinRequestUser")
+  joinRequestsReviewed   JoinRequest[]       @relation("JoinRequestReviewer")
+  wallets                Wallet[]            @relation("WalletUser")
+  walletTransactions     WalletTransaction[] @relation("WalletTxInitiator")
+  approvalRequests       WalletApprovalRequest[] @relation("ApprovalRequester")
+  approvalsGiven         WalletApproval[]    @relation("ApprovalApprover")
+  payoutCycles           PayoutCycle[]       @relation("PayoutRecipient")
+  ownerNotes             OwnerNote[]         @relation("OwnerNoteAdmin")
+  moderationReviews      CircleModerationReview[] @relation("ModerationReviewer")
+  bulkOperations         BulkOperation[]         @relation("BulkOpAdmin")
+  platformSettingsUpdated PlatformSetting[]      @relation("PlatformSettingUpdater")
+  featureFlagsUpdated     FeatureFlag[]          @relation("FeatureFlagUpdater")
+  promoCodesCreated       PromoCode[]           @relation("PromoCreator")
+  promoRedemptions        PromoRedemption[]     @relation("PromoUser")
+  broadcastsCreated       PlatformBroadcast[]   @relation("BroadcastCreator")
+  broadcastReceived       PlatformBroadcastRecipient[] @relation("BroadcastRecipient")
+  supportTickets          SupportTicket[]       @relation("TicketCreator")
+  supportMessages         SupportTicketMessage[] @relation("TicketMessageSender")
+  abuseReports            AbuseReport[]         @relation("AbuseReporter")
+  abuseReportsReviewed    AbuseReport[]         @relation("AbuseReviewer")
+  feedPosts              FeedPost[]          @relation("FeedPostAuthor")
+  feedComments           FeedComment[]       @relation("FeedCommentUser")
+  feedReactions          FeedReaction[]      @relation("FeedReactionUser")
+  eventsCreated          CircleEvent[]       @relation("EventCreator")
+  eventRSVPs             CircleEventRSVP[]   @relation("RSVPUser")
+  pollsCreated           CirclePoll[]        @relation("PollCreator")
+  pollVotes              CirclePollVote[]    @relation("PollVoter")
+  verificationsReviewed  CircleVerification[] @relation("VerificationReviewer")
+  completedWorkflowSteps CircleWorkflowStep[] @relation("WorkflowStepCompleter")
+  paymentIntents         CirclePaymentIntent[] @relation("PaymentIntentUser")
+  paymentIntentsConfirmed CirclePaymentIntent[] @relation("PaymentIntentConfirmer")
+  projectsCreated         Project[]             @relation("ProjectCreator")
+  fundingRoundsCreated    ProjectFundingRound[] @relation("FundingRoundCreator")
+  projectContributions    ProjectContribution[] @relation("ProjectContributor")
+  projectContConfirmations ProjectContribution[] @relation("ProjectContributionConfirmer")
+  projectExpensesCreated   ProjectExpense[]       @relation("ProjectExpenseCreator")
+  projectExpensesApproved  ProjectExpense[]       @relation("ProjectExpenseApprover")
+  projectExpensesPaid      ProjectExpense[]       @relation("ProjectExpensePayer")
+  projectAssetsCreated     ProjectAsset[]         @relation("ProjectAssetCreator")
+  projectRevenuesCreated   ProjectRevenue[]       @relation("ProjectRevenueCreator")
+  distributionsCreated     ProjectDistribution[]  @relation("DistributionCreator")
+  distributionsApproved    ProjectDistribution[]  @relation("DistributionApprover")
+  distributionItems        ProjectDistributionItem[] @relation("DistributionRecipient")
+  legalAcceptances         UserLegalAcceptance[]
+  mobileSessions           MobileSession[]
+  mobilePushTokens         MobilePushToken[]
+
+  @@index([email])
+}
+
+// ─── Mobile Sessions ──────────────────────────────────────
+
+model MobileSession {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  deviceName  String?
+  deviceId    String?
+  platform    String?
+  expiresAt   DateTime
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([tokenHash])
+}
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId      String             @unique
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Core Models ───────────────────────────────────────────
+
+enum CircleType {
+  FAMILY
+  TRAVEL
+  HOUSEMATE
+  WEDDING
+  SAVINGS
+  STOKVEL
+  CHURCH
+  INVESTMENT
+  CUSTOM
+}
+
+enum CircleVisibility {
+  PRIVATE
+  INVITE_ONLY
+  PUBLIC
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Circle {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  currency    String     @default("NGN")
+  type        CircleType @default(CUSTOM)
+  visibility  CircleVisibility @default(PRIVATE)
+  inviteCode  String     @unique @default(cuid())
+  inviteCodeEnabled Boolean  @default(true)
+  inviteCodeExpiresAt DateTime?
+  isActive    Boolean    @default(true)
+  deletedAt    DateTime?
+  country     String?
+  city        String?
+  publicDescription String?
+  rules       String?
+  joinApprovalRequired Boolean @default(true)
+  isFeatured   Boolean   @default(false)
+  featuredAt   DateTime?
+  featuredById String?
+  settings    Json?
+  createdById String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  createdBy       User               @relation("CircleCreator", fields: [createdById], references: [id])
+  members         CircleMember[]
+  contributions   Contribution[]
+  contributionPlans ContributionPlan[]
+  goals             Goal[]
+  goalAllocations   GoalAllocation[]
+  expenses          Expense[]
+  balances          Balance[]
+  settlements       Settlement[]
+  transactions      Transaction[]
+  notifications     Notification[]
+  invitations       Invitation[]
+  auditLogs         AuditLog[]          @relation("AuditLogCircle")
+  aiInsights        AIInsight[]         @relation("AIInsightCircle")
+  automationLogs    CircleAutomationLog[]
+  widgets           CircleWidget[]
+  expenseCategories ExpenseCategory[]
+  joinRequests      JoinRequest[]
+  wallets           Wallet[]
+  ledgerTransactions LedgerTransaction[]
+  approvalRules     WalletApprovalRule[]
+  approvalRequests  WalletApprovalRequest[]
+  payoutCycles      PayoutCycle[]
+  moderationReviews CircleModerationReview[]
+  supportTickets    SupportTicket[]
+  feedPosts         FeedPost[]
+  events            CircleEvent[]
+  polls             CirclePoll[]
+  verification      CircleVerification?
+  reputation        CircleReputation?
+  inviteEvents      CircleInviteEvent[]
+  investmentAssets  InvestmentAsset[]
+  investmentReturns InvestmentReturn[]
+  workflow          CircleWorkflow?
+  automationRules   CircleAutomationRule[]
+  paymentIntents    CirclePaymentIntent[]
+  projects          Project[]
+  projectExpenses   ProjectExpense[]
+  projectAssets     ProjectAsset[]
+  projectRevenues   ProjectRevenue[]
+  distributions     ProjectDistribution[]
+}
+
+model CircleMember {
+  id       String     @id @default(cuid())
+  circleId String
+  userId   String
+  role     MemberRole @default(MEMBER)
+  joinedAt DateTime   @default(now())
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([circleId, userId])
+}
+
+model Contribution {
+  id          String              @id @default(cuid())
+  circleId    String
+  userId      String
+  planId      String?
+  amount      Decimal             @db.Decimal(12, 2)
+  status      ContributionStatus  @default(PAID)
+  paymentDate DateTime            @default(now())
+  note        String?
+  createdById String
+  deletedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  circle    Circle            @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user      User              @relation("ContributionPayer", fields: [userId], references: [id])
+  plan      ContributionPlan? @relation(fields: [planId], references: [id])
+  createdBy User              @relation("ContributionRecorder", fields: [createdById], references: [id])
+  goalAllocations GoalAllocation[]
+
+  @@index([circleId])
+  @@index([userId])
+  @@index([planId])
+  @@index([createdAt])
+}
+
+enum ContributionFrequency {
+  WEEKLY
+  MONTHLY
+  ONCE_OFF
+  CUSTOM
+}
+
+enum ContributionStatus {
+  PAID
+  PENDING
+  OVERDUE
+  CANCELLED
+}
+
+model ContributionPlan {
+  id          String                @id @default(cuid())
+  circleId    String
+  name        String
+  description String?
+  amount      Decimal               @db.Decimal(12, 2)
+  frequency   ContributionFrequency @default(MONTHLY)
+  dueDay      Int?
+  startDate   DateTime
+  endDate     DateTime?
+  isActive    Boolean               @default(true)
+  deletedAt   DateTime?
+  createdById String
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  circle        Circle         @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy     User           @relation("ContributionPlanCreator", fields: [createdById], references: [id])
+  contributions Contribution[]
+
+  @@index([circleId])
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
+model Goal {
+  id            String     @id @default(cuid())
+  circleId      String
+  name          String
+  description   String?
+  targetAmount  Decimal    @db.Decimal(12, 2)
+  currentAmount Decimal    @default(0) @db.Decimal(12, 2)
+  deadline      DateTime?
+  deletedAt    DateTime?
+  status        GoalStatus @default(ACTIVE)
+  createdById   String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User   @relation(fields: [createdById], references: [id])
+  allocations GoalAllocation[]
+
+  @@index([circleId])
+}
+
+model GoalAllocation {
+  id             String   @id @default(cuid())
+  circleId       String
+  goalId         String
+  userId         String
+  contributionId String?
+  amount         Decimal  @db.Decimal(12, 2)
+  note           String?
+  allocationDate DateTime @default(now())
+  deletedAt      DateTime?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  circle       Circle        @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  goal         Goal          @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user         User          @relation("GoalAllocationReceiver", fields: [userId], references: [id])
+  contribution Contribution?  @relation(fields: [contributionId], references: [id])
+  createdBy    User          @relation("GoalAllocationCreator", fields: [createdById], references: [id])
+
+  @@index([circleId])
+  @@index([goalId])
+  @@index([userId])
+}
+
+enum SplitType {
+  EQUAL
+  PERCENTAGE
+  EXACT
+}
+
+model Expense {
+  id          String    @id @default(cuid())
+  circleId    String
+  paidById    String
+  createdById String
+  title       String
+  notes       String?
+  amount      Decimal   @db.Decimal(12, 2)
+  category    String    @default("other")
+  splitType   SplitType @default(EQUAL)
+  expenseDate DateTime  @default(now())
+  receiptUrl  String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  circle  Circle         @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  paidBy  User           @relation("ExpensePayer", fields: [paidById], references: [id])
+  createdBy User         @relation("ExpenseCreator", fields: [createdById], references: [id])
+  splits  ExpenseSplit[]
+
+  @@index([circleId])
+  @@index([createdAt])
+}
+
+model ExpenseSplit {
+  id         String    @id @default(cuid())
+  expenseId  String
+  userId     String
+  amount     Decimal   @db.Decimal(12, 2)
+  percentage Decimal?  @db.Decimal(5, 2)
+  settled    Boolean   @default(false)
+  settledAt  DateTime?
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([expenseId, userId])
+}
+
+model Balance {
+  id         String   @id @default(cuid())
+  circleId   String
+  debtorId   String
+  creditorId String
+  amount     Decimal  @db.Decimal(12, 2)
+  updatedAt  DateTime @updatedAt
+
+  circle   Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  debtor   User   @relation("Debtor", fields: [debtorId], references: [id])
+  creditor User   @relation("Creditor", fields: [creditorId], references: [id])
+
+  @@unique([circleId, debtorId, creditorId])
+  @@index([circleId])
+}
+
+enum SettlementStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+model Settlement {
+  id            String           @id @default(cuid())
+  circleId      String
+  debtorId      String
+  creditorId    String
+  amount        Decimal          @db.Decimal(12, 2)
+  note          String?
+  settlementDate DateTime        @default(now())
+  status        SettlementStatus @default(PENDING)
+  createdById   String
+  confirmedById String?
+  confirmedAt   DateTime?
+  deletedAt     DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  circle      Circle  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  debtor      User    @relation("SettlementDebtor", fields: [debtorId], references: [id])
+  creditor    User    @relation("SettlementCreditor", fields: [creditorId], references: [id])
+  createdBy   User    @relation("SettlementCreator", fields: [createdById], references: [id])
+  confirmedBy User?   @relation("SettlementConfirmer", fields: [confirmedById], references: [id])
+
+  @@index([circleId])
+  @@index([debtorId])
+  @@index([creditorId])
+}
+
+enum TransactionType {
+  CONTRIBUTION
+  EXPENSE
+  SETTLEMENT
+  WITHDRAWAL
+  GOAL_ALLOCATION
+}
+
+model Transaction {
+  id            String          @id @default(cuid())
+  circleId      String
+  type          TransactionType
+  amount        Decimal         @db.Decimal(12, 2)
+  description   String?
+  referenceId   String?
+  referenceType String?
+  initiatedById String
+  createdAt     DateTime        @default(now())
+
+  circle      Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  initiatedBy User   @relation(fields: [initiatedById], references: [id])
+
+  @@index([circleId])
+  @@index([initiatedById])
+}
+
+enum NotificationType {
+  INVITATION_RECEIVED
+  INVITATION_ACCEPTED
+  NEW_MEMBER_JOINED
+  CONTRIBUTION_MADE
+  CONTRIBUTION_PLAN_CREATED
+  CONTRIBUTION_REMINDER
+  EXPENSE_ADDED
+  SETTLEMENT_REQUESTED
+  SETTLEMENT_CONFIRMED
+  SETTLEMENT_REJECTED
+  GOAL_CREATED
+  GOAL_ALLOCATION_ADDED
+  GOAL_COMPLETED
+  GOAL_DEADLINE_REMINDER
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  circleId  String?
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+
+
+
+  user User @relation(fields: [userId], references: [id])
+  circle Circle? @relation(fields: [circleId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model Invitation {
+  id          String           @id @default(cuid())
+  circleId    String
+  email       String
+  invitedById String
+  status      InvitationStatus @default(PENDING)
+  token       String           @unique @default(cuid())
+  createdAt   DateTime         @default(now())
+  expiresAt   DateTime
+
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  invitedBy User   @relation("Inviter", fields: [invitedById], references: [id])
+
+  @@unique([circleId, email])
+}
+
+// ─── Subscription Models ──────────────────────────────────
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIALING
+  EXPIRED
+}
+
+model Plan {
+  id              String          @id @default(cuid())
+  name            String
+  slug            String          @unique
+  description     String
+  price           Decimal         @db.Decimal(10, 2)
+  currency        String          @default("ZAR")
+  interval        BillingInterval @default(MONTHLY)
+  circleLimit     Int             @default(3)
+  memberLimit     Int?
+  aiMessageLimit  Int?
+  storageLimitMb  Int?
+  supportLevel    String?
+  apiRequestLimit Int?
+  features        Json
+  isActive        Boolean         @default(true)
+  sortOrder       Int             @default(0)
+  isArchived      Boolean         @default(false)
+  isPublic        Boolean         @default(true)
+  trialDays       Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  subscriptions       UserSubscription[]
+  paymentTransactions PaymentTransaction[]
+  planFeatures        PlanFeature[]
+}
+
+enum PlanFeatureValueType {
+  BOOLEAN
+  NUMBER
+  STRING
+  JSON
+}
+
+model PlanFeature {
+  id         String               @id @default(cuid())
+  planId     String
+  key        String
+  label      String
+  value      Json
+  valueType  PlanFeatureValueType @default(BOOLEAN)
+  isEnabled  Boolean              @default(true)
+  sortOrder  Int                  @default(0)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, key])
+}
+
+model UserSubscription {
+  id                 String             @id @default(cuid())
+  userId             String
+  planId             String
+  status             SubscriptionStatus @default(TRIALING)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+  transactions PaymentTransaction[]
+  promoRedemptions PromoRedemption[]
+
+  @@unique([userId])
+}
+
+// ─── Payment Models ───────────────────────────────────────
+
+enum PaymentProvider {
+  PAYFAST
+  OZOW
+  STITCH
+  PEACH
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+model PaymentTransaction {
+  id                String          @id @default(cuid())
+  userId            String
+  subscriptionId    String?
+  planId            String
+  provider          PaymentProvider
+  providerReference String?
+  merchantReference String          @unique
+  amount            Decimal         @db.Decimal(10, 2)
+  currency          String          @default("ZAR")
+  status            PaymentStatus   @default(PENDING)
+  metadata          Json?
+  paidAt            DateTime?
+  failedAt          DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id])
+  plan         Plan               @relation(fields: [planId], references: [id])
+  subscription UserSubscription?  @relation(fields: [subscriptionId], references: [id])
+  promoRedemptions PromoRedemption[]
+
+  @@index([userId])
+  @@index([merchantReference])
+}
+
+// ─── Internal Admin ───────────────────────────────────────
+
+enum InternalAdminRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT
+  FINANCE
+}
+
+model InternalAdmin {
+  id          String             @id @default(cuid())
+  userId      String             @unique
+  role        InternalAdminRole  @default(ADMIN)
+  isActive    Boolean            @default(true)
+  permissions Json?
+  lastLoginAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Audit Logs ──────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  circleId   String?
+  action     String
+  entityType String
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user   User?   @relation(fields: [userId], references: [id])
+  circle Circle? @relation("AuditLogCircle", fields: [circleId], references: [id])
+
+  @@index([circleId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─── Projects ─────────────────────────────────────────────
+
+enum ProjectStatus {
+  DRAFT
+  FUNDING
+  FUNDED
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum ProjectVisibility {
+  PRIVATE
+  MEMBERS_ONLY
+}
+
+model Project {
+  id                    String           @id @default(cuid())
+  circleId              String
+  createdById           String
+  name                  String
+  slug                  String
+  description           String?
+  type                  String           @default("general")
+  status                ProjectStatus    @default(DRAFT)
+  visibility            ProjectVisibility @default(MEMBERS_ONLY)
+  targetAmount          Decimal?         @db.Decimal(12, 2)
+  currentAmount         Decimal          @default(0) @db.Decimal(12, 2)
+  startDate             DateTime?
+  targetCompletionDate  DateTime?
+  completedAt           DateTime?
+  coverImage            String?
+  color                 String?
+  settings              Json?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  circle     Circle             @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy  User               @relation("ProjectCreator", fields: [createdById], references: [id])
+  activities ProjectActivity[]
+  fundingRounds ProjectFundingRound[]
+  projectContributions ProjectContribution[]
+  expenses            ProjectExpense[]
+  assets              ProjectAsset[]
+  revenues            ProjectRevenue[]
+  distributions       ProjectDistribution[]
+
+  @@unique([circleId, slug])
+  @@index([circleId])
+}
+
+model ProjectActivity {
+  id          String   @id @default(cuid())
+  projectId   String
+  userId      String?
+  type        String
+  title       String
+  description String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+// ─── AI Insights ─────────────────────────────────────────
+
+enum AIInsightType {
+  CONTRIBUTION_PATTERN
+  GOAL_FORECAST
+  SPENDING_PATTERN
+  MEMBER_RISK
+  SAVINGS_OPPORTUNITY
+  GENERAL
+}
+
+enum AIInsightSeverity {
+  INFO
+  WARNING
+  SUCCESS
+  CRITICAL
+}
+
+model AIInsight {
+  id        String             @id @default(cuid())
+  circleId  String
+  type      AIInsightType
+  title     String
+  content   String
+  severity  AIInsightSeverity  @default(INFO)
+  metadata  Json?
+  isRead    Boolean            @default(false)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  circle Circle @relation("AIInsightCircle", fields: [circleId], references: [id], onDelete: Cascade)
+
+  @@index([circleId])
+}
+
+// ─── Template Automation ─────────────────────────────────
+
+enum AutomationStatus {
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+model CircleAutomationLog {
+  id        String           @id @default(cuid())
+  circleId  String
+  type      String
+  action    String
+  status    AutomationStatus
+  message   String
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  @@index([circleId])
+}
+
+// ─── Circle Widgets ──────────────────────────────────────
+
+enum CircleWidgetType {
+  CONTRIBUTION_SUMMARY
+  GOAL_PROGRESS
+  EXPENSE_SUMMARY
+  BALANCE_SUMMARY
+  PAYOUT_TRACKER
+  COUNTDOWN
+  RENT_DUE
+  BUDGET_TRACKER
+  SAVINGS_FORECAST
+  PORTFOLIO_PLACEHOLDER
+  PROJECT_PROGRESS
+}
+
+model CircleWidget {
+  id          String           @id @default(cuid())
+  circleId    String
+  type        CircleWidgetType
+  title       String
+  description String?
+  config      Json?
+  sortOrder   Int              @default(0)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  @@index([circleId])
+}
+
+// ─── Expense Categories ──────────────────────────────────
+
+model ExpenseCategory {
+  id        String    @id @default(cuid())
+  circleId  String
+  name      String
+  icon      String?
+  color     String?
+  isDefault Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  @@index([circleId])
+}
+
+// ─── Join Requests ───────────────────────────────────────
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model JoinRequest {
+  id           String           @id @default(cuid())
+  circleId     String
+  userId       String
+  message      String?
+  answers      Json?
+  status       JoinRequestStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  circle     Circle  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user       User    @relation("JoinRequestUser", fields: [userId], references: [id])
+  reviewedBy User?   @relation("JoinRequestReviewer", fields: [reviewedById], references: [id])
+
+  @@unique([circleId, userId])
+  @@index([circleId])
+  @@index([createdAt])
+}
+
+// ─── Circle Invite Events ──────────────────────────────────
+
+enum CircleInviteEventType {
+  VIEWED
+  JOINED
+  REQUESTED
+  INVALID_ATTEMPT
+  REGENERATED
+  DISABLED
+  ENABLED
+  SHARED
+  COPIED
+}
+
+model CircleInviteEvent {
+  id         String                 @id @default(cuid())
+  circleId   String
+  inviteCode String
+  userId     String?
+  eventType  CircleInviteEventType
+  metadata   Json?
+  createdAt  DateTime               @default(now())
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+
+  @@index([circleId])
+  @@index([inviteCode])
+}
+
+// ─── Wallet & Ledger ──────────────────────────────────────
+//
+// DESIGN RULES:
+// 1. LedgerEntry is IMMUTABLE — never UPDATE or DELETE
+// 2. LedgerAccount has NO stored balance — always computed from entries
+// 3. Reversals = new LedgerTransaction + new LedgerEntries (never edit originals)
+// 4. Balance = SUM(CREDIT) - SUM(DEBIT) for each account, computed at read time
+
+enum WalletType {
+  USER_WALLET
+  CIRCLE_WALLET
+  PLATFORM_HOLDING
+  PROVIDER_HOLDING
+}
+
+enum WalletStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum LedgerAccountType {
+  CONTRIBUTIONS
+  PAYOUTS
+  EXPENSES
+  SETTLEMENTS
+  FEES
+  ADJUSTMENTS
+  INVESTMENTS
+  RETURNS
+  INCOME
+}
+
+enum LedgerEntryType {
+  DEBIT
+  CREDIT
+}
+
+model Wallet {
+  id        String       @id @default(cuid())
+  circleId  String?
+  userId    String?
+  type      WalletType
+  status    WalletStatus  @default(ACTIVE)
+  name      String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  circle  Circle?  @relation(fields: [circleId], references: [id])
+  user    User?    @relation("WalletUser", fields: [userId], references: [id])
+  accounts LedgerAccount[]
+  transactions WalletTransaction[]
+
+  @@index([circleId])
+  @@index([userId])
+}
+
+// LedgerAccount — NO balance field. Balance is computed from LedgerEntry rows.
+model LedgerAccount {
+  id        String            @id @default(cuid())
+  walletId  String
+  name      String
+  type      LedgerAccountType
+  isActive  Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  wallet  Wallet         @relation(fields: [walletId], references: [id])
+  entries LedgerEntry[]
+
+  @@index([walletId])
+}
+
+// LedgerTransaction: groups balanced entries. Sum of debits = sum of credits.
+model LedgerTransaction {
+  id              String          @id @default(cuid())
+  circleId        String
+  amount          Decimal         @db.Decimal(12, 2)
+  type            String          // CONTRIBUTION, PAYOUT, EXPENSE, SETTLEMENT, FEE, REVERSAL
+  status          String          @default("PENDING") // PENDING, CONFIRMED, REVERSED
+  idempotencyKey  String?         @unique
+  metadata        Json?
+  createdAt       DateTime        @default(now())
+
+  circle      Circle              @relation(fields: [circleId], references: [id])
+  entries     LedgerEntry[]
+  walletTxs   WalletTransaction[]
+
+  @@index([circleId])
+}
+
+// LedgerEntry: IMMUTABLE. Never UPDATE or DELETE. Creates audit trail.
+model LedgerEntry {
+  id            String          @id @default(cuid())
+  accountId     String
+  txId          String
+  type          LedgerEntryType
+  amount        Decimal         @db.Decimal(12, 2)
+  description   String?
+  createdAt     DateTime        @default(now())
+
+  account     LedgerAccount      @relation(fields: [accountId], references: [id])
+  transaction LedgerTransaction  @relation(fields: [txId], references: [id])
+
+  @@index([accountId])
+  @@index([txId])
+}
+
+// WalletTransaction: user-facing record linked to underlying ledger
+model WalletTransaction {
+  id              String    @id @default(cuid())
+  walletId        String
+  ledgerTxId      String
+  type            String    // TOPUP, PAYOUT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT
+  amount          Decimal   @db.Decimal(12, 2)
+  status          String    @default("PENDING") // PENDING, CONFIRMED, FAILED, CANCELLED
+  description     String?
+  initiatedById   String
+  providerRef     String?
+  idempotencyKey  String?   @unique
+  createdAt       DateTime  @default(now())
+
+  wallet      Wallet              @relation(fields: [walletId], references: [id])
+  ledgerTx    LedgerTransaction   @relation(fields: [ledgerTxId], references: [id])
+  initiatedBy User                @relation("WalletTxInitiator", fields: [initiatedById], references: [id])
+  approvalRequests WalletApprovalRequest[]
+
+  @@index([walletId])
+  @@index([createdAt])
+}
+
+// WalletApprovalRule: defines required approvers for wallet actions
+model WalletApprovalRule {
+  id                    String    @id @default(cuid())
+  circleId              String
+  action                String    // WITHDRAWAL, PAYOUT, EXPENSE_OVER
+  threshold             Decimal   @db.Decimal(12, 2)
+  requiredApprovalCount Int       @default(1)
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+
+  circle Circle @relation(fields: [circleId], references: [id])
+
+  @@index([circleId])
+}
+
+model WalletApprovalRequest {
+  id              String   @id @default(cuid())
+  circleId        String
+  walletTxId      String
+  requestedById   String
+  requiredCount   Int      @default(1)
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  circle      Circle              @relation(fields: [circleId], references: [id])
+  walletTx    WalletTransaction   @relation(fields: [walletTxId], references: [id])
+  requestedBy User                @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  approvals   WalletApproval[]
+
+  @@index([circleId])
+}
+
+model WalletApproval {
+  id           String   @id @default(cuid())
+  requestId    String
+  approvedById String
+  approvedAt   DateTime @default(now())
+
+  request    WalletApprovalRequest @relation(fields: [requestId], references: [id])
+  approvedBy User                  @relation("ApprovalApprover", fields: [approvedById], references: [id])
+}
+
+// ─── Payout Cycles (Stokvel Rotation) ───────────────────
+
+enum PayoutCycleStatus {
+  UPCOMING
+  READY
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+model PayoutCycle {
+  id          String           @id @default(cuid())
+  circleId    String
+  cycleNumber Int
+  recipientId String
+  amount      Decimal          @db.Decimal(12, 2)
+  dueDate     DateTime?
+  status      PayoutCycleStatus @default(UPCOMING)
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  recipient User   @relation("PayoutRecipient", fields: [recipientId], references: [id])
+
+  @@unique([circleId, cycleNumber])
+  @@index([circleId])
+}
+
+// ─── Community Feed ──────────────────────────────────────
+
+enum FeedPostType {
+  ANNOUNCEMENT
+  UPDATE
+  CONTRIBUTION
+  GOAL
+  PAYOUT
+  EVENT
+  SYSTEM
+}
+
+model FeedPost {
+  id        String       @id @default(cuid())
+  circleId   String
+  authorId  String
+  type      FeedPostType @default(UPDATE)
+  title     String?
+  content   String
+  metadata  Json?
+  isPinned  Boolean      @default(false)
+  deletedAt DateTime?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  circle    Circle         @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  author    User           @relation("FeedPostAuthor", fields: [authorId], references: [id])
+  comments  FeedComment[]
+  reactions FeedReaction[]
+
+  @@index([circleId, createdAt])
+  @@index([authorId])
+}
+
+model FeedComment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User     @relation("FeedCommentUser", fields: [userId], references: [id])
+
+  @@index([postId, createdAt])
+}
+
+model FeedReaction {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  post FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User     @relation("FeedReactionUser", fields: [userId], references: [id])
+
+  @@unique([postId, userId, emoji])
+}
+
+// ─── Events & RSVPs ──────────────────────────────────────
+
+enum CircleEventType {
+  MEETING
+  CONTRIBUTION_DAY
+  PAYOUT_DAY
+  FUNDRAISER
+  TRIP
+  CEREMONY
+  GENERAL
+}
+
+enum CircleEventStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+}
+
+enum CircleEventRSVPStatus {
+  GOING
+  MAYBE
+  NOT_GOING
+}
+
+model CircleEvent {
+  id           String           @id @default(cuid())
+  circleId     String
+  createdById  String
+  title        String
+  description  String?
+  type         CircleEventType  @default(GENERAL)
+  startAt      DateTime
+  endAt        DateTime?
+  location     String?
+  isOnline     Boolean          @default(false)
+  meetingLink  String?
+  agenda       String?
+  notes        String?
+  status       CircleEventStatus @default(UPCOMING)
+  deletedAt    DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  circle  Circle          @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User          @relation("EventCreator", fields: [createdById], references: [id])
+  rsvps    CircleEventRSVP[]
+
+  @@index([circleId])
+}
+
+model CircleEventRSVP {
+  id        String               @id @default(cuid())
+  eventId   String
+  userId    String
+  status    CircleEventRSVPStatus @default(GOING)
+  note      String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  event CircleEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User        @relation("RSVPUser", fields: [userId], references: [id])
+
+  @@unique([eventId, userId])
+}
+
+// ─── Polls & Voting ──────────────────────────────────────
+
+enum CirclePollType {
+  YES_NO
+  MULTIPLE_CHOICE
+  APPROVAL
+}
+
+enum CirclePollStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+model CirclePoll {
+  id          String           @id @default(cuid())
+  circleId    String
+  createdById String
+  title       String
+  description String?
+  type        CirclePollType   @default(YES_NO)
+  status      CirclePollStatus @default(OPEN)
+  closesAt    DateTime?
+  isAnonymous Boolean          @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  circle    Circle             @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User               @relation("PollCreator", fields: [createdById], references: [id])
+  options   CirclePollOption[]
+  votes     CirclePollVote[]
+
+  @@index([circleId])
+}
+
+model CirclePollOption {
+  id        String   @id @default(cuid())
+  pollId    String
+  text      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  poll  CirclePoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes CirclePollVote[]
+
+  @@index([pollId])
+}
+
+model CirclePollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  optionId  String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  poll   CirclePoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option CirclePollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User             @relation("PollVoter", fields: [userId], references: [id])
+
+  @@unique([pollId, userId])
+}
+
+// ─── Reputation & Verification ──────────────────────────
+
+enum CircleVerificationStatus {
+  NOT_SUBMITTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model CircleVerification {
+  id           String                   @id @default(cuid())
+  circleId     String                   @unique
+  status       CircleVerificationStatus @default(NOT_SUBMITTED)
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  reviewedById String?
+  notes        String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  circle     Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  reviewedBy User?  @relation("VerificationReviewer", fields: [reviewedById], references: [id])
+
+  @@index([status])
+}
+
+model CircleReputation {
+  id                   String   @id @default(cuid())
+  circleId             String   @unique
+  score                Int      @default(0)
+  memberCount          Int      @default(0)
+  contributionCompliance Int    @default(0)
+  goalCompletionRate   Int      @default(0)
+  payoutCompletionRate Int      @default(0)
+  eventParticipationRate Int    @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+}
+
+// ─── Owner Notes ─────────────────────────────────────────
+
+model OwnerNote {
+  id         String   @id @default(cuid())
+  adminId    String
+  targetType String   // USER, CIRCLE, SUBSCRIPTION, PAYMENT, WALLET, OTHER
+  targetId   String
+  note       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  admin User @relation("OwnerNoteAdmin", fields: [adminId], references: [id])
+
+  @@index([targetType, targetId])
+}
+
+// ─── Moderation ──────────────────────────────────────────
+
+enum CircleModerationStatus {
+  OPEN
+  REVIEWED
+  ESCALATED
+  DISMISSED
+}
+
+enum CircleModerationSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model CircleModerationReview {
+  id          String                   @id @default(cuid())
+  circleId    String
+  reviewedById String
+  status      CircleModerationStatus   @default(OPEN)
+  reason      String
+  severity    CircleModerationSeverity @default(LOW)
+  notes       String?
+  reviewedAt  DateTime                 @default(now())
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  circle     Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  reviewedBy User   @relation("ModerationReviewer", fields: [reviewedById], references: [id])
+
+  @@index([circleId])
+}
+
+// ─── Snapshot Caching ────────────────────────────────────
+
+model DashboardSnapshot {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  data      Json
+  stale     Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model CircleSnapshot {
+  id        String   @id @default(cuid())
+  circleId  String   @unique
+  data      Json
+  stale     Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model OwnerSnapshot {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  data      Json
+  stale     Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+// ─── Bulk Operations ─────────────────────────────────────
+
+enum BulkOperationType {
+  EXPORT
+  FEATURE
+  UNFEATURE
+  DEACTIVATE
+  REACTIVATE
+  RECALCULATE
+  SEND_MESSAGE
+  CHANGE_PLAN
+}
+
+enum BulkOperationTarget {
+  USER
+  CIRCLE
+}
+
+enum BulkOperationStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+model BulkOperation {
+  id           String              @id @default(cuid())
+  adminId      String
+  type         BulkOperationType
+  target       BulkOperationTarget
+  status       BulkOperationStatus @default(PENDING)
+  filters      Json?
+  targetCount  Int                 @default(0)
+  successCount Int                 @default(0)
+  failedCount  Int                 @default(0)
+  metadata     Json?
+  createdAt    DateTime            @default(now())
+  completedAt  DateTime?
+
+  admin User @relation("BulkOpAdmin", fields: [adminId], references: [id])
+}
+
+// ─── Platform Settings ───────────────────────────────────
+
+enum PlatformSettingType {
+  STRING
+  BOOLEAN
+  NUMBER
+  JSON
+}
+
+model PlatformSetting {
+  id          String              @id @default(cuid())
+  key         String              @unique
+  value       Json
+  type        PlatformSettingType @default(STRING)
+  description String?
+  isPublic    Boolean             @default(false)
+  updatedById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  updatedBy User? @relation("PlatformSettingUpdater", fields: [updatedById], references: [id])
+}
+
+model FeatureFlag {
+  id                String   @id @default(cuid())
+  key               String   @unique
+  name              String
+  description       String?
+  isEnabled         Boolean  @default(false)
+  rolloutPercentage Int      @default(100)
+  targetPlans       Json?
+  targetCountries   Json?
+  updatedById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  updatedBy User? @relation("FeatureFlagUpdater", fields: [updatedById], references: [id])
+}
+
+// ─── Promo Codes ─────────────────────────────────────────
+
+enum PromoDiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_TRIAL_DAYS
+}
+
+model PromoCode {
+  id              String            @id @default(cuid())
+  code            String            @unique
+  name            String
+  description     String?
+  discountType    PromoDiscountType
+  discountValue   Decimal           @db.Decimal(10, 2)
+  maxRedemptions  Int?
+  redemptionCount Int               @default(0)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  isActive        Boolean           @default(true)
+  appliesToPlanIds Json?
+  createdById     String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  createdBy    User              @relation("PromoCreator", fields: [createdById], references: [id])
+  redemptions  PromoRedemption[]
+
+  @@index([code])
+}
+
+model PromoRedemption {
+  id             String   @id @default(cuid())
+  promoCodeId    String
+  userId         String
+  subscriptionId String?
+  paymentId      String?
+  redeemedAt     DateTime @default(now())
+  metadata       Json?
+
+  promoCode  PromoCode        @relation(fields: [promoCodeId], references: [id])
+  user       User             @relation("PromoUser", fields: [userId], references: [id])
+  subscription UserSubscription? @relation(fields: [subscriptionId], references: [id])
+  payment     PaymentTransaction? @relation(fields: [paymentId], references: [id])
+
+  @@index([promoCodeId])
+  @@index([userId])
+}
+
+// ─── Platform Broadcasts ─────────────────────────────────
+
+enum PlatformBroadcastType {
+  ANNOUNCEMENT
+  MAINTENANCE
+  FEATURE_UPDATE
+  BILLING
+  SECURITY
+  PROMOTION
+}
+
+enum PlatformBroadcastTarget {
+  ALL_USERS
+  FREE_USERS
+  PREMIUM_USERS
+  COMMUNITY_USERS
+  COUNTRY
+  CIRCLE_TYPE
+  VERIFIED_CIRCLES
+  PUBLIC_CIRCLES
+}
+
+enum PlatformBroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+  CANCELLED
+}
+
+model PlatformBroadcast {
+  id             String                  @id @default(cuid())
+  createdById    String
+  title          String
+  message        String
+  type           PlatformBroadcastType   @default(ANNOUNCEMENT)
+  target         PlatformBroadcastTarget
+  targetFilters  Json?
+  status         PlatformBroadcastStatus @default(DRAFT)
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  recipientCount Int                     @default(0)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  createdBy  User                        @relation("BroadcastCreator", fields: [createdById], references: [id])
+  recipients PlatformBroadcastRecipient[]
+}
+
+model PlatformBroadcastRecipient {
+  id          String   @id @default(cuid())
+  broadcastId String
+  userId      String
+  deliveredAt DateTime?
+  readAt      DateTime?
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+
+  broadcast PlatformBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  user      User              @relation("BroadcastRecipient", fields: [userId], references: [id])
+
+  @@unique([broadcastId, userId])
+}
+
+// ─── Support Tickets ─────────────────────────────────────
+
+enum SupportTicketCategory {
+  BUG
+  FEATURE_REQUEST
+  BILLING
+  ACCOUNT
+  CIRCLE
+  PAYMENT
+  WALLET
+  OTHER
+}
+
+enum SupportTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_USER
+  RESOLVED
+  CLOSED
+}
+
+model SupportTicket {
+  id           String               @id @default(cuid())
+  ticketNumber String               @unique
+  userId       String
+  circleId     String?
+  subject      String
+  message      String
+  category     SupportTicketCategory
+  priority     SupportTicketPriority @default(MEDIUM)
+  status       SupportTicketStatus   @default(OPEN)
+  assignedToId String?
+  resolvedAt   DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  user       User                  @relation("TicketCreator", fields: [userId], references: [id])
+  circle     Circle?               @relation(fields: [circleId], references: [id])
+  messages   SupportTicketMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([ticketNumber])
+}
+
+model SupportTicketMessage {
+  id              String   @id @default(cuid())
+  ticketId        String
+  senderId        String
+  message         String
+  isInternalNote  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User          @relation("TicketMessageSender", fields: [senderId], references: [id])
+
+  @@index([ticketId])
+}
+
+// ─── Fraud & Abuse ───────────────────────────────────────
+
+enum AbuseReportTargetType {
+  USER
+  CIRCLE
+  FEED_POST
+  EVENT
+  POLL
+  PAYMENT
+  WALLET
+}
+
+enum AbuseReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum RiskSignalType {
+  LOW_REPUTATION
+  RAPID_MEMBER_GROWTH
+  MANY_JOIN_REJECTIONS
+  MANY_PENDING_REQUESTS
+  LARGE_WALLET_MOVEMENT
+  MULTIPLE_FAILED_PAYMENTS
+  INACTIVE_PUBLIC_CIRCLE
+  SUSPICIOUS_PROMO_USAGE
+  SPAM_ACTIVITY
+  MANUAL_FLAG
+}
+
+enum RiskSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model AbuseReport {
+  id           String             @id @default(cuid())
+  reporterId   String
+  targetType   AbuseReportTargetType
+  targetId     String
+  reason       String
+  description  String?
+  status       AbuseReportStatus  @default(OPEN)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  reporter   User  @relation("AbuseReporter", fields: [reporterId], references: [id])
+  reviewedBy User? @relation("AbuseReviewer", fields: [reviewedById], references: [id])
+
+  @@index([status])
+}
+
+model RiskSignal {
+  id         String         @id @default(cuid())
+  targetType String
+  targetId   String
+  signalType RiskSignalType
+  severity   RiskSeverity   @default(MEDIUM)
+  score      Int            @default(0)
+  metadata   Json?
+  createdAt  DateTime       @default(now())
+
+  @@index([targetType, targetId])
+  @@index([severity])
+}
+
+// ─── Investment Tracking ──────────────────────────────────
+
+enum InvestmentAssetType {
+  STOCK
+  BOND
+  REAL_ESTATE
+  CRYPTO
+  CASH
+  OTHER
+}
+
+model InvestmentAsset {
+  id            String               @id @default(cuid())
+  circleId      String
+  name          String
+  type          InvestmentAssetType  @default(OTHER)
+  purchaseAmount Decimal             @db.Decimal(12, 2)
+  currentValue   Decimal             @db.Decimal(12, 2)
+  purchaseDate   DateTime?
+  notes         String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  circle  Circle             @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  returns InvestmentReturn[]
+
+  @@index([circleId])
+}
+
+model InvestmentReturn {
+  id         String    @id @default(cuid())
+  circleId   String
+  assetId    String?
+  amount     Decimal   @db.Decimal(12, 2)
+  returnType String    @default("DIVIDEND")
+  returnDate DateTime?
+  notes      String?
+  createdAt  DateTime  @default(now())
+
+  circle Circle           @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  asset  InvestmentAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([circleId])
+}
+
+// ─── Circle Workflows ─────────────────────────────────────
+
+enum CircleWorkflowType {
+  STOKVEL
+  INVESTMENT
+  HOUSEMATE
+  TRAVEL
+  SAVINGS
+  WEDDING
+  CHURCH
+  FAMILY
+  CUSTOM
+}
+
+enum CircleWorkflowStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum CircleWorkflowStepStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  SKIPPED
+}
+
+enum CircleWorkflowEventType {
+  WORKFLOW_CREATED
+  STEP_STARTED
+  STEP_COMPLETED
+  STEP_SKIPPED
+  STEP_BLOCKED
+  CYCLE_STARTED
+  CYCLE_COMPLETED
+  NOTE_ADDED
+}
+
+model CircleWorkflow {
+  id             String               @id @default(cuid())
+  circleId       String               @unique
+  type           CircleWorkflowType
+  status         CircleWorkflowStatus @default(ACTIVE)
+  currentStep    String?
+  currentCycleId String?
+  metadata       Json?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  circle Circle              @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  steps  CircleWorkflowStep[]
+  events CircleWorkflowEvent[]
+}
+
+model CircleWorkflowStep {
+  id            String                   @id @default(cuid())
+  workflowId    String
+  key           String
+  title         String
+  description   String
+  status        CircleWorkflowStepStatus @default(TODO)
+  sortOrder     Int                      @default(0)
+  dueAt         DateTime?
+  completedAt   DateTime?
+  completedById String?
+  metadata      Json?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  workflow    CircleWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  completedBy User?          @relation("WorkflowStepCompleter", fields: [completedById], references: [id])
+  events      CircleWorkflowEvent[]
+
+  @@unique([workflowId, key])
+}
+
+model CircleWorkflowEvent {
+  id         String                   @id @default(cuid())
+  workflowId String
+  stepId     String?
+  userId     String?
+  eventType  CircleWorkflowEventType
+  message    String
+  metadata   Json?
+  createdAt  DateTime                 @default(now())
+
+  workflow CircleWorkflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  step     CircleWorkflowStep?  @relation(fields: [stepId], references: [id], onDelete: SetNull)
+
+  @@index([workflowId])
+}
+
+// ─── Circle Automation ────────────────────────────────────
+
+enum CircleAutomationRuleType {
+  CONTRIBUTION_REMINDER
+  OVERDUE_REMINDER
+  WORKFLOW_STEP_REMINDER
+  PAYOUT_REMINDER
+  MONTHLY_CYCLE_RESET
+  REPORT_GENERATION
+  EVENT_REMINDER
+  CUSTOM
+}
+
+enum CircleAutomationTriggerType {
+  DATE
+  DAYS_BEFORE_DUE
+  DAYS_AFTER_DUE
+  WORKFLOW_STEP_STARTED
+  WORKFLOW_STEP_COMPLETED
+  MONTHLY
+  WEEKLY
+  MANUAL
+}
+
+enum CircleAutomationActionType {
+  SEND_NOTIFICATION
+  CREATE_TASK
+  ADVANCE_WORKFLOW
+  RESET_WORKFLOW
+  GENERATE_REPORT
+  CREATE_FEED_POST
+  CUSTOM
+}
+
+enum CircleAutomationRunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+model CircleAutomationRule {
+  id            String                       @id @default(cuid())
+  circleId      String
+  type          CircleAutomationRuleType
+  name          String
+  description   String?
+  isEnabled     Boolean                      @default(true)
+  triggerType   CircleAutomationTriggerType
+  triggerConfig Json
+  actionType    CircleAutomationActionType
+  actionConfig  Json
+  lastRunAt     DateTime?
+  nextRunAt     DateTime?
+  createdById   String?
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+
+  circle Circle       @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  runs   CircleAutomationRun[]
+
+  @@index([circleId])
+}
+
+model CircleAutomationRun {
+  id          String                     @id @default(cuid())
+  ruleId      String
+  circleId    String
+  status      CircleAutomationRunStatus  @default(PENDING)
+  startedAt   DateTime                   @default(now())
+  completedAt DateTime?
+  message     String?
+  metadata    Json?
+
+  rule   CircleAutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([circleId])
+}
+
+// ─── Circle Payment Intents ───────────────────────────────
+
+enum CirclePaymentIntentType {
+  CONTRIBUTION
+  EXPENSE_SHARE
+  SETTLEMENT
+  PAYOUT
+  INVESTMENT_DUE
+  SAVINGS_DUE
+  HOUSEMATE_RENT
+  TRAVEL_SAVING
+  CUSTOM
+}
+
+enum CirclePaymentIntentStatus {
+  PENDING
+  PROOF_SUBMITTED
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  OVERDUE
+}
+
+model CirclePaymentIntent {
+  id                      String                       @id @default(cuid())
+  circleId                String
+  userId                  String
+  type                    CirclePaymentIntentType
+  amount                  Decimal                      @db.Decimal(12, 2)
+  currency                String                       @default("ZAR")
+  status                  CirclePaymentIntentStatus    @default(PENDING)
+  reference               String?
+  relatedContributionId   String?
+  relatedExpenseId        String?
+  relatedSettlementId     String?
+  relatedPayoutId         String?
+  dueDate                 DateTime?
+  proofUrl                String?
+  proofReference          String?
+  confirmedById           String?
+  confirmedAt             DateTime?
+  rejectedById            String?
+  rejectedAt              DateTime?
+  metadata                Json?
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime                     @updatedAt
+
+  circle      Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user        User   @relation("PaymentIntentUser", fields: [userId], references: [id])
+  confirmedBy User?  @relation("PaymentIntentConfirmer", fields: [confirmedById], references: [id])
+
+  @@index([circleId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─── Project Funding ──────────────────────────────────────
+
+enum ProjectFundingRoundStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum ProjectContributionStatus {
+  PENDING
+  PROOF_SUBMITTED
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+model ProjectFundingRound {
+  id            String                      @id @default(cuid())
+  projectId     String
+  createdById   String
+  name          String
+  description   String?
+  targetAmount  Decimal                     @db.Decimal(12, 2)
+  currentAmount Decimal                     @default(0) @db.Decimal(12, 2)
+  status        ProjectFundingRoundStatus   @default(DRAFT)
+  opensAt       DateTime?
+  closesAt      DateTime?
+  dueDate       DateTime?
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  project       Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy     User                  @relation("FundingRoundCreator", fields: [createdById], references: [id])
+  contributions ProjectContribution[]
+
+  @@index([projectId])
+}
+
+model ProjectContribution {
+  id              String                     @id @default(cuid())
+  projectId       String
+  fundingRoundId  String?
+  userId          String
+  amount          Decimal                    @db.Decimal(12, 2)
+  currency        String                     @default("ZAR")
+  status          ProjectContributionStatus  @default(PENDING)
+  proofReference  String?
+  proofUrl        String?
+  confirmedAt     DateTime?
+  confirmedById   String?
+  rejectedAt      DateTime?
+  rejectedById    String?
+  rejectionReason String?
+  metadata        Json?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fundingRound ProjectFundingRound? @relation(fields: [fundingRoundId], references: [id], onDelete: SetNull)
+  user         User                 @relation("ProjectContributor", fields: [userId], references: [id])
+  confirmedBy  User?                @relation("ProjectContributionConfirmer", fields: [confirmedById], references: [id])
+
+  @@index([projectId])
+  @@index([userId])
+}
+
+// ─── Project Expenses ─────────────────────────────────────
+
+enum ProjectExpenseStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+enum ProjectExpenseCategory {
+  LEGAL
+  LABOUR
+  MATERIALS
+  TRANSPORT
+  ADMIN
+  MARKETING
+  PROFESSIONAL_FEES
+  EQUIPMENT
+  RENT
+  UTILITIES
+  OTHER
+}
+
+model ProjectExpense {
+  id              String                  @id @default(cuid())
+  projectId       String
+  circleId        String
+  createdById     String
+  approvedById    String?
+  paidById        String?
+  title           String
+  description     String?
+  category        ProjectExpenseCategory  @default(OTHER)
+  amount          Decimal                 @db.Decimal(12, 2)
+  currency        String                  @default("ZAR")
+  status          ProjectExpenseStatus    @default(DRAFT)
+  expenseDate     DateTime?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  receiptUrl      String?
+  vendorName      String?
+  reference       String?
+  metadata        Json?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  circle     Circle  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy  User    @relation("ProjectExpenseCreator", fields: [createdById], references: [id])
+  approvedBy User?   @relation("ProjectExpenseApprover", fields: [approvedById], references: [id])
+  paidBy     User?   @relation("ProjectExpensePayer", fields: [paidById], references: [id])
+
+  @@index([projectId])
+}
+
+// ─── Project Assets & Revenue ─────────────────────────────
+
+enum ProjectAssetType {
+  PROPERTY
+  VEHICLE
+  EQUIPMENT
+  STOCK
+  CRYPTO
+  BUSINESS
+  LAND
+  OTHER
+}
+
+enum ProjectAssetStatus {
+  PLANNED
+  PURCHASED
+  ACTIVE
+  SOLD
+  DISPOSED
+}
+
+enum ProjectRevenueType {
+  SALE
+  RENTAL_INCOME
+  DIVIDEND
+  INTEREST
+  SERVICE_INCOME
+  REFUND
+  OTHER
+}
+
+model ProjectAsset {
+  id             String              @id @default(cuid())
+  projectId      String
+  circleId       String
+  createdById    String
+  name           String
+  description    String?
+  type           ProjectAssetType    @default(OTHER)
+  status         ProjectAssetStatus  @default(PLANNED)
+  purchaseAmount Decimal?            @db.Decimal(12, 2)
+  currentValue   Decimal?            @db.Decimal(12, 2)
+  saleValue      Decimal?            @db.Decimal(12, 2)
+  purchaseDate   DateTime?
+  soldAt         DateTime?
+  notes          String?
+  metadata       Json?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  circle    Circle           @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User             @relation("ProjectAssetCreator", fields: [createdById], references: [id])
+  revenues  ProjectRevenue[]
+
+  @@index([projectId])
+}
+
+model ProjectRevenue {
+  id          String             @id @default(cuid())
+  projectId   String
+  circleId    String
+  createdById String
+  assetId     String?
+  type        ProjectRevenueType @default(OTHER)
+  amount      Decimal            @db.Decimal(12, 2)
+  currency    String             @default("ZAR")
+  revenueDate DateTime?
+  description  String?
+  reference    String?
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  circle    Circle        @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User          @relation("ProjectRevenueCreator", fields: [createdById], references: [id])
+  asset     ProjectAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+}
+
+// ─── Profit Distribution ──────────────────────────────────
+
+enum ProjectDistributionStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum ProjectDistributionMethod {
+  BY_CONTRIBUTION_SHARE
+  EQUAL_SHARE
+  CUSTOM
+}
+
+model ProjectDistribution {
+  id               String                       @id @default(cuid())
+  projectId        String
+  circleId         String
+  createdById      String
+  approvedById     String?
+  name             String
+  description      String?
+  method           ProjectDistributionMethod    @default(BY_CONTRIBUTION_SHARE)
+  status           ProjectDistributionStatus    @default(DRAFT)
+  totalProfit      Decimal                      @db.Decimal(12, 2)
+  totalDistributed Decimal                      @default(0) @db.Decimal(12, 2)
+  distributionDate DateTime?
+  approvedAt       DateTime?
+  paidAt           DateTime?
+  metadata         Json?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+
+  project    Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  circle     Circle                   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy  User                     @relation("DistributionCreator", fields: [createdById], references: [id])
+  approvedBy User?                    @relation("DistributionApprover", fields: [approvedById], references: [id])
+  items      ProjectDistributionItem[]
+
+  @@index([projectId])
+}
+
+model ProjectDistributionItem {
+  id                 String                     @id @default(cuid())
+  distributionId     String
+  projectId          String
+  userId             String
+  contributionAmount Decimal                     @db.Decimal(12, 2)
+  ownershipPercentage Decimal                    @db.Decimal(6, 2)
+  profitShare        Decimal                     @db.Decimal(12, 2)
+  status             ProjectDistributionStatus   @default(DRAFT)
+  paidAt             DateTime?
+  metadata           Json?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  distribution ProjectDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  user         User                @relation("DistributionRecipient", fields: [userId], references: [id])
+
+  @@index([distributionId])
+  @@index([userId])
+}
+
+// ─── Legal Documents ──────────────────────────────────────
+
+model LegalDocument {
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  title             String
+  version           String
+  effectiveDate     DateTime
+  contentHash       String
+  isActive          Boolean  @default(true)
+  requiresAcceptance Boolean @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  acceptances UserLegalAcceptance[]
+}
+
+model UserLegalAcceptance {
+  id         String   @id @default(cuid())
+  userId     String
+  documentId String
+  version    String
+  acceptedAt DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document LegalDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentId, version])
+}
+
+// ─── Mobile Push Tokens ───────────────────────────────────
+
+model MobilePushToken {
+  id         String    @id @default(cuid())
+  userId     String
+  token      String    @unique
+  platform   String?
+  deviceId   String?
+  isActive   Boolean   @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

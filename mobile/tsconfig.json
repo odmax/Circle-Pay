@@ -1,0 +1,5 @@
+{
+  "compilerOptions": { "strict": true, "paths": { "@/*": ["./src/*"] }, "jsx": "react-jsx", "moduleResolution": "bundler" },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "extends": "expo/tsconfig.base"
+}
