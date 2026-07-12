@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npx prisma generate && node scripts/gen-index.js && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "npx prisma generate"
+    "postinstall": "npx prisma generate && node scripts/gen-index.js"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
