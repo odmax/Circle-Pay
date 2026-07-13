@@ -59,7 +59,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
   if (!session?.user?.id) redirect("/login")
 
   const admin = await prisma.internalAdmin.findUnique({ where: { userId: session.user.id } })
-  if (!admin || !admin.isActive) redirect("/dashboard")
+  if (!admin || !admin.isActive) redirect("/owner/login?error=no-access")
 
   return (
     <div className="flex h-screen overflow-hidden">

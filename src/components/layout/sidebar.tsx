@@ -97,7 +97,7 @@ function UserMenu() {
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem render={<Link href="/settings" />}>Settings</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive" onSelect={() => signOut({ callbackUrl: "/login" })}>Sign Out</DropdownMenuItem>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); signOut({ callbackUrl: "/login" }) }} className="text-destructive">Sign Out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

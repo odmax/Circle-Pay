@@ -23,13 +23,15 @@ export async function POST() {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const ownerEmail = process.env.OWNER_EMAIL?.toLowerCase()
+  const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase()
   if (!ownerEmail) return NextResponse.json({ error: "OWNER_EMAIL not configured" }, { status: 500 })
-  if (session.user.email?.toLowerCase() !== ownerEmail) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (session.user.email?.trim().toLowerCase() !== ownerEmail) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const existing = await prisma.internalAdmin.findUnique({ where: { userId: session.user.id } })
-  if (existing) return NextResponse.json({ role: existing.role, message: "Already an admin" })
+  const admin = await prisma.internalAdmin.upsert({
+    where: { userId: session.user.id },
+    create: { userId: session.user.id, role: "SUPER_ADMIN" },
+    update: { isActive: true },
+  })
 
-  const admin = await prisma.internalAdmin.create({ data: { userId: session.user.id, role: "SUPER_ADMIN" } })
-  return NextResponse.json({ role: admin.role, message: "Owner bootstrapped" }, { status: 201 })
+  return NextResponse.json({ success: true, isAdmin: true, role: admin.role, message: "Owner access active" })
 }

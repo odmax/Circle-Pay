@@ -64,6 +64,10 @@ export default function RegisterPage() {
   }
 
   return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">← Back to Home</Link>
+      </div>
     <Card className="rounded-2xl shadow-sm">
       <CardHeader className="text-center">
         <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-xl bg-brand text-brand-foreground">
@@ -184,5 +188,6 @@ export default function RegisterPage() {
         </p>
       </CardFooter>
     </Card>
+    </div>
   )
 }

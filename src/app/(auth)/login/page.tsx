@@ -52,7 +52,8 @@ export default function LoginPage() {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <p className="text-sm text-muted-foreground">Manage money together — without spreadsheets, WhatsApp confusion, or missed contributions.</p>
+        <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">← Back to Home</Link>
+        <p className="text-sm text-muted-foreground mt-3">Manage money together — without spreadsheets, WhatsApp confusion, or missed contributions.</p>
       </div>
     <Card className="rounded-2xl shadow-sm">
       <CardHeader className="text-center">

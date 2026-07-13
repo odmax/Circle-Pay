@@ -21,6 +21,9 @@ export default function OwnerLoginPage() {
     const result = await signIn("credentials", { email, password, redirect: false })
     if (result?.error) { setError("Invalid email or password"); setLoading(false); return }
 
+    // First try to bootstrap via POST (creates SUPER_ADMIN if email matches OWNER_EMAIL)
+    await fetch("/api/owner/bootstrap", { method: "POST" }).catch(() => {})
+    // Then check access via GET
     const check = await fetch("/api/owner/bootstrap")
     const data = await check.json()
     if (!data.ownerExists) { setError("This account does not have owner/admin access."); setLoading(false); return }
