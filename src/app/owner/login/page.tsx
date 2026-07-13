@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn, useSession } from "next-auth/react"
 import { Loader2, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function OwnerLoginPage() {
   const router = useRouter()
+  const { update } = useSession()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -21,9 +22,12 @@ export default function OwnerLoginPage() {
     const result = await signIn("credentials", { email, password, redirect: false })
     if (result?.error) { setError("Invalid email or password"); setLoading(false); return }
 
-    // First try to bootstrap via POST (creates SUPER_ADMIN if email matches OWNER_EMAIL)
+    // Bootstrap: creates/upserts InternalAdmin if email matches OWNER_EMAIL
     await fetch("/api/owner/bootstrap", { method: "POST" }).catch(() => {})
-    // Then check access via GET
+    // Refresh the session JWT so isAdmin is updated
+    await update()
+
+    // Verify access
     const check = await fetch("/api/owner/bootstrap")
     const data = await check.json()
     if (!data.ownerExists) { setError("This account does not have owner/admin access."); setLoading(false); return }

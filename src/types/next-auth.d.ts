@@ -22,5 +22,7 @@ declare module "next-auth/jwt" {
     phone?: string | null
     currency?: string
     isAdmin?: boolean
+    adminRole?: string
+    isPrimaryOwner?: boolean
   }
 }

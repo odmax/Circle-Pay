@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
+import { useAdminStatus } from "@/hooks/use-admin-status"
 import { LayoutDashboard, Globe, Settings, PlusCircle, Loader2, Bell, ArrowUp, Compass, MessageCircle, Users, Search, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -85,15 +86,15 @@ export function Sidebar() {
 
 function UserMenu() {
   const { data: session, status } = useSession()
+  const { isAdmin, isPrimaryOwner, isLoading: adminLoading } = useAdminStatus()
   const user = session?.user
   const initials = user?.name ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "U"
-  const isAdmin = !!(user as any)?.isAdmin
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent/50 transition-colors" />}>
         <Avatar className="size-8"><AvatarImage src={user?.image || ""} /><AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">{status === "loading" ? <Loader2 className="size-3 animate-spin" /> : initials}</AvatarFallback></Avatar>
-        <div className="flex-1 text-left min-w-0"><p className="text-sm font-medium leading-none truncate">{user?.name || "User"}</p><p className="text-xs text-sidebar-foreground/50 truncate">{user?.email || ""}</p></div>
+        <div className="flex-1 text-left min-w-0"><p className="text-sm font-medium leading-none truncate">{user?.name || "User"}{isPrimaryOwner && <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Primary Owner</span>}</p><p className="text-xs text-sidebar-foreground/50 truncate">{user?.email || ""}</p></div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem render={<Link href="/settings" />}>Settings</DropdownMenuItem>

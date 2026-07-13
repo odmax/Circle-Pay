@@ -63,37 +63,45 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   callbacks: {
     ...authConfig.callbacks,
-    jwt({ token, user, trigger }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id
         token.phone = user.phone ?? null
         token.currency = user.currency
         // Check admin status during login
-        prisma.internalAdmin.findUnique({ where: { userId: user.id }, select: { isActive: true } }).then((a) => {
+        prisma.internalAdmin.findUnique({ where: { userId: user.id }, select: { isActive: true, role: true } }).then((a) => {
           token.isAdmin = !!(a?.isActive)
+          token.adminRole = a?.role as string || undefined
+        }).catch(() => {})
+        prisma.user.findUnique({ where: { id: user.id }, select: { email: true } }).then((u) => {
+          token.isPrimaryOwner = !!(process.env.OWNER_EMAIL && u?.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase())
         }).catch(() => {})
       }
       if (trigger === "update" && token.id) {
-        return prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: { phone: true, currency: true, name: true },
-        }).then((dbUser) => {
-          if (dbUser) {
-            token.phone = dbUser.phone
-            token.currency = dbUser.currency
-            token.name = dbUser.name
-          }
-          return token
-        })
+        const uid = token.id as string
+        const [dbUser, dbAdmin] = await Promise.all([
+          prisma.user.findUnique({ where: { id: uid }, select: { phone: true, currency: true, name: true, email: true } }),
+          prisma.internalAdmin.findUnique({ where: { userId: uid }, select: { isActive: true, role: true } }),
+        ])
+        if (dbUser) {
+          token.phone = dbUser.phone
+          token.currency = dbUser.currency
+          token.name = dbUser.name
+          token.isAdmin = !!(dbAdmin?.isActive)
+          token.adminRole = dbAdmin?.role as string || undefined
+          token.isPrimaryOwner = !!(process.env.OWNER_EMAIL && dbUser.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase())
+        }
       }
       return token
     },
     session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string
-        session.user.phone = token.phone as string | null
-        session.user.currency = token.currency as string
-        (session.user as any).isAdmin = token.isAdmin as boolean || false
+        const su = session.user as any
+        su.id = token.id as string
+        su.phone = token.phone as string | null
+        su.currency = token.currency as string
+        su.isAdmin = token.isAdmin || false
+        su.isPrimaryOwner = (token as any).isPrimaryOwner || false
       }
       return session
     },
