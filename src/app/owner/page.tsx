@@ -3,11 +3,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Users, Globe, Crown, DollarSign, TrendingUp, Sparkles, UserPlus, ShieldCheck, FileText, AlertTriangle, UserCheck, Wallet, Activity, ArrowRight } from "lucide-react"
+import { Users, Globe, Crown, DollarSign, TrendingUp, Sparkles, UserPlus, ShieldCheck, FileText, AlertTriangle, UserCheck, Wallet, Activity, ArrowRight, RefreshCw, ArrowLeft } from "lucide-react"
 import { AppPage, PageHeader, StatCard, MetricCard, SectionHeader, StatusBadge } from "@/components/ui/app"
 
 export default async function OwnerOverviewPage() {
-  const d = await getOwnerDashboard()
+  let d
+  try {
+    d = await getOwnerDashboard()
+  } catch (err) {
+    console.error("OWNER_DASHBOARD_QUERY_FAILED", err instanceof Error ? err.message : String(err))
+    return (
+      <AppPage>
+        <PageHeader title="Circle Pay" description="Dashboard data temporarily unavailable" />
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load dashboard</h2><p className="text-sm text-muted-foreground mt-1">The dashboard data could not be retrieved. This may be temporary.</p></div>
+          <div className="flex gap-2">
+            <a href="/owner" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"><RefreshCw className="size-4" /> Retry</a>
+            <a href="/dashboard" className="inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-muted"><ArrowLeft className="size-4" /> Back to Dashboard</a>
+          </div>
+        </CardContent></Card>
+      </AppPage>
+    )
+  }
 
   return (
     <AppPage>

@@ -19,33 +19,55 @@ export async function getOwnerDashboard() {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
-  const [
-    totalUsers, totalCircles, activeUsers, activeCircles,
-    premiumUsers, communityUsers,
-    totalRevenue, mrrRevenue, todayRevenue, todayPayments,
-    recentUsers, recentPayments, recentCircles,
-    pendingVerifications, pendingJoinRequests, verifiedCircles, publicCircles,
-    totalWalletVolume,
-  ] = await Promise.all([
+  const safeNum = (v: any) => Number(v?._sum?.amount ?? 0)
+
+  // Critical queries
+  const critical = await Promise.all([
     prisma.user.count(),
     prisma.circle.count({ where: { isActive: true } }),
     prisma.userSubscription.count({ where: { status: "ACTIVE" } }),
-    prisma.circle.count({ where: { isActive: true } }),
-    prisma.userSubscription.count({ where: { status: "ACTIVE", plan: { slug: "premium" } } }),
-    prisma.userSubscription.count({ where: { status: "ACTIVE", plan: { slug: "community" } } }),
-    prisma.paymentTransaction.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }),
-    prisma.paymentTransaction.aggregate({ where: { status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
-    prisma.paymentTransaction.aggregate({ where: { status: "PAID", paidAt: { gte: todayStart } }, _sum: { amount: true } }),
-    prisma.paymentTransaction.count({ where: { status: "PAID", paidAt: { gte: todayStart } } }),
     prisma.user.findMany({ orderBy: { createdAt: "desc" }, take: 8, select: { id: true, name: true, email: true, createdAt: true } }),
-    prisma.paymentTransaction.findMany({ where: { status: "PAID" }, orderBy: { paidAt: "desc" }, take: 8, include: { user: { select: { id: true, name: true, email: true } }, plan: { select: { name: true } } } }),
-    prisma.circle.findMany({ where: { isActive: true }, orderBy: { createdAt: "desc" }, take: 8, include: { createdBy: { select: { id: true, name: true } }, _count: { select: { members: true } } } }),
-    prisma.circleVerification.count({ where: { status: "PENDING" } }),
-    prisma.joinRequest.count({ where: { status: "PENDING" } }),
-    prisma.circleVerification.count({ where: { status: "VERIFIED" } }),
-    prisma.circle.count({ where: { visibility: "PUBLIC", isActive: true } }),
-    prisma.ledgerTransaction.aggregate({ where: { status: "CONFIRMED" }, _sum: { amount: true } }),
-  ])
+  ]).catch(() => [0, 0, 0, []])
+
+  const [totalUsers, totalCircles, activeUsers, recentUsers] = critical as [number, number, number, any[]]
+
+  // Optional queries — failure in one does not crash the dashboard
+  const [premiumResult, communityResult, revenueResult, mrrResult, todayRevenueResult, todayPaymentsResult,
+    recentPaymentsResult, recentCirclesResult, pendingVerifResult, pendingJoinResult, verifiedResult, publicResult, walletResult, activeCirclesResult] =
+    await Promise.allSettled([
+      prisma.userSubscription.count({ where: { status: "ACTIVE", plan: { slug: "premium" } } }),
+      prisma.userSubscription.count({ where: { status: "ACTIVE", plan: { slug: "community" } } }),
+      prisma.paymentTransaction.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }),
+      prisma.paymentTransaction.aggregate({ where: { status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
+      prisma.paymentTransaction.aggregate({ where: { status: "PAID", paidAt: { gte: todayStart } }, _sum: { amount: true } }),
+      prisma.paymentTransaction.count({ where: { status: "PAID", paidAt: { gte: todayStart } } }),
+      prisma.paymentTransaction.findMany({ where: { status: "PAID" }, orderBy: { paidAt: "desc" }, take: 8, include: { user: { select: { id: true, name: true, email: true } }, plan: { select: { name: true } } } }),
+      prisma.circle.findMany({ where: { isActive: true }, orderBy: { createdAt: "desc" }, take: 8, include: { createdBy: { select: { id: true, name: true } }, _count: { select: { members: true } } } }),
+      prisma.circleVerification.count({ where: { status: "PENDING" } }),
+      prisma.joinRequest.count({ where: { status: "PENDING" } }),
+      prisma.circleVerification.count({ where: { status: "VERIFIED" } }),
+      prisma.circle.count({ where: { visibility: "PUBLIC", isActive: true } }),
+      prisma.ledgerTransaction.aggregate({ where: { status: "CONFIRMED" } as any, _sum: { amount: true } }),
+      prisma.circle.count({ where: { isActive: true } }),
+    ])
+
+  const val = (r: PromiseSettledResult<any>) => r.status === "fulfilled" ? r.value : 0
+  const arr = <T>(r: PromiseSettledResult<T[]>) => r.status === "fulfilled" ? (r.value as T[]) : []
+
+  const premiumUsers = val(premiumResult)
+  const communityUsers = val(communityResult)
+  const totalRevenue = safeNum(revenueResult.status === "fulfilled" ? revenueResult.value : {})
+  const mrr = safeNum(mrrResult.status === "fulfilled" ? mrrResult.value : {})
+  const todayRevenue = safeNum(todayRevenueResult.status === "fulfilled" ? todayRevenueResult.value : {})
+  const todayPayments = val(todayPaymentsResult)
+  const recentPayments = arr<any>(recentPaymentsResult)
+  const recentCircles = arr<any>(recentCirclesResult)
+  const pendingVerifications = val(pendingVerifResult)
+  const pendingJoinRequests = val(pendingJoinResult)
+  const verifiedCircles = val(verifiedResult)
+  const publicCircles = val(publicResult)
+  const totalWalletVolume = safeNum(walletResult.status === "fulfilled" ? walletResult.value : {})
+  const activeCircles = val(activeCirclesResult)
 
   // Build activity feed
   const activityFeed: { type: string; title: string; detail: string; time: Date; link: string }[] = []
@@ -53,7 +75,7 @@ export async function getOwnerDashboard() {
     activityFeed.push({ type: "user", title: `${u.name || u.email} registered`, detail: "New user", time: u.createdAt, link: `/owner/users/${u.id}` })
   }
   for (const p of recentPayments.slice(0, 4)) {
-    activityFeed.push({ type: "payment", title: `${p.user?.name || p.user?.email} paid`, detail: `R${Number(p.amount).toLocaleString()} — ${p.plan.name}`, time: p.paidAt || p.createdAt, link: `/owner/payments/${p.id}` })
+    activityFeed.push({ type: "payment", title: `${p.user?.name || p.user?.email || "User"} paid`, detail: `R${Number(p.amount).toLocaleString()} — ${p.plan?.name || "Plan"}`, time: p.paidAt || p.createdAt, link: `/owner/payments/${p.id}` })
   }
   for (const c of recentCircles.slice(0, 3)) {
     activityFeed.push({ type: "circle", title: `${c.name} created`, detail: `${c._count.members} member${c._count.members !== 1 ? "s" : ""}`, time: c.createdAt, link: `/owner/circles/${c.id}` })
@@ -64,11 +86,11 @@ export async function getOwnerDashboard() {
     totalUsers, totalCircles, activeUsers, activeCircles,
     premiumUsers, communityUsers,
     verifiedCircles, publicCircles,
-    totalRevenue: Number(totalRevenue._sum.amount ?? 0),
-    mrr: Number(mrrRevenue._sum.amount ?? 0),
-    todayRevenue: Number(todayRevenue._sum.amount ?? 0),
+    totalRevenue: Number.isNaN(totalRevenue) ? 0 : totalRevenue,
+    mrr: Number.isNaN(mrr) ? 0 : mrr,
+    todayRevenue: Number.isNaN(todayRevenue) ? 0 : todayRevenue,
     todayPayments,
-    totalWalletVolume: Number(totalWalletVolume._sum.amount ?? 0),
+    totalWalletVolume: Number.isNaN(totalWalletVolume) ? 0 : totalWalletVolume,
     pendingVerifications, pendingJoinRequests,
     recentUsers, recentPayments,
     activityFeed: activityFeed.slice(0, 12),
