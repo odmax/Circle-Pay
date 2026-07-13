@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { LayoutDashboard, Globe, Settings, PlusCircle, Loader2, Bell, ArrowUp, Compass, MessageCircle, Users, Search } from "lucide-react"
+import { LayoutDashboard, Globe, Settings, PlusCircle, Loader2, Bell, ArrowUp, Compass, MessageCircle, Users, Search, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -87,6 +87,7 @@ function UserMenu() {
   const { data: session, status } = useSession()
   const user = session?.user
   const initials = user?.name ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "U"
+  const isAdmin = !!(user as any)?.isAdmin
 
   return (
     <DropdownMenu>
@@ -96,6 +97,8 @@ function UserMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem render={<Link href="/settings" />}>Settings</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/support" />}>Support</DropdownMenuItem>
+        {isAdmin && <DropdownMenuItem render={<Link href="/owner" />}><Shield className="size-4 mr-2" /> Admin Dashboard</DropdownMenuItem>}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); signOut({ callbackUrl: "/login" }) }} className="text-destructive">Sign Out</DropdownMenuItem>
       </DropdownMenuContent>

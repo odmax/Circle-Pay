@@ -68,6 +68,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id
         token.phone = user.phone ?? null
         token.currency = user.currency
+        // Check admin status during login
+        prisma.internalAdmin.findUnique({ where: { userId: user.id }, select: { isActive: true } }).then((a) => {
+          token.isAdmin = !!(a?.isActive)
+        }).catch(() => {})
       }
       if (trigger === "update" && token.id) {
         return prisma.user.findUnique({
@@ -89,6 +93,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string
         session.user.phone = token.phone as string | null
         session.user.currency = token.currency as string
+        (session.user as any).isAdmin = token.isAdmin as boolean || false
       }
       return session
     },

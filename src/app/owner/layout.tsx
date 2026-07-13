@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import Link from "next/link"
-import { LayoutDashboard, Users, Globe, Compass, Shield, CreditCard, DollarSign, TrendingUp, Activity, ScrollText, Wallet, ShieldCheck, Layers, Settings, Tag, Megaphone, MessageCircle, UserCog } from "lucide-react"
+import { LayoutDashboard, Users, Globe, Compass, Shield, CreditCard, DollarSign, TrendingUp, Activity, ScrollText, Wallet, ShieldCheck, Layers, Settings, Tag, Megaphone, MessageCircle, UserCog, ArrowLeft } from "lucide-react"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { CommandPalette } from "@/components/layout/command-palette"
 import { PageTransition } from "@/components/layout/page-transition"
@@ -87,6 +87,8 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
       </aside>
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-4 border-b border-border/40 bg-background/95 backdrop-blur px-4 lg:px-6">
+          <Link href="/dashboard" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"><ArrowLeft className="size-4" /> Back to Dashboard</Link>
+          <div className="flex-1" />
           <span className="text-sm font-medium text-muted-foreground">Owner Dashboard</span>
         </header>
         <main id="owner-main" className="flex-1 overflow-y-auto p-4 lg:p-8"><PageTransition>{children}</PageTransition></main>
