@@ -92,7 +92,8 @@ export async function getOwnerDashboard() {
     todayPayments,
     totalWalletVolume: Number.isNaN(totalWalletVolume) ? 0 : totalWalletVolume,
     pendingVerifications, pendingJoinRequests,
-    recentUsers, recentPayments,
+    recentUsers: recentUsers.map((u: any) => ({ id: u.id, name: u.name, email: u.email, createdAt: u.createdAt.toISOString() })),
+    recentPayments: recentPayments.map((p: any) => ({ id: p.id, amount: Number(p.amount), plan: { name: p.plan?.name || null }, user: { name: p.user?.name || null, email: p.user?.email || null }, paidAt: p.paidAt?.toISOString() || null, createdAt: p.createdAt.toISOString() })),
     activityFeed: activityFeed.slice(0, 12),
   }
 }

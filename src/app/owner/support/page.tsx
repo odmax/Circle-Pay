@@ -11,12 +11,17 @@ export default async function OwnerSupportPage({ searchParams }: { searchParams:
   const where: Record<string, unknown> = {}
   if (params.status) where.status = params.status
   if (params.category) where.category = params.category
-  const tickets = await prisma.supportTicket.findMany({
+  const tickets = (await prisma.supportTicket.findMany({
     where: where as any,
     include: { user: { select: { name: true, email: true } }, circle: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 100,
-  }) as Record<string, unknown>[]
+  })).map((t) => ({
+    id: t.id, ticketNumber: t.ticketNumber, subject: t.subject, category: t.category,
+    status: t.status, priority: t.priority || "MEDIUM",
+    user: { name: t.user?.name || null, email: t.user?.email || null },
+    createdAt: t.createdAt.toISOString(),
+  })) as unknown as Record<string, unknown>[]
 
   const columns: Column[] = [
     { key: "ticketNumber", header: "#", accessor: (t) => <code className="font-mono text-xs">{t.ticketNumber as string}</code> },
