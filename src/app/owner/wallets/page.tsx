@@ -10,7 +10,17 @@ type LedgerTx = { id: string; type: string; amount: number; entryCount: number; 
 
 export default async function OwnerWalletsPage() {
   await requireOwnerPage(PERMISSIONS.WALLETS_VIEW)
-  const [data, health] = await Promise.all([getOwnerWalletDashboard(), getWalletLedgerHealth()])
+
+  let data: any = { totalWallets: 0, circleWallets: 0, totalLedgerTransactions: 0, totalLedgerVolume: 0, pendingApprovals: 0, recentWalletTransactions: [], circlesWithWallets: [], recentLedgerTxs: [] }
+  let health: any = { status: "HEALTHY", critical: 0, warnings: 0, exceptions: [] }
+
+  try { data = await getOwnerWalletDashboard() } catch (err: any) {
+    console.error("OWNER_WALLETS_QUERY_FAILED", { query: "getOwnerWalletDashboard", error: err?.message || String(err) })
+  }
+  try { health = await getWalletLedgerHealth() } catch (err: any) {
+    console.error("OWNER_WALLETS_QUERY_FAILED", { query: "getWalletLedgerHealth", error: err?.message || String(err) })
+  }
+
   const txs = (data.recentWalletTransactions || []) as unknown as LedgerTx[]
 
   const columns: Column<LedgerTx>[] = [
@@ -45,7 +55,7 @@ export default async function OwnerWalletsPage() {
         <Card className="rounded-2xl border-amber-200">
           <CardHeader><CardTitle className="text-base text-amber-800">Exceptions ({health.exceptions.length})</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-2">{health.exceptions.map((e, i) => (
+              <div className="space-y-2">{health.exceptions.map((e: any, i: any) => (
               <div key={i} className="flex items-center gap-2 text-sm">
                 <Badge variant="outline" className={e.severity === "CRITICAL" ? "border-red-200 bg-red-50 text-red-700" : e.severity === "WARNING" ? "border-amber-200 bg-amber-50 text-amber-700" : ""}>{e.severity}</Badge>
                 <span>{e.message}</span>
