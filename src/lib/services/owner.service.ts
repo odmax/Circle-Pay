@@ -72,13 +72,13 @@ export async function getOwnerDashboard() {
   // Build activity feed
   const activityFeed: { type: string; title: string; detail: string; time: Date; link: string }[] = []
   for (const u of recentUsers.slice(0, 4)) {
-    activityFeed.push({ type: "user", title: `${u.name || u.email} registered`, detail: "New user", time: u.createdAt, link: `/owner/users/${u.id}` })
+    activityFeed.push({ type: "user", title: `${u.name || u.email} registered`, detail: "New user", time: u.createdAt.toISOString(), link: `/owner/users/${u.id}` })
   }
   for (const p of recentPayments.slice(0, 4)) {
-    activityFeed.push({ type: "payment", title: `${p.user?.name || p.user?.email || "User"} paid`, detail: `R${Number(p.amount).toLocaleString()} — ${p.plan?.name || "Plan"}`, time: p.paidAt || p.createdAt, link: `/owner/payments/${p.id}` })
+    activityFeed.push({ type: "payment", title: `${p.user?.name || p.user?.email || "User"} paid`, detail: `R${Number(p.amount).toLocaleString()} — ${p.plan?.name || "Plan"}`, time: (p.paidAt || p.createdAt).toISOString(), link: `/owner/payments/${p.id}` })
   }
   for (const c of recentCircles.slice(0, 3)) {
-    activityFeed.push({ type: "circle", title: `${c.name} created`, detail: `${c._count.members} member${c._count.members !== 1 ? "s" : ""}`, time: c.createdAt, link: `/owner/circles/${c.id}` })
+    activityFeed.push({ type: "circle", title: `${c.name} created`, detail: `${c._count.members} member${c._count.members !== 1 ? "s" : ""}`, time: c.createdAt.toISOString(), link: `/owner/circles/${c.id}` })
   }
   activityFeed.sort((a, b) => b.time.getTime() - a.time.getTime())
 
@@ -111,7 +111,7 @@ export async function getOwnerUsers() {
     id: u.id, name: u.name, email: u.email, phone: u.phone,
     plan: u.subscription?.plan?.name || "Free",
     circleCount: u._count.circleMembers,
-    createdAt: u.createdAt,
+    createdAt: u.createdAt.toISOString(),
   }))
 }
 
@@ -179,12 +179,13 @@ export async function getOwnerCircles(filters?: {
   return {
     items: circles.map((c) => ({
       id: c.id, name: c.name, type: c.type,
-      owner: c.createdBy, memberCount: c._count.members,
+      owner: { name: c.createdBy?.name || null, email: c.createdBy?.email || null },
+      memberCount: c._count.members,
       visibility: c.visibility, isActive: c.isActive,
       verification: c.verification?.status || "NONE",
       reputation: c.reputation?.score || 0,
       country: c.country, city: c.city,
-      createdAt: c.createdAt,
+      createdAt: c.createdAt.toISOString(),
     })),
     totalCount, page, pageSize,
     summary,
@@ -198,7 +199,14 @@ export async function getOwnerSubscriptions() {
     orderBy: { createdAt: "desc" },
     take: 100,
   })
-  return subs
+  return subs.map((s) => ({
+    id: s.id, status: s.status,
+    user: { name: s.user?.name || null, email: s.user?.email || null },
+    plan: { name: s.plan?.name || null, slug: s.plan?.slug || null },
+    currentPeriodStart: s.currentPeriodStart.toISOString(),
+    currentPeriodEnd: s.currentPeriodEnd.toISOString(),
+    createdAt: s.createdAt.toISOString(),
+  }))
 }
 
 export async function getOwnerPayments(status?: string) {
@@ -211,7 +219,12 @@ export async function getOwnerPayments(status?: string) {
     orderBy: { createdAt: "desc" },
     take: 100,
   })
-  return payments.map((p) => ({ ...p, amount: Number(p.amount) }))
+  return payments.map((p) => ({
+    id: p.id, amount: Number(p.amount), currency: p.currency, status: p.status, merchantReference: p.merchantReference,
+    user: { name: p.user?.name || null, email: p.user?.email || null },
+    plan: { name: p.plan?.name || null },
+    createdAt: p.createdAt.toISOString(), paidAt: p.paidAt?.toISOString() || null,
+  }))
 }
 
 export async function getOwnerRevenue(filters?: { startDate?: string; endDate?: string; planId?: string; provider?: string; status?: string }) {

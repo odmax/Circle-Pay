@@ -20,14 +20,14 @@ export async function getOwnerWalletDashboard() {
     recentWalletTransactions: recentWalletTxs.map((t) => ({
       id: t.id, amount: Number(t.amount), type: t.type, status: t.status, circle: t.wallet.circle?.name || "—",
       initiatedBy: t.initiatedBy.name || t.initiatedBy.email,
-      createdAt: t.createdAt,
+      createdAt: t.createdAt.toISOString(),
     })),
-    circlesWithWallets: circles,
+    circlesWithWallets: circles.map((c) => ({ id: c.id, name: c.name, type: c.type })),
     recentLedgerTxs: recentLedgerTxs.map((t) => ({
       id: t.id, amount: Number(t.amount), type: t.type, status: t.status,
       entryCount: t.entries.length,
       entries: t.entries.map((e) => ({ type: e.type, amount: Number(e.amount), description: e.description })),
-      createdAt: t.createdAt,
+      createdAt: t.createdAt.toISOString(),
     })),
   }
 }
