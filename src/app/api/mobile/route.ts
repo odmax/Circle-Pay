@@ -30,15 +30,16 @@ export async function GET(req: Request) {
     // Circle detail
     const circleDetailMatch = url.pathname.match(/\/api\/mobile\/circles\/([^/]+)$/)
     if (circleDetailMatch) {
-      const circle = await prisma.circle.findUnique({ where: { id: circleDetailMatch[1] }, include: { _count: { select: { members: true, contributions: true } }, createdBy: { select: { name: true } } } })
-      if (!circle) return NextResponse.json({ error: "Not found" }, { status: 404 })
-      const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId: circle.id, userId } } })
-      return NextResponse.json({ ...circle, myRole: member?.role })
+      const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId: circleDetailMatch[1], userId } }, include: { circle: { include: { _count: { select: { members: true, contributions: true } }, createdBy: { select: { name: true } } } } } })
+      if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+      return NextResponse.json({ ...member.circle, myRole: member.role })
     }
 
     // My Status
     const myStatusMatch = url.pathname.match(/\/api\/mobile\/circles\/([^/]+)\/my-status/)
     if (myStatusMatch) {
+      const statusMember = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId: myStatusMatch[1], userId } } })
+      if (!statusMember) return NextResponse.json({ error: "Not found" }, { status: 404 })
       const { getMemberCircleStatus } = await import("@/lib/services/member-status.service")
       return NextResponse.json(await getMemberCircleStatus(myStatusMatch[1], userId))
     }
@@ -46,12 +47,16 @@ export async function GET(req: Request) {
     // Payments
     const paymentsMatch = url.pathname.match(/\/api\/mobile\/circles\/([^/]+)\/payments$/)
     if (paymentsMatch) {
+      const payMember = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId: paymentsMatch[1], userId } } })
+      if (!payMember) return NextResponse.json({ error: "Not found" }, { status: 404 })
       return NextResponse.json(await getUserPaymentIntents(userId, paymentsMatch[1]))
     }
 
     // Projects
     const projectsMatch = url.pathname.match(/\/api\/mobile\/circles\/([^/]+)\/projects$/)
     if (projectsMatch) {
+      const projMember = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId: projectsMatch[1], userId } } })
+      if (!projMember) return NextResponse.json({ error: "Not found" }, { status: 404 })
       const { getProjectsForCircle } = await import("@/lib/services/project.service")
       return NextResponse.json(await getProjectsForCircle(projectsMatch[1]))
     }
@@ -59,6 +64,8 @@ export async function GET(req: Request) {
     // Project detail
     const projectMatch = url.pathname.match(/\/api\/mobile\/circles\/([^/]+)\/projects\/([^/]+)$/)
     if (projectMatch) {
+      const projDetailMember = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId: projectMatch[1], userId } } })
+      if (!projDetailMember) return NextResponse.json({ error: "Not found" }, { status: 404 })
       const { getProject } = await import("@/lib/services/project.service")
       const project = await getProject(projectMatch[2])
       if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 })

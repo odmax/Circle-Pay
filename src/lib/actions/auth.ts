@@ -24,36 +24,30 @@ export async function registerUser(formData: FormData) {
 
   const { name, email, phone, password } = parsed.data
 
-  const existing = await prisma.user.findUnique({ where: { email } })
-  if (existing) {
-    return {
-      success: false,
-      error: { email: ["An account with this email already exists"] },
-    }
-  }
-
-  if (phone) {
-    const phoneExists = await prisma.user.findUnique({
-      where: { phone },
-    })
-    if (phoneExists) {
-      return {
-        success: false,
-        error: { phone: ["This phone number is already registered"] },
-      }
-    }
-  }
-
   const passwordHash = await bcrypt.hash(password, 12)
 
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      phone: phone || null,
-      passwordHash,
-    },
-  })
+  let user
+  try {
+    user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        phone: phone || null,
+        passwordHash,
+      },
+    })
+  } catch (e: any) {
+    if (e?.code === "P2002") {
+      const field = e?.meta?.target?.includes("email") ? "email" : "phone"
+      return {
+        success: false,
+        error: { [field]: [field === "email"
+          ? "An account with this email already exists"
+          : "This phone number is already registered"] },
+      }
+    }
+    throw e
+  }
 
   await seedPlans()
   await assignFreePlan(user.id)

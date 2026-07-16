@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { createProjectExpense, approveProjectExpense, markProjectExpensePaid, rejectProjectExpense, cancelProjectExpense, getProjectExpenseDashboard } from "@/lib/services/project-expense.service"
+import { requireProjectInCircle } from "@/lib/services/project.service"
 
 async function checkAdmin(circleId: string, userId: string) {
   const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
@@ -11,6 +12,9 @@ async function checkAdmin(circleId: string, userId: string) {
 async function handle(req: Request, { params }: { params: Promise<{ circleId: string; projectId: string; expenseId?: string }> }, action: string) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { circleId, projectId, expenseId } = await params
+  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
+  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  await requireProjectInCircle(projectId, circleId)
   try {
     if (action === "get") return NextResponse.json(await getProjectExpenseDashboard(projectId))
     if (action === "create") return NextResponse.json(await createProjectExpense(projectId, circleId, s.user.id, await req.json()), { status: 201 })

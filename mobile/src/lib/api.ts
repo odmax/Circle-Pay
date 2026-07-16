@@ -3,7 +3,7 @@ import { Platform } from "react-native"
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000"
 
-async function getToken(): Promise<string | null> {
+export async function getToken(): Promise<string | null> {
   if (Platform.OS === "web") return localStorage.getItem("cp_token")
   return SecureStore.getItemAsync("cp_token")
 }

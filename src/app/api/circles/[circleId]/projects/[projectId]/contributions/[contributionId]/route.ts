@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { createProjectContribution, submitProjectContributionProof, confirmProjectContribution, rejectProjectContribution, getProjectFunding } from "@/lib/services/project-funding.service"
+import { requireProjectInCircle } from "@/lib/services/project.service"
 
 async function checkAdmin(circleId: string, userId: string) {
   const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
@@ -11,6 +12,9 @@ async function checkAdmin(circleId: string, userId: string) {
 async function handle(req: Request, { params }: { params: Promise<{ circleId: string; projectId: string; contributionId?: string }> }, action: string) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { circleId, projectId, contributionId } = await params
+  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
+  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  await requireProjectInCircle(projectId, circleId)
   try {
     if (action === "get") return NextResponse.json(await getProjectFunding(projectId).then((d) => d.contributions))
     if (action === "create") {

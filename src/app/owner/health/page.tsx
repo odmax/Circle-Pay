@@ -1,8 +1,10 @@
 import { getOwnerHealth } from "@/lib/services/owner.service"
+import { requireOwnerAdmin } from "@/lib/services/owner-permission.service"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Check, X } from "lucide-react"
 
 export default async function OwnerHealthPage() {
+  await requireOwnerAdmin()
   const data = await getOwnerHealth()
 
   return (

@@ -2,12 +2,16 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { calculateProjectOwnership, createProfitDistribution, approveProfitDistribution, markDistributionPaid, cancelDistribution, getProjectDistributionDashboard } from "@/lib/services/project-distribution.service"
+import { requireProjectInCircle } from "@/lib/services/project.service"
 
 async function checkAdmin(circleId: string, userId: string) { const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } }); if (!m || (m.role !== "OWNER" && m.role !== "ADMIN")) throw new Error("Forbidden") }
 
 async function handle(req: Request, { params }: { params: Promise<{ circleId: string; projectId: string; distributionId?: string }> }, action: string) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { circleId, projectId, distributionId } = await params
+  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
+  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  await requireProjectInCircle(projectId, circleId)
   try {
     if (action === "ownership") return NextResponse.json(await calculateProjectOwnership(projectId))
     if (action === "get") return NextResponse.json(await getProjectDistributionDashboard(projectId))

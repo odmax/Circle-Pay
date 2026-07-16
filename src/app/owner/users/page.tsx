@@ -1,4 +1,6 @@
 import { getOwnerUsers } from "@/lib/services/owner.service"
+import { requireOwnerPage } from "@/lib/services/owner-permission.service"
+import { PERMISSIONS } from "@/lib/ownerPermissions"
 import { AdvancedDataTable, type Column } from "@/components/ui/app/advanced-data-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -7,6 +9,7 @@ import Link from "next/link"
 type UserRow = { id: string; name: string; email: string; phone: string | null; plan: string; circleCount: number; createdAt: string }
 
 export default async function OwnerUsersPage() {
+  await requireOwnerPage(PERMISSIONS.USERS_VIEW)
   const users = (await getOwnerUsers()) as unknown as UserRow[]
 
   const columns: Column<UserRow>[] = [

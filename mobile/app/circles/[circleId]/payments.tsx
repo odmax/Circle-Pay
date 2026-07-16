@@ -3,7 +3,7 @@ import { View, Text, FlatList, StyleSheet, ActivityIndicator, TextInput, Touchab
 import { useLocalSearchParams } from "expo-router"
 import { Screen, Header, Badge, EmptyState } from "@/components/ui"
 import { pickProofImage, takeProofPhoto } from "@/lib/image-picker"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, getToken } from "@/lib/api"
 
 export default function PaymentsScreen() {
   const { circleId } = useLocalSearchParams<{ circleId: string }>()
@@ -36,10 +36,7 @@ export default function PaymentsScreen() {
       formData.append("paymentIntentId", paymentIntentId)
       formData.append("circleId", circleId)
 
-      const token = await (async () => {
-        // Get token from secure store
-        return ""
-      })()
+      const token = await getToken()
 
       const r = await fetch(`${process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000"}/api/mobile/uploads/proof`, {
         method: "POST", body: formData, headers: { "Authorization": `Bearer ${token}` },
@@ -53,8 +50,11 @@ export default function PaymentsScreen() {
 
   async function submitReferenceOnly(id: string, ref: string) {
     if (!ref) return
+    const token = await getToken()
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (token) headers["Authorization"] = `Bearer ${token}`
     await fetch(`${process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000"}/api/mobile/uploads/proof`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers,
       body: JSON.stringify({ proofReference: ref, paymentIntentId: id }),
     })
     setProofInput((p) => ({ ...p, [id]: "" })); load()

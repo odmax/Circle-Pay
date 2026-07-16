@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
+import { CURRENCIES } from "@/lib/constants"
 
 const statusBadge = (s: string) => ({ DRAFT: "border-slate-200 bg-slate-50 text-slate-600", FUNDING: "border-amber-200 bg-amber-50 text-amber-700", FUNDED: "border-blue-200 bg-blue-50 text-blue-700", IN_PROGRESS: "border-brand-200 bg-brand-50 text-brand-700", COMPLETED: "border-emerald-200 bg-emerald-50 text-emerald-700", OPEN: "border-emerald-200 bg-emerald-50 text-emerald-700", CLOSED: "border-slate-200 bg-slate-50 text-slate-600", PENDING: "border-slate-200 bg-slate-50 text-slate-600", PROOF_SUBMITTED: "border-amber-200 bg-amber-50 text-amber-700", CONFIRMED: "border-emerald-200 bg-emerald-50 text-emerald-700", REJECTED: "border-red-200 bg-red-50 text-red-700" }[s] || "")
 
@@ -17,6 +18,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ circle
   const { circleId, projectId } = use(params)
   const [tab, setTab] = useState("overview")
   const [project, setProject] = useState<any>(null)
+  const [circle, setCircle] = useState<any>(null)
   const [funding, setFunding] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [expenses, setExpenses] = useState<any>(null)
@@ -32,12 +34,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ circle
 
   useEffect(() => {
     Promise.all([
+      fetch(`/api/circles/${circleId}`).then((r) => r.json()),
       fetch(`/api/circles/${circleId}/projects/${projectId}`).then((r) => r.json()),
       fetch(`/api/circles/${circleId}/projects/${projectId}/funding-rounds`).then((r) => r.json()),
       fetch(`/api/circles/${circleId}/projects/${projectId}/expenses`).then((r) => r.json()),
       fetch(`/api/circles/${circleId}/projects/${projectId}/roi`).then((r) => r.json()),
       fetch(`/api/circles/${circleId}/projects/${projectId}/distributions`).then((r) => r.json()),
-    ]).then(([p, f, e, rd, dd]) => { setProject(p); setFunding(f); setExpenses(e); setRoiData(rd); setDistData(dd) }).finally(() => setLoading(false))
+    ]).then(([c, p, f, e, rd, dd]) => { setCircle(c); setProject(p); setFunding(f); setExpenses(e); setRoiData(rd); setDistData(dd) }).finally(() => setLoading(false))
   }, [circleId, projectId])
 
   async function fundingAction(act: string, roundId?: string) {
@@ -80,7 +83,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ circle
   if (loading) return <div className="p-8 text-center"><Loader2 className="size-4 animate-spin" /></div>
   if (!project || !project.id) return <div className="p-8 text-muted-foreground">Project not found</div>
 
-  const symbol = "R"
+  const symbol = CURRENCIES.find((c) => c.code === circle?.currency)?.symbol || "R"
   const progress = project.targetAmount && Number(project.targetAmount) > 0 ? Math.round((Number(project.currentAmount) / Number(project.targetAmount)) * 100) : 0
   const rounds = funding?.rounds || []
   const contributions = funding?.contributions || []

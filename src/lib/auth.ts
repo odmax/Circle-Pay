@@ -3,10 +3,20 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
 import bcrypt from "bcryptjs"
+import crypto from "crypto"
 import { authConfig } from "./auth.config"
 import { prisma } from "./prisma"
 import { loginSchema } from "./validations/auth"
 import { seedPlans, assignFreePlan } from "./services/subscription.service"
+
+if (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 32) {
+  if (process.env.NODE_ENV === "production") {
+    console.error("CRITICAL: AUTH_SECRET is missing or shorter than 32 characters. Set a strong secret in production.")
+  } else {
+    process.env.AUTH_SECRET = crypto.randomBytes(32).toString("base64")
+    console.warn("AUTH_SECRET was missing or too short. Generated a temporary dev secret.")
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -68,14 +78,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id
         token.phone = user.phone ?? null
         token.currency = user.currency
-        // Check admin status during login
-        prisma.internalAdmin.findUnique({ where: { userId: user.id }, select: { isActive: true, role: true } }).then((a) => {
-          token.isAdmin = !!(a?.isActive)
-          token.adminRole = a?.role as string || undefined
-        }).catch(() => {})
-        prisma.user.findUnique({ where: { id: user.id }, select: { email: true } }).then((u) => {
-          token.isPrimaryOwner = !!(process.env.OWNER_EMAIL && u?.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase())
-        }).catch(() => {})
+        const [dbAdmin, dbOwner] = await Promise.all([
+          prisma.internalAdmin.findUnique({ where: { userId: user.id }, select: { isActive: true, role: true } }).catch(() => null),
+          prisma.user.findUnique({ where: { id: user.id }, select: { email: true } }).catch(() => null),
+        ])
+        token.isAdmin = !!(dbAdmin?.isActive)
+        token.adminRole = dbAdmin?.role as string || undefined
+        token.isPrimaryOwner = !!(process.env.OWNER_EMAIL && dbOwner?.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase())
       }
       if (trigger === "update" && token.id) {
         const uid = token.id as string

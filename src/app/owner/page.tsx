@@ -1,4 +1,5 @@
 import { getOwnerDashboard } from "@/lib/services/owner.service"
+import { requireOwnerAdmin } from "@/lib/services/owner-permission.service"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -7,6 +8,7 @@ import { Users, Globe, Crown, DollarSign, TrendingUp, Sparkles, UserPlus, Shield
 import { AppPage, PageHeader, StatCard, MetricCard, SectionHeader, StatusBadge } from "@/components/ui/app"
 
 export default async function OwnerOverviewPage() {
+  await requireOwnerAdmin()
   let d
   try {
     d = await getOwnerDashboard()

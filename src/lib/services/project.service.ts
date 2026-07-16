@@ -36,6 +36,12 @@ export async function getProject(projectId: string) {
   })
 }
 
+export async function requireProjectInCircle(projectId: string, circleId: string) {
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true, circleId: true } })
+  if (!project || project.circleId !== circleId) throw new Error("Not found")
+  return project
+}
+
 export async function getProjectsForCircle(circleId: string) {
   return prisma.project.findMany({
     where: { circleId, status: { not: "ARCHIVED" } },

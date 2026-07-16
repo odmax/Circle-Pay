@@ -390,9 +390,9 @@ export async function approvePayoutRequest(circleId: string, requestId: string, 
   if (!request || request.circleId !== circleId) throw new Error("Request not found")
   if (request.status !== "PENDING") throw new Error("Request is not pending")
 
-  // Prevent self-approval if only one approval is needed
-  if (request.requestedById === userId && request.requiredCount > 1) {
-    // Allow if at least one other admin exists
+  // Prevent self-approval when only one approval is needed
+  if (request.requestedById === userId && request.requiredCount <= 1) {
+    throw new Error("Cannot approve your own payout request when only one approval is required")
   }
 
   // Check duplicate approval

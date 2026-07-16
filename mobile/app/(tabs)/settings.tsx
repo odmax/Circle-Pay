@@ -1,4 +1,4 @@
-import { Text, TouchableOpacity, StyleSheet, Alert } from "react-native"
+import { Text, TouchableOpacity, StyleSheet, Alert, View } from "react-native"
 import { useRouter } from "expo-router"
 import { useAuth } from "@/store/auth-store"
 import { apiFetch } from "@/lib/api"
@@ -17,11 +17,11 @@ export default function SettingsScreen() {
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
+    <View style={styles.container}>
+      <View style={styles.card}>
         <Text style={styles.name}>{user?.name || "User"}</Text>
         <Text style={styles.email}>{user?.email}</Text>
-      </div>
+      </View>
       <TouchableOpacity style={styles.option} onPress={() => router.push("/join/scan")}>
         <Text style={styles.optionText}>📷 Scan QR Code</Text>
       </TouchableOpacity>
@@ -31,7 +31,7 @@ export default function SettingsScreen() {
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutText}>Sign Out</Text>
       </TouchableOpacity>
-    </div>
+    </View>
   )
 }
 

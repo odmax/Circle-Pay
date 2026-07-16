@@ -2,12 +2,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { getOwnerCircles } from "@/lib/services/owner.service"
+import { requireOwnerPage } from "@/lib/services/owner-permission.service"
+import { PERMISSIONS } from "@/lib/ownerPermissions"
 import { AdvancedDataTable, type Column } from "@/components/ui/app/advanced-data-table"
 import { CircleTypeBadge } from "@/components/circles/circle-type-badge"
 
 type CircleRow = { id: string; name: string; type: string; owner: { name?: string; email?: string } | null; memberCount: number; visibility: string; verification: string; reputation: number; createdAt: string }
 
 export default async function OwnerCirclesPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
+  await requireOwnerPage(PERMISSIONS.CIRCLES_VIEW)
   const params = await searchParams
   const page = parseInt(params.page || "1")
   const data = await getOwnerCircles({ ...params, page })

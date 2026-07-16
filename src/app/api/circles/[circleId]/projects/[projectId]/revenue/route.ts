@@ -2,12 +2,16 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { createProjectRevenue } from "@/lib/services/project-roi.service"
+import { requireProjectInCircle } from "@/lib/services/project.service"
 
 async function checkAdmin(circleId: string, userId: string) { const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } }); if (!m || (m.role !== "OWNER" && m.role !== "ADMIN")) throw new Error("Forbidden") }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ circleId: string; projectId: string }> }) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const { projectId } = await params
+  const { circleId, projectId } = await params
+  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
+  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  await requireProjectInCircle(projectId, circleId)
   return NextResponse.json(await prisma.projectRevenue.findMany({ where: { projectId }, include: { asset: { select: { name: true } } }, orderBy: { createdAt: "desc" } }))
 }
 
