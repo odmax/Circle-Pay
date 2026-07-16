@@ -5,12 +5,30 @@ import { AdvancedDataTable, type Column } from "@/components/ui/app/advanced-dat
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { AlertTriangle, RefreshCw } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 
 type UserRow = { id: string; name: string; email: string; phone: string | null; plan: string; circleCount: number; createdAt: string }
 
 export default async function OwnerUsersPage() {
   await requireOwnerPage(PERMISSIONS.USERS_VIEW)
-  const users = (await getOwnerUsers()) as unknown as UserRow[]
+
+  let users: UserRow[] = []
+  try {
+    users = (await getOwnerUsers()) as unknown as UserRow[]
+  } catch (err) {
+    console.error("OWNER_USERS_QUERY_FAILED", err instanceof Error ? err.message : String(err))
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Users</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Could not load users</h2><p className="text-sm text-muted-foreground mt-1">The user list could not be retrieved. This may be temporary.</p></div>
+          <a href="/owner/users" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"><RefreshCw className="size-4" /> Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
 
   const columns: Column<UserRow>[] = [
     { key: "name", header: "Name", accessor: (u) => <span className="font-medium">{u.name || "—"}</span>, sortable: true },

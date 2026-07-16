@@ -6,6 +6,7 @@ import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
 import { AdvancedDataTable, type Column } from "@/components/ui/app/advanced-data-table"
 import { CircleTypeBadge } from "@/components/circles/circle-type-badge"
+import { AlertTriangle, RefreshCw } from "lucide-react"
 
 type CircleRow = { id: string; name: string; type: string; owner: { name?: string; email?: string } | null; memberCount: number; visibility: string; verification: string; reputation: number; createdAt: string }
 
@@ -13,7 +14,24 @@ export default async function OwnerCirclesPage({ searchParams }: { searchParams:
   await requireOwnerPage(PERMISSIONS.CIRCLES_VIEW)
   const params = await searchParams
   const page = parseInt(params.page || "1")
-  const data = await getOwnerCircles({ ...params, page })
+
+  let data: any
+  try {
+    data = await getOwnerCircles({ ...params, page })
+  } catch (err) {
+    console.error("OWNER_CIRCLES_QUERY_FAILED", err instanceof Error ? err.message : String(err))
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Circles</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Could not load circles</h2><p className="text-sm text-muted-foreground mt-1">The circle list could not be retrieved. This may be temporary.</p></div>
+          <a href="/owner/circles" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"><RefreshCw className="size-4" /> Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
+
   const s = data.summary
   const items = data.items as unknown as CircleRow[]
 

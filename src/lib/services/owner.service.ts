@@ -80,7 +80,7 @@ export async function getOwnerDashboard() {
   for (const c of recentCircles.slice(0, 3)) {
     activityFeed.push({ type: "circle", title: `${c.name} created`, detail: `${c._count.members} member${c._count.members !== 1 ? "s" : ""}`, time: c.createdAt.toISOString(), link: `/owner/circles/${c.id}` })
   }
-  activityFeed.sort((a, b) => b.time.getTime() - a.time.getTime())
+  activityFeed.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
 
   return {
     totalUsers, totalCircles, activeUsers, activeCircles,
