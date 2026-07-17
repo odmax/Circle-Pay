@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Star, Search, StarOff } from "lucide-react"
+import { Star, Search, StarOff, AlertTriangle } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
@@ -17,18 +17,32 @@ export default async function OwnerDiscoverPage({ searchParams }: { searchParams
   if (params.country) where.country = { contains: params.country, mode: "insensitive" }
   if (params.featured === "true") where.isFeatured = true
 
-  const [circles, total, featured, verified, pending, totalMembers, pendingJoins] = await Promise.all([
-    prisma.circle.findMany({
-      where, orderBy: { createdAt: "desc" }, take: 50,
-      include: { _count: { select: { members: true } }, verification: true, reputation: true, createdBy: { select: { name: true, email: true } } },
-    }),
-    prisma.circle.count({ where }),
-    prisma.circle.count({ where: { visibility: "PUBLIC", isFeatured: true } }),
-    prisma.circleVerification.count({ where: { circle: { visibility: "PUBLIC" }, status: "VERIFIED" } }),
-    prisma.circleVerification.count({ where: { circle: { visibility: "PUBLIC" }, status: "PENDING" } }),
-    prisma.circleMember.count({ where: { circle: { visibility: "PUBLIC" } } }),
-    prisma.joinRequest.count({ where: { circle: { visibility: "PUBLIC" }, status: "PENDING" } }),
-  ])
+  let circles: any[] = [], total = 0, featured = 0, verified = 0, pending = 0, totalMembers = 0, pendingJoins = 0
+  try {
+    ;[circles, total, featured, verified, pending, totalMembers, pendingJoins] = await Promise.all([
+      prisma.circle.findMany({
+        where, orderBy: { createdAt: "desc" }, take: 50,
+        include: { _count: { select: { members: true } }, verification: true, reputation: true, createdBy: { select: { name: true, email: true } } },
+      }),
+      prisma.circle.count({ where }),
+      prisma.circle.count({ where: { visibility: "PUBLIC", isFeatured: true } }),
+      prisma.circleVerification.count({ where: { circle: { visibility: "PUBLIC" }, status: "VERIFIED" } }),
+      prisma.circleVerification.count({ where: { circle: { visibility: "PUBLIC" }, status: "PENDING" } }),
+      prisma.circleMember.count({ where: { circle: { visibility: "PUBLIC" } } }),
+      prisma.joinRequest.count({ where: { circle: { visibility: "PUBLIC" }, status: "PENDING" } }),
+    ])
+  } catch {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Discover Admin</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load discover data</h2><p className="text-sm text-muted-foreground mt-1">The discover data could not be retrieved.</p></div>
+          <a href="/owner/discover" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

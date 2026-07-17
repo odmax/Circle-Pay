@@ -1,5 +1,6 @@
 import { getOwnerAuditLogs } from "@/lib/services/audit.service"
 import { Card, CardContent } from "@/components/ui/card"
+import { AlertTriangle } from "lucide-react"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
 
@@ -10,7 +11,21 @@ const actionIcons: Record<string, string> = {
 
 export default async function OwnerAuditLogsPage() {
   await requireOwnerPage(PERMISSIONS.AUDIT_LOGS_VIEW)
-  const logs = await getOwnerAuditLogs()
+  let logs: Awaited<ReturnType<typeof getOwnerAuditLogs>> = []
+  try {
+    logs = await getOwnerAuditLogs()
+  } catch {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Audit Logs</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load audit logs</h2><p className="text-sm text-muted-foreground mt-1">The audit logs could not be retrieved.</p></div>
+          <a href="/owner/audit-logs" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

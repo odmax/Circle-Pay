@@ -4,13 +4,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { prisma } from "@/lib/prisma"
-import { Send, Megaphone } from "lucide-react"
+import { Send, Megaphone, AlertTriangle } from "lucide-react"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
 
 export default async function OwnerBroadcastsPage() {
   await requireOwnerPage(PERMISSIONS.BROADCAST_SEND)
-  const broadcasts = await prisma.platformBroadcast.findMany({ include: { createdBy: { select: { name: true } }, _count: { select: { recipients: true } } }, orderBy: { createdAt: "desc" }, take: 20 })
+  let broadcasts: any[] = []
+  try {
+    broadcasts = await prisma.platformBroadcast.findMany({ include: { createdBy: { select: { name: true } }, _count: { select: { recipients: true } } }, orderBy: { createdAt: "desc" }, take: 20 })
+  } catch {
+    broadcasts = []
+  }
 
   return (
     <div className="space-y-6">
@@ -35,10 +40,7 @@ export default async function OwnerBroadcastsPage() {
           })
           if (sendNow) {
             await prisma.platformBroadcastRecipient.createMany({ data: users.map((u) => ({ broadcastId: broadcast.id, userId: u.id })) })
-            // Create in-app notifications
-            for (const u of users) {
-              await prisma.notification.create({ data: { userId: u.id, type: "CONTRIBUTION_REMINDER" as any, title: `📢 ${title}`, message } }).catch(() => {})
-            }
+            await prisma.notification.createMany({ data: users.map((u) => ({ userId: u.id, type: "CONTRIBUTION_REMINDER" as any, title: `📢 ${title}`, message })), skipDuplicates: true }).catch(() => {})
           }
         }} className="space-y-3">
           <Input name="title" placeholder="Broadcast title" className="rounded-xl" required />

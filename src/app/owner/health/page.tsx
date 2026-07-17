@@ -1,11 +1,25 @@
 import { getOwnerHealth } from "@/lib/services/owner.service"
 import { requireOwnerAdmin } from "@/lib/services/owner-permission.service"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Check, X } from "lucide-react"
+import { Check, X, AlertTriangle } from "lucide-react"
 
 export default async function OwnerHealthPage() {
   await requireOwnerAdmin()
-  const data = await getOwnerHealth()
+  let data
+  try {
+    data = await getOwnerHealth()
+  } catch {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Health</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load health data</h2><p className="text-sm text-muted-foreground mt-1">The health check data could not be retrieved.</p></div>
+          <a href="/owner/health" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -20,7 +34,7 @@ export default async function OwnerHealthPage() {
         <CardHeader><CardTitle className="text-base">Counts</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            {Object.entries(data.counts).map(([k, v]) => (
+            {data.counts && Object.entries(data.counts).map(([k, v]) => (
               <div key={k}><div className="text-2xl font-bold">{v}</div><div className="text-xs text-muted-foreground capitalize">{k}</div></div>
             ))}
           </div>

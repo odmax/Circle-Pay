@@ -8,7 +8,12 @@ import { PERMISSIONS } from "@/lib/ownerPermissions"
 
 export default async function BulkOperationsPage() {
   await requireOwnerPage(PERMISSIONS.BULK_OPERATIONS_RUN)
-  const recentOps = await prisma.bulkOperation.findMany({ orderBy: { createdAt: "desc" }, take: 10, include: { admin: { select: { name: true } } } })
+  let recentOps: any[] = []
+  try {
+    recentOps = await prisma.bulkOperation.findMany({ orderBy: { createdAt: "desc" }, take: 10, include: { admin: { select: { name: true } } } })
+  } catch {
+    recentOps = []
+  }
 
   return (
     <div className="space-y-6">

@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { AlertTriangle } from "lucide-react"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
 
@@ -15,31 +16,44 @@ export default async function OwnerFraudPage({ searchParams }: { searchParams: P
   const { week, sixtyDays } = computeDates()
   const searchParamsObj = new URLSearchParams(params as Record<string, string>)
 
-  // Risk detection
-  const [openReports, lowRepCircles, _rapidGrowth, manyPendingJoins, largeWallet, failedPayments, inactivePublic] = await Promise.all([
-    prisma.abuseReport.count({ where: { status: "OPEN" } }),
-    prisma.circle.findMany({ where: { isActive: true, reputation: { score: { lt: 30 } } }, include: { _count: { select: { members: true } }, reputation: true, createdBy: { select: { name: true, email: true } } }, take: 30, orderBy: { createdAt: "desc" } }),
-    prisma.circle.findMany({ where: { isActive: true, members: { some: { joinedAt: { gte: week } } } }, include: { _count: { select: { members: true } }, reputation: true, createdBy: { select: { name: true, email: true } } }, take: 20 }),
-    prisma.joinRequest.count({ where: { status: "PENDING" } }),
-    prisma.ledgerTransaction.findMany({ where: { status: "CONFIRMED" }, include: { circle: { select: { id: true, name: true } } }, orderBy: { amount: "desc" }, take: 10 }),
-    prisma.paymentTransaction.count({ where: { status: "FAILED" } }),
-    prisma.circle.findMany({ where: { visibility: "PUBLIC", isActive: true, updatedAt: { lt: sixtyDays } }, include: { _count: { select: { members: true } }, createdBy: { select: { name: true } } }, take: 20 }),
-  ])
+  let signals: { id: string; type: string; severity: string; target: string; link: string; detail: string }[] = []
+  let openReports = 0, failedPayments = 0, manyPendingJoins = 0, lowRepCirclesCount = 0
+  try {
+    // Risk detection
+    const [openReportsVal, lowRepCircles, _rapidGrowth, manyPendingJoinsVal, largeWallet, failedPaymentsVal, inactivePublic] = await Promise.all([
+      prisma.abuseReport.count({ where: { status: "OPEN" } }),
+      prisma.circle.findMany({ where: { isActive: true, reputation: { score: { lt: 30 } } }, include: { _count: { select: { members: true } }, reputation: true, createdBy: { select: { name: true, email: true } } }, take: 30, orderBy: { createdAt: "desc" } }),
+      prisma.circle.findMany({ where: { isActive: true, members: { some: { joinedAt: { gte: week } } } }, include: { _count: { select: { members: true } }, reputation: true, createdBy: { select: { name: true, email: true } } }, take: 20 }),
+      prisma.joinRequest.count({ where: { status: "PENDING" } }),
+      prisma.ledgerTransaction.findMany({ where: { status: "CONFIRMED" }, include: { circle: { select: { id: true, name: true } } }, orderBy: { amount: "desc" }, take: 10 }),
+      prisma.paymentTransaction.count({ where: { status: "FAILED" } }),
+      prisma.circle.findMany({ where: { visibility: "PUBLIC", isActive: true, updatedAt: { lt: sixtyDays } }, include: { _count: { select: { members: true } }, createdBy: { select: { name: true } } }, take: 20 }),
+    ])
+    openReports = openReportsVal; manyPendingJoins = manyPendingJoinsVal; failedPayments = failedPaymentsVal; lowRepCirclesCount = lowRepCircles.length
 
-  // Build risk signals
-  const signals: { id: string; type: string; severity: string; target: string; link: string; detail: string }[] = []
-
-  for (const c of lowRepCircles.slice(0, 10)) {
-    const score = c.reputation?.score || 0
-    signals.push({ id: c.id, type: "LOW_REPUTATION", severity: score < 20 ? "CRITICAL" : score < 25 ? "HIGH" : "MEDIUM", target: c.name, link: `/owner/circles/${c.id}`, detail: `Reputation: ${score}. ${c._count.members} members. Owner: ${c.createdBy?.name || c.createdBy?.email}` })
-  }
-  for (const i of inactivePublic.slice(0, 5)) {
-    signals.push({ id: i.id, type: "INACTIVE_PUBLIC_CIRCLE", severity: "LOW", target: i.name, link: `/owner/circles/${i.id}`, detail: `Inactive 60+ days. ${i._count.members} members.` })
-  }
-  for (const t of largeWallet.slice(0, 5)) {
-    if (Number(t.amount) > 50000) {
-      signals.push({ id: t.id, type: "LARGE_WALLET_MOVEMENT", severity: "MEDIUM", target: t.circle?.name || "Unknown", link: `/owner/wallets`, detail: `Transaction: R${Number(t.amount).toLocaleString()}` })
+    for (const c of lowRepCircles.slice(0, 10)) {
+      const score = c.reputation?.score || 0
+      signals.push({ id: c.id, type: "LOW_REPUTATION", severity: score < 20 ? "CRITICAL" : score < 25 ? "HIGH" : "MEDIUM", target: c.name, link: `/owner/circles/${c.id}`, detail: `Reputation: ${score}. ${c._count.members} members. Owner: ${c.createdBy?.name || c.createdBy?.email}` })
     }
+    for (const i of inactivePublic.slice(0, 5)) {
+      signals.push({ id: i.id, type: "INACTIVE_PUBLIC_CIRCLE", severity: "LOW", target: i.name, link: `/owner/circles/${i.id}`, detail: `Inactive 60+ days. ${i._count.members} members.` })
+    }
+    for (const t of largeWallet.slice(0, 5)) {
+      if (Number(t.amount) > 50000) {
+        signals.push({ id: t.id, type: "LARGE_WALLET_MOVEMENT", severity: "MEDIUM", target: t.circle?.name || "Unknown", link: `/owner/wallets`, detail: `Transaction: R${Number(t.amount).toLocaleString()}` })
+      }
+    }
+  } catch {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Fraud & Abuse Center</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load fraud data</h2><p className="text-sm text-muted-foreground mt-1">The fraud detection data could not be retrieved.</p></div>
+          <a href="/owner/fraud" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
   }
 
   const filtered = sev ? signals.filter((s) => s.severity === sev) : signals
@@ -51,7 +65,7 @@ export default async function OwnerFraudPage({ searchParams }: { searchParams: P
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="rounded-2xl"><CardContent className="p-3 text-center"><div className="text-xl font-bold text-red-600">{openReports}</div><p className="text-xs text-muted-foreground">Open Reports</p></CardContent></Card>
-        <Card className="rounded-2xl"><CardContent className="p-3 text-center"><div className="text-xl font-bold text-amber-600">{lowRepCircles.length}</div><p className="text-xs text-muted-foreground">Low Rep Circles</p></CardContent></Card>
+        <Card className="rounded-2xl"><CardContent className="p-3 text-center"><div className="text-xl font-bold text-amber-600">{lowRepCirclesCount}</div><p className="text-xs text-muted-foreground">Low Rep Circles</p></CardContent></Card>
         <Card className="rounded-2xl"><CardContent className="p-3 text-center"><div className="text-xl font-bold">{manyPendingJoins}</div><p className="text-xs text-muted-foreground">Pending Joins</p></CardContent></Card>
         <Card className="rounded-2xl"><CardContent className="p-3 text-center"><div className="text-xl font-bold text-red-500">{failedPayments}</div><p className="text-xs text-muted-foreground">Failed Payments</p></CardContent></Card>
       </div>

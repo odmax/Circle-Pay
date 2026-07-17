@@ -113,8 +113,8 @@ export default function OwnerAdminsPage() {
             <tbody>{admins.map((a) => (
               <tr key={a.id} className="border-b hover:bg-muted/30">
                 <td className="p-3 pl-4">
-                  <Link href={`/owner/users/${a.user?.id}`} className="hover:underline"><span className="font-medium">{a.user?.name || "—"}</span></Link>
-                  <p className="text-xs text-muted-foreground">{a.user?.email}</p>
+                  <Link href={`/owner/users/${a.user?.id}`} className="hover:underline"><span className="font-medium">{a.user?.name || a.user?.email || "—"}</span></Link>
+                  <p className="text-xs text-muted-foreground">{a.user?.email || "—"}</p>
                 </td>
                 <td className="p-3">
                   <Select value={a.role} onValueChange={(v: string | null) => { if (v && v !== a.role) changeRole(a.id, v) }}>
@@ -126,8 +126,8 @@ export default function OwnerAdminsPage() {
                 <td className="p-3 text-xs text-muted-foreground">{a.lastLoginAt ? new Date(a.lastLoginAt).toLocaleDateString() : "Never"}</td>
                 <td className="p-3 text-xs text-muted-foreground">{new Date(a.createdAt).toLocaleDateString()}</td>
                 <td className="p-3 pr-4 space-x-1.5">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg" onClick={() => toggleActive(a.id, a.isActive, a.user?.name || a.user?.email)}>{a.isActive ? "Deactivate" : "Activate"}</Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg text-red-600 hover:bg-red-50" onClick={() => removeAccess(a.id, a.user?.name || a.user?.email)}>Remove</Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg" onClick={() => toggleActive(a.id, a.isActive, a.user?.name || a.user?.email || "—")}>{a.isActive ? "Deactivate" : "Activate"}</Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg text-red-600 hover:bg-red-50" onClick={() => removeAccess(a.id, a.user?.name || a.user?.email || "—")}>Remove</Button>
                 </td>
               </tr>
             ))}</tbody>

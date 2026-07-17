@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import Link from "next/link"
 import { LayoutDashboard, Users, Globe, Compass, Shield, CreditCard, DollarSign, TrendingUp, Activity, ScrollText, Wallet, ShieldCheck, Layers, Settings, Tag, Megaphone, MessageCircle, UserCog, ArrowLeft } from "lucide-react"
-import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { CommandPalette } from "@/components/layout/command-palette"
 import { PageTransition } from "@/components/layout/page-transition"
 
@@ -55,10 +54,20 @@ const groups = [
 ]
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth()
+  let session: any = null
+  try {
+    session = await auth()
+  } catch (err) {
+    console.error("OWNER_LAYOUT_AUTH_FAILED", err instanceof Error ? err.message : String(err))
+  }
   if (!session?.user?.id) redirect("/login")
 
-  const admin = await prisma.internalAdmin.findUnique({ where: { userId: session.user.id } })
+  let admin: any = null
+  try {
+    admin = await prisma.internalAdmin.findUnique({ where: { userId: session.user.id } })
+  } catch (err) {
+    console.error("OWNER_LAYOUT_ADMIN_QUERY_FAILED", err instanceof Error ? err.message : String(err))
+  }
   if (!admin || !admin.isActive) redirect("/owner/login?error=no-access")
 
   return (

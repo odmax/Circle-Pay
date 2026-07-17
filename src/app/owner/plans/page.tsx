@@ -5,14 +5,28 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { prisma } from "@/lib/prisma"
-import { Plus, Archive, RotateCcw, Copy, ExternalLink } from "lucide-react"
+import { Plus, Archive, RotateCcw, Copy, ExternalLink, AlertTriangle } from "lucide-react"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
 import Link from "next/link"
 
 export default async function OwnerPlansPage() {
   await requireOwnerPage(PERMISSIONS.PLANS_MANAGE)
-  const plans = await prisma.plan.findMany({ include: { _count: { select: { subscriptions: true } } }, orderBy: { sortOrder: "asc" } })
+  let plans
+  try {
+    plans = await prisma.plan.findMany({ include: { _count: { select: { subscriptions: true } } }, orderBy: { sortOrder: "asc" } })
+  } catch {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Plans</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load plans</h2><p className="text-sm text-muted-foreground mt-1">The plans data could not be retrieved.</p></div>
+          <a href="/owner/plans" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

@@ -1,12 +1,28 @@
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { DollarSign, TrendingUp, TrendingDown, BarChart3 } from "lucide-react"
+import { DollarSign, TrendingUp, TrendingDown, BarChart3, AlertTriangle } from "lucide-react"
 import { getOwnerRevenue } from "@/lib/services/owner.service"
-import { Badge } from "@/components/ui/badge"
+import { requireOwnerPage } from "@/lib/services/owner-permission.service"
+import { PERMISSIONS } from "@/lib/ownerPermissions"
 
 export default async function OwnerRevenuePage({ searchParams }: { searchParams: Promise<{ startDate?: string; endDate?: string; planId?: string; provider?: string }> }) {
+  await requireOwnerPage(PERMISSIONS.PAYMENTS_VIEW)
   const filters = await searchParams
-  const data = await getOwnerRevenue(filters)
+  let data
+  try {
+    data = await getOwnerRevenue(filters)
+  } catch {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Revenue</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load revenue data</h2><p className="text-sm text-muted-foreground mt-1">The revenue data could not be retrieved. This may be temporary.</p></div>
+          <a href="/owner/revenue" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

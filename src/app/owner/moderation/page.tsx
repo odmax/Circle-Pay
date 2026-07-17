@@ -36,10 +36,9 @@ export default async function OwnerModerationPage({ searchParams }: { searchPara
     id: c.id, name: c.name, type: c.type, owner: c.createdBy, members: c._count.members,
     reputation: c.reputation?.score || 0, verification: c.verification?.status || "NONE",
     reason: "Low reputation score",
-    severity: c.reputation?.score && c.reputation.score < 20 ? "CRITICAL" as const : c.reputation?.score && c.reputation.score < 30 ? "HIGH" as const : "MEDIUM" as const,
+    severity: c.reputation?.score != null && c.reputation.score < 20 ? "CRITICAL" as const : c.reputation?.score != null && c.reputation.score < 30 ? "HIGH" as const : "MEDIUM" as const,
   }))
 
-  if (sev) return null // filtered handled by map below
   const filtered = sev ? risks.filter((r) => r.severity === sev) : risks
   const severityBadge = (s: string) => ({ CRITICAL: "border-red-200 bg-red-50 text-red-700", HIGH: "border-orange-200 bg-orange-50 text-orange-700", MEDIUM: "border-amber-200 bg-amber-50 text-amber-700", LOW: "border-blue-200 bg-blue-50 text-blue-700" }[s] || "")
 

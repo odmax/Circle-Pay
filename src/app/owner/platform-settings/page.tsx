@@ -1,15 +1,30 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { AlertTriangle } from "lucide-react"
 import { getPlatformSettings, getFeatureFlags, seedDefaultPlatformSettings } from "@/lib/services/platform-settings.service"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
 
 export default async function PlatformSettingsPage() {
   await requireOwnerPage(PERMISSIONS.PLATFORM_SETTINGS_EDIT)
-  await seedDefaultPlatformSettings()
-  const settings = await getPlatformSettings()
-  const flags = await getFeatureFlags()
+  let settings: any = {}, flags: any[] = []
+  try {
+    await seedDefaultPlatformSettings()
+    settings = await getPlatformSettings()
+    flags = await getFeatureFlags()
+  } catch {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Platform Settings</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load platform settings</h2><p className="text-sm text-muted-foreground mt-1">The platform settings could not be retrieved.</p></div>
+          <a href="/owner/platform-settings" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

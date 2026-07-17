@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Users, Globe, TrendingUp, DollarSign, MessageCircle, Calendar, Vote, PiggyBank, Target, Wallet } from "lucide-react"
+import { Users, Globe, TrendingUp, DollarSign, MessageCircle, Calendar, Vote, PiggyBank, Target, Wallet, AlertTriangle } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
@@ -9,34 +9,50 @@ export default async function OwnerAnalyticsPage() {
   await requireOwnerPage(PERMISSIONS.ANALYTICS_VIEW)
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const [totalUsers, newUsersMonth, totalCircles, newCirclesMonth, publicCircles, paidUsers, totalRevenue, feedPosts, events, polls, joinRequests, contributions, goals, walletTxs, subs] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { createdAt: { gte: monthStart } } }),
-    prisma.circle.count({ where: { isActive: true } }),
-    prisma.circle.count({ where: { createdAt: { gte: monthStart } } }),
-    prisma.circle.count({ where: { visibility: "PUBLIC", isActive: true } }),
-    prisma.userSubscription.count({ where: { status: "ACTIVE", plan: { slug: { not: "free" } } } }),
-    prisma.paymentTransaction.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }),
-    prisma.feedPost.count({ where: { deletedAt: null } }),
-    prisma.circleEvent.count({ where: { deletedAt: null } }),
-    prisma.circlePoll.count({ where: { deletedAt: null } }),
-    prisma.joinRequest.count(),
-    prisma.contribution.count({ where: { deletedAt: null } }),
-    prisma.goal.count({ where: { deletedAt: null } }),
-    prisma.walletTransaction.count(),
-    prisma.userSubscription.groupBy({ by: ["planId"], _count: true }),
-  ])
+  let totalUsers = 0, newUsersMonth = 0, totalCircles = 0, newCirclesMonth = 0, publicCircles = 0, paidUsers = 0
+  let totalRevenue: { _sum: { amount: any } } = { _sum: { amount: 0 } }, feedPosts = 0, events = 0, polls = 0, joinRequests = 0, contributions = 0, goals = 0, walletTxs = 0
+  let subs: { planId: string; _count: number }[] = [], plans: { id: string; name: string; slug: string }[] = [], circleTypeData: { type: string; count: number }[] = [], topCountries: { country: string | null; _count: number }[] = []
+  try {
+    let subsRaw: { planId: string; _count: number }[]
+    ;[totalUsers, newUsersMonth, totalCircles, newCirclesMonth, publicCircles, paidUsers, totalRevenue, feedPosts, events, polls, joinRequests, contributions, goals, walletTxs, subsRaw] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { createdAt: { gte: monthStart } } }),
+      prisma.circle.count({ where: { isActive: true } }),
+      prisma.circle.count({ where: { createdAt: { gte: monthStart } } }),
+      prisma.circle.count({ where: { visibility: "PUBLIC", isActive: true } }),
+      prisma.userSubscription.count({ where: { status: "ACTIVE", plan: { slug: { not: "free" } } } }),
+      prisma.paymentTransaction.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }),
+      prisma.feedPost.count({ where: { deletedAt: null } }),
+      prisma.circleEvent.count({ where: { deletedAt: null } }),
+      prisma.circlePoll.count({ where: { deletedAt: null } }),
+      prisma.joinRequest.count(),
+      prisma.contribution.count({ where: { deletedAt: null } }),
+      prisma.goal.count({ where: { deletedAt: null } }),
+      prisma.walletTransaction.count(),
+      prisma.userSubscription.groupBy({ by: ["planId"], _count: true }),
+    ])
+    subs = subsRaw
+    plans = await prisma.plan.findMany({ select: { id: true, name: true, slug: true } })
 
-  const plans = await prisma.plan.findMany({ select: { id: true, name: true, slug: true } })
+    const circleTypes = await prisma.circle.groupBy({ by: ["type"], where: { isActive: true }, _count: true })
+    circleTypeData = circleTypes.map((c) => ({ type: c.type, count: c._count })).sort((a, b) => b.count - a.count)
+
+    const countries = await prisma.circle.groupBy({ by: ["country"], where: { isActive: true, country: { not: null } }, _count: true })
+    topCountries = countries.sort((a, b) => b._count - a._count).slice(0, 10)
+  } catch {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load analytics</h2><p className="text-sm text-muted-foreground mt-1">The analytics data could not be retrieved.</p></div>
+          <a href="/owner/analytics" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
+
   const planBreakdown = subs.map((s) => ({ plan: plans.find((p) => p.id === s.planId)?.name || "?", count: s._count }))
-
-  // Circle type breakdown
-  const circleTypes = await prisma.circle.groupBy({ by: ["type"], where: { isActive: true }, _count: true })
-  const circleTypeData = circleTypes.map((c) => ({ type: c.type, count: c._count })).sort((a, b) => b.count - a.count)
-
-  // Country breakdown
-  const countries = await prisma.circle.groupBy({ by: ["country"], where: { isActive: true, country: { not: null } }, _count: true })
-  const topCountries = countries.sort((a, b) => b._count - a._count).slice(0, 10)
 
   return (
     <div className="space-y-6">

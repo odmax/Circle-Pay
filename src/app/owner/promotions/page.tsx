@@ -4,13 +4,27 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { prisma } from "@/lib/prisma"
-import { Plus, Power, PowerOff } from "lucide-react"
+import { Plus, Power, PowerOff, AlertTriangle } from "lucide-react"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
 
 export default async function OwnerPromotionsPage() {
   await requireOwnerPage(PERMISSIONS.PROMOS_MANAGE)
-  const promos = await prisma.promoCode.findMany({ include: { _count: { select: { redemptions: true } } }, orderBy: { createdAt: "desc" } })
+  let promos: any[] = []
+  try {
+    promos = await prisma.promoCode.findMany({ include: { _count: { select: { redemptions: true } } }, orderBy: { createdAt: "desc" } })
+  } catch {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Promotions</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Unable to load promotions</h2><p className="text-sm text-muted-foreground mt-1">The promotions data could not be retrieved.</p></div>
+          <a href="/owner/promotions" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -46,7 +60,7 @@ export default async function OwnerPromotionsPage() {
 
       {/* Create Form */}
       <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base"><Plus className="size-4 inline mr-1" /> Create Promo Code</CardTitle></CardHeader><CardContent>
-        <form action={async (fd) => { "use server"; const { requireOwnerAction } = await import("@/lib/services/owner-permission.service"); await requireOwnerAction("PROMOS_MANAGE"); await prisma.promoCode.create({ data: { code: (fd.get("code") as string).toUpperCase(), name: fd.get("name") as string, description: fd.get("description") as string || null, discountType: (fd.get("discountType") as any) || "PERCENTAGE", discountValue: Number(fd.get("discountValue") || 10), maxRedemptions: Number(fd.get("maxRedemptions") || 0) || null, createdById: "owner" } }) }} className="space-y-3">
+        <form action={async (fd) => { "use server"; const { requireOwnerAction } = await import("@/lib/services/owner-permission.service"); await requireOwnerAction("PROMOS_MANAGE"); const code = String(fd.get("code") || "").trim(); if (!code) return; await prisma.promoCode.create({ data: { code: code.toUpperCase(), name: String(fd.get("name") || ""), description: String(fd.get("description") || "") || null, discountType: (fd.get("discountType") as any) || "PERCENTAGE", discountValue: Number(fd.get("discountValue") || 10), maxRedemptions: Number(fd.get("maxRedemptions") || 0) || null, createdById: "owner" } }) }} className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Input name="code" placeholder="Code (e.g. LAUNCH50)" className="rounded-xl" required />
             <Input name="name" placeholder="Campaign name" className="rounded-xl" required />
