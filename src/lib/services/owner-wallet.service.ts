@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 
 export async function getOwnerWalletDashboard() {
+  try {
   const [totalWallets, circleWallets, totalLedgerTxs, pendingApprovals, recentWalletTxs, circles, recentLedgerTxs] = await Promise.all([
     prisma.wallet.count(),
     prisma.wallet.count({ where: { type: "CIRCLE_WALLET" } }),
@@ -30,9 +31,14 @@ export async function getOwnerWalletDashboard() {
       createdAt: t.createdAt.toISOString(),
     })),
   }
+  } catch (error) {
+    console.error("OWNER PAGE ERROR", { page: "Wallets", error, stack: error instanceof Error ? error.stack : undefined })
+    throw error
+  }
 }
 
 export async function getWalletLedgerHealth() {
+  try {
   const exceptions: { severity: string; message: string; entityType: string; entityId?: string }[] = []
 
   // Check unbalanced transactions
@@ -79,5 +85,9 @@ export async function getWalletLedgerHealth() {
     status: critical > 0 ? "CRITICAL" : warnings > 0 ? "WARNING" : "HEALTHY",
     critical, warnings,
     exceptions: exceptions.slice(0, 50),
+  }
+  } catch (error) {
+    console.error("OWNER PAGE ERROR", { page: "Wallet Ledger Health", error, stack: error instanceof Error ? error.stack : undefined })
+    throw error
   }
 }

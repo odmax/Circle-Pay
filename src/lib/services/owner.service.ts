@@ -13,6 +13,7 @@ async function requireOwnerAdmin(): Promise<string> {
 }
 
 export async function getOwnerDashboard() {
+  try {
   await requireOwnerAdmin()
 
   const now = new Date()
@@ -96,9 +97,14 @@ export async function getOwnerDashboard() {
     recentPayments: recentPayments.map((p: any) => ({ id: p.id, amount: Number(p.amount), plan: { name: p.plan?.name || null }, user: { name: p.user?.name || null, email: p.user?.email || null }, paidAt: p.paidAt?.toISOString() || null, createdAt: p.createdAt.toISOString() })),
     activityFeed: activityFeed.slice(0, 12),
   }
+  } catch (error) {
+    console.error("OWNER PAGE ERROR", { page: "Dashboard", error, stack: error instanceof Error ? error.stack : undefined })
+    throw error
+  }
 }
 
 export async function getOwnerUsers() {
+  try {
   await requireOwnerAdmin()
   const users = await prisma.user.findMany({
     include: {
@@ -114,6 +120,10 @@ export async function getOwnerUsers() {
     circleCount: u._count.circleMembers,
     createdAt: u.createdAt.toISOString(),
   }))
+  } catch (error) {
+    console.error("OWNER PAGE ERROR", { page: "Users", error, stack: error instanceof Error ? error.stack : undefined })
+    throw error
+  }
 }
 
 export async function updateUserPlan(userId: string, planSlug: string) {
@@ -132,6 +142,7 @@ export async function getOwnerCircles(filters?: {
   search?: string; type?: string; visibility?: string; verification?: string
   isActive?: string; page?: number; pageSize?: number; sort?: string
 }) {
+  try {
   await requireOwnerAdmin()
   const page = filters?.page || 1
   const pageSize = filters?.pageSize || 20
@@ -190,6 +201,10 @@ export async function getOwnerCircles(filters?: {
     })),
     totalCount, page, pageSize,
     summary,
+  }
+  } catch (error) {
+    console.error("OWNER PAGE ERROR", { page: "Circles", error, stack: error instanceof Error ? error.stack : undefined })
+    throw error
   }
 }
 
