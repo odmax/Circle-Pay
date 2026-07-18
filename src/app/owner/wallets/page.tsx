@@ -1,12 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { getOwnerWalletDashboard, getWalletLedgerHealth } from "@/lib/services/owner-wallet.service"
 import { AlertTriangle, Check } from "lucide-react"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
-import { AdvancedDataTable, type Column } from "@/components/ui/app/advanced-data-table"
-
-type LedgerTx = { id: string; type: string; amount: number; entryCount: number; status: string; createdAt: string }
+import { OwnerWalletsTable, type LedgerTx } from "@/components/owner/owner-wallets-table"
 
 export default async function OwnerWalletsPage() {
   await requireOwnerPage(PERMISSIONS.WALLETS_VIEW)
@@ -23,13 +20,7 @@ export default async function OwnerWalletsPage() {
 
   const txs = (data.recentWalletTransactions || []) as unknown as LedgerTx[]
 
-  const columns: Column<LedgerTx>[] = [
-    { key: "type", header: "Type", accessor: (t) => <Badge variant="outline" className="text-[10px]">{t.type}</Badge> },
-    { key: "amount", header: "Amount", accessor: (t) => <span className="font-mono">R{Number(t.amount).toLocaleString()}</span>, sortable: true },
-    { key: "entryCount", header: "Entries", accessor: (t) => String(t.entryCount) },
-    { key: "status", header: "Status", accessor: (t) => <Badge variant="outline" className={t.status === "CONFIRMED" ? "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]" : t.status === "PENDING" ? "border-amber-200 bg-amber-50 text-amber-700 text-[10px]" : "text-[10px]"}>{t.status}</Badge> },
-    { key: "createdAt", header: "Date", accessor: (t) => new Date(t.createdAt).toLocaleDateString(), sortable: true },
-  ]
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/wallets", itemCount: txs.length })
 
   return (
     <div className="space-y-6">
@@ -55,9 +46,9 @@ export default async function OwnerWalletsPage() {
         <Card className="rounded-2xl border-amber-200">
           <CardHeader><CardTitle className="text-base text-amber-800">Exceptions ({health.exceptions.length})</CardTitle></CardHeader>
           <CardContent>
-              <div className="space-y-2">{health.exceptions.map((e: any, i: any) => (
+            <div className="space-y-2">{health.exceptions.map((e: any, i: any) => (
               <div key={i} className="flex items-center gap-2 text-sm">
-                <Badge variant="outline" className={e.severity === "CRITICAL" ? "border-red-200 bg-red-50 text-red-700" : e.severity === "WARNING" ? "border-amber-200 bg-amber-50 text-amber-700" : ""}>{e.severity}</Badge>
+                <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${e.severity === "CRITICAL" ? "bg-red-50 text-red-700 border border-red-200" : e.severity === "WARNING" ? "bg-amber-50 text-amber-700 border border-amber-200" : ""}`}>{e.severity}</span>
                 <span>{e.message}</span>
               </div>
             ))}</div>
@@ -66,7 +57,7 @@ export default async function OwnerWalletsPage() {
       )}
 
       <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Recent Ledger Transactions</CardTitle></CardHeader><CardContent className="p-0">
-        <AdvancedDataTable columns={columns} data={txs} keyField="id" searchPlaceholder="Filter transactions..." emptyTitle="No transactions" />
+        <OwnerWalletsTable transactions={txs} />
       </CardContent></Card>
     </div>
   )

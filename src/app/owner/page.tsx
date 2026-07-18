@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Users, Globe, Crown, DollarSign, TrendingUp, Sparkles, UserPlus, ShieldCheck, FileText, AlertTriangle, UserCheck, Wallet, Activity, ArrowRight, RefreshCw, ArrowLeft } from "lucide-react"
-import { AppPage, PageHeader, StatCard, MetricCard, SectionHeader, StatusBadge } from "@/components/ui/app"
+import { Users, Globe, Crown, DollarSign, TrendingUp, Sparkles, UserPlus, ShieldCheck, FileText, AlertTriangle, UserCheck, Wallet, Activity, ArrowRight } from "lucide-react"
+import { AppPage, PageHeader, StatCard, MetricCard, SectionHeader } from "@/components/ui/app"
 
 export default async function OwnerOverviewPage() {
   await requireOwnerAdmin()
@@ -21,8 +21,8 @@ export default async function OwnerOverviewPage() {
           <AlertTriangle className="size-10 text-red-500" />
           <div><h2 className="text-lg font-semibold">Unable to load dashboard</h2><p className="text-sm text-muted-foreground mt-1">The dashboard data could not be retrieved. This may be temporary.</p></div>
           <div className="flex gap-2">
-            <a href="/owner" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"><RefreshCw className="size-4" /> Retry</a>
-            <a href="/dashboard" className="inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-muted"><ArrowLeft className="size-4" /> Back to Dashboard</a>
+            <a href="/owner" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+            <a href="/dashboard" className="inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-muted">Back to Dashboard</a>
           </div>
         </CardContent></Card>
       </AppPage>
@@ -39,26 +39,26 @@ export default async function OwnerOverviewPage() {
 
       {/* Platform KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Users" value={d.totalUsers} icon={Users} />
-        <StatCard label="Active Users" value={d.activeUsers} icon={UserCheck} />
-        <StatCard label="Total Circles" value={d.totalCircles} icon={Globe} />
-        <StatCard label="Paid Users" value={d.premiumUsers + d.communityUsers} icon={Crown} sub={`${d.premiumUsers} Premium + ${d.communityUsers} Community`} />
+        <StatCard label="Total Users" value={d.totalUsers} iconName="users" />
+        <StatCard label="Active Users" value={d.activeUsers} iconName="user-check" />
+        <StatCard label="Total Circles" value={d.totalCircles} iconName="globe" />
+        <StatCard label="Paid Users" value={d.premiumUsers + d.communityUsers} iconName="crown" sub={`${d.premiumUsers} Premium + ${d.communityUsers} Community`} />
       </div>
 
       {/* Revenue KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Revenue" value={`R${d.totalRevenue.toLocaleString()}`} icon={DollarSign} trend="up" />
-        <StatCard label="MRR" value={`R${d.mrr.toLocaleString()}`} icon={TrendingUp} sub="This month" />
-        <StatCard label="Today Revenue" value={`R${d.todayRevenue.toLocaleString()}`} icon={Sparkles} sub={`${d.todayPayments} payments`} />
-        <StatCard label="Wallet Volume" value={`R${d.totalWalletVolume.toLocaleString()}`} icon={Wallet} sub="All confirmed txs" />
+        <StatCard label="Total Revenue" value={`R${d.totalRevenue.toLocaleString()}`} iconName="dollar-sign" trend="up" />
+        <StatCard label="MRR" value={`R${d.mrr.toLocaleString()}`} iconName="trending-up" sub="This month" />
+        <StatCard label="Today Revenue" value={`R${d.todayRevenue.toLocaleString()}`} iconName="sparkles" sub={`${d.todayPayments} payments`} />
+        <StatCard label="Wallet Volume" value={`R${d.totalWalletVolume.toLocaleString()}`} iconName="wallet" sub="All confirmed txs" />
       </div>
 
       {/* Operations KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Verified Circles" value={d.verifiedCircles} icon={ShieldCheck} className="text-emerald-600" />
-        <MetricCard label="Public Circles" value={d.publicCircles} icon={Globe} />
-        <MetricCard label="Pending Verifications" value={d.pendingVerifications} icon={d.pendingVerifications > 0 ? AlertTriangle : ShieldCheck} className={d.pendingVerifications > 0 ? "text-amber-600" : "text-emerald-600"} />
-        <MetricCard label="Pending Join Requests" value={d.pendingJoinRequests} icon={d.pendingJoinRequests > 0 ? AlertTriangle : UserPlus} className={d.pendingJoinRequests > 0 ? "text-amber-600" : ""} />
+        <MetricCard label="Verified Circles" value={d.verifiedCircles} iconName="shield-check" className="text-emerald-600" />
+        <MetricCard label="Public Circles" value={d.publicCircles} iconName="globe" />
+        <MetricCard label="Pending Verifications" value={d.pendingVerifications} iconName={d.pendingVerifications > 0 ? "alert-triangle" : "shield-check"} className={d.pendingVerifications > 0 ? "text-amber-600" : "text-emerald-600"} />
+        <MetricCard label="Pending Join Requests" value={d.pendingJoinRequests} iconName={d.pendingJoinRequests > 0 ? "alert-triangle" : "user-plus"} className={d.pendingJoinRequests > 0 ? "text-amber-600" : ""} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
