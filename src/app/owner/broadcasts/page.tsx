@@ -11,24 +11,39 @@ import { PERMISSIONS } from "@/lib/ownerPermissions"
 export default async function OwnerBroadcastsPage() {
   await requireOwnerPage(PERMISSIONS.BROADCAST_SEND)
   let broadcasts: any[] = []
+  let queryError = false
   try {
     broadcasts = await prisma.platformBroadcast.findMany({ include: { createdBy: { select: { name: true } }, _count: { select: { recipients: true } } }, orderBy: { createdAt: "desc" }, take: 20 })
-  } catch {
+  } catch (err) {
+    console.error("OWNER_BROADCASTS_QUERY_FAILED", err instanceof Error ? err.message : String(err))
+    queryError = true
     broadcasts = []
   }
+
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/broadcasts", itemCount: broadcasts.length, queryError })
 
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold tracking-tight">Broadcasts</h1><p className="text-muted-foreground">Send announcements to users</p></div>
 
+      {queryError && (
+        <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-center gap-3 p-4">
+          <AlertTriangle className="size-5 text-amber-500 shrink-0" />
+          <div className="text-sm text-amber-700"><p className="font-medium">Could not load recent broadcasts</p><p className="text-xs text-amber-600 mt-0.5">The broadcast list could not be retrieved. You can still create new broadcasts below.</p></div>
+        </CardContent></Card>
+      )}
+
       {/* Recent Broadcasts */}
-      <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Recent ({broadcasts.length})</CardTitle></CardHeader><CardContent className="p-0">
-        <table className="w-full text-sm"><thead><tr className="border-b text-left text-xs font-medium text-muted-foreground"><th className="p-3 pl-4">Title</th><th className="p-3">Type</th><th className="p-3">Target</th><th className="p-3">Status</th><th className="p-3">Recipients</th><th className="p-3">Date</th></tr></thead>
-          <tbody>{broadcasts.map((b) => (
-            <tr key={b.id} className="border-b"><td className="p-3 pl-4 font-medium">{b.title}</td><td className="p-3"><Badge variant="outline" className="text-[10px]">{b.type.replace(/_/g, " ")}</Badge></td><td className="p-3"><Badge variant="outline" className="text-[10px]">{b.target.replace(/_/g, " ")}</Badge></td><td className="p-3"><Badge variant="outline" className={b.status === "SENT" ? "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]" : b.status === "DRAFT" ? "text-[10px]" : "text-[10px]"}>{b.status}</Badge></td><td className="p-3">{b.recipientCount || b._count.recipients}</td><td className="p-3 text-muted-foreground">{new Date(b.createdAt).toLocaleDateString()}</td></tr>
-          ))}</tbody>
-        </table>
-      </CardContent></Card>
+      {!queryError && (
+        <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Recent ({broadcasts.length})</CardTitle></CardHeader><CardContent className="p-0">
+          <table className="w-full text-sm"><thead><tr className="border-b text-left text-xs font-medium text-muted-foreground"><th className="p-3 pl-4">Title</th><th className="p-3">Type</th><th className="p-3">Target</th><th className="p-3">Status</th><th className="p-3">Recipients</th><th className="p-3">Date</th></tr></thead>
+            <tbody>{broadcasts.map((b) => (
+              <tr key={b.id} className="border-b"><td className="p-3 pl-4 font-medium">{b.title}</td><td className="p-3"><Badge variant="outline" className="text-[10px]">{b.type.replace(/_/g, " ")}</Badge></td><td className="p-3"><Badge variant="outline" className="text-[10px]">{b.target.replace(/_/g, " ")}</Badge></td><td className="p-3"><Badge variant="outline" className={b.status === "SENT" ? "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]" : b.status === "DRAFT" ? "text-[10px]" : "text-[10px]"}>{b.status}</Badge></td><td className="p-3">{b.recipientCount || b._count.recipients}</td><td className="p-3 text-muted-foreground">{new Date(b.createdAt).toLocaleDateString()}</td></tr>
+            ))}</tbody>
+          </table>
+          {broadcasts.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">No broadcasts yet</p>}
+        </CardContent></Card>
+      )}
 
       {/* Create Form */}
       <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base"><Megaphone className="size-4 inline mr-1" /> Create Broadcast</CardTitle></CardHeader><CardContent>

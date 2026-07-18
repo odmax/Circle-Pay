@@ -27,6 +27,8 @@ export default async function OwnerAuditLogsPage() {
     )
   }
 
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/audit-logs", itemCount: logs.length })
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Audit Logs ({logs.length})</h1>

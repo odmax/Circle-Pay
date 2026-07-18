@@ -28,6 +28,8 @@ export default async function OwnerPlansPage() {
     )
   }
 
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/plans", itemCount: plans.length })
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between"><h1 className="text-2xl font-bold tracking-tight">Plans ({plans.length})</h1>

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { requireOwnerPage } from "@/lib/services/owner-permission.service"
 import { PERMISSIONS } from "@/lib/ownerPermissions"
+import { AlertTriangle } from "lucide-react"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 function computeDates() { return { thirty: new Date(Date.now() - 30 * DAY_MS), seven: new Date(Date.now() - 7 * DAY_MS) } }
@@ -15,32 +16,49 @@ export default async function OwnerModerationPage({ searchParams }: { searchPara
   const { thirty, seven } = computeDates()
   const searchParamsObj = new URLSearchParams(params as Record<string, string>)
 
-  const [flagged, deactivated, lowRep, inactive, pendingVerification, _highPending, _noContrib] = await Promise.all([
-    prisma.circleModerationReview.count({ where: { status: "OPEN" } }),
-    prisma.circle.count({ where: { isActive: false } }),
-    prisma.circle.count({ where: { isActive: true, reputation: { score: { lt: 40 } } } }),
-    prisma.circle.count({ where: { isActive: true, updatedAt: { lt: thirty } } }),
-    prisma.circleVerification.count({ where: { status: "PENDING", submittedAt: { lt: seven } } }),
-    prisma.joinRequest.count({ where: { status: "PENDING" } }),
-    prisma.circle.count({ where: { isActive: true, contributions: { none: {} } } }),
-  ])
+  let flagged = 0, deactivated = 0, lowRep = 0, inactive = 0, pendingVerification = 0
+  let risks: { id: string; name: string; type: string; owner: { name?: string; email?: string } | null; members: number; reputation: number; verification: string; reason: string; severity: "CRITICAL" | "HIGH" | "MEDIUM" }[] = []
 
-  // Risk detection
-  const lowRepCircles = await prisma.circle.findMany({
-    where: { isActive: true, reputation: { score: { lt: 40 } } },
-    include: { _count: { select: { members: true } }, reputation: true, createdBy: { select: { name: true, email: true } }, verification: true },
-    take: 30, orderBy: { createdAt: "desc" },
-  })
+  try {
+    const counts = await Promise.all([
+      prisma.circleModerationReview.count({ where: { status: "OPEN" } }),
+      prisma.circle.count({ where: { isActive: false } }),
+      prisma.circle.count({ where: { isActive: true, reputation: { score: { lt: 40 } } } }),
+      prisma.circle.count({ where: { isActive: true, updatedAt: { lt: thirty } } }),
+      prisma.circleVerification.count({ where: { status: "PENDING", submittedAt: { lt: seven } } }),
+    ])
+    ;[flagged, deactivated, lowRep, inactive, pendingVerification] = counts
 
-  const risks = lowRepCircles.map((c) => ({
-    id: c.id, name: c.name, type: c.type, owner: c.createdBy, members: c._count.members,
-    reputation: c.reputation?.score || 0, verification: c.verification?.status || "NONE",
-    reason: "Low reputation score",
-    severity: c.reputation?.score != null && c.reputation.score < 20 ? "CRITICAL" as const : c.reputation?.score != null && c.reputation.score < 30 ? "HIGH" as const : "MEDIUM" as const,
-  }))
+    const lowRepCircles = await prisma.circle.findMany({
+      where: { isActive: true, reputation: { score: { lt: 40 } } },
+      include: { _count: { select: { members: true } }, reputation: true, createdBy: { select: { name: true, email: true } }, verification: true },
+      take: 30, orderBy: { createdAt: "desc" },
+    })
+
+    risks = lowRepCircles.map((c) => ({
+      id: c.id, name: c.name, type: c.type, owner: c.createdBy, members: c._count.members,
+      reputation: c.reputation?.score || 0, verification: c.verification?.status || "NONE",
+      reason: "Low reputation score",
+      severity: c.reputation?.score != null && c.reputation.score < 20 ? "CRITICAL" as const : c.reputation?.score != null && c.reputation.score < 30 ? "HIGH" as const : "MEDIUM" as const,
+    }))
+  } catch (err) {
+    console.error("OWNER_MODERATION_QUERY_FAILED", err instanceof Error ? err.message : String(err))
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Moderation Center</h1>
+        <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="size-10 text-red-500" />
+          <div><h2 className="text-lg font-semibold">Could not load moderation data</h2><p className="text-sm text-muted-foreground mt-1">The moderation overview could not be retrieved. This may be temporary.</p></div>
+          <a href="/owner/moderation" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">Retry</a>
+        </CardContent></Card>
+      </div>
+    )
+  }
 
   const filtered = sev ? risks.filter((r) => r.severity === sev) : risks
   const severityBadge = (s: string) => ({ CRITICAL: "border-red-200 bg-red-50 text-red-700", HIGH: "border-orange-200 bg-orange-50 text-orange-700", MEDIUM: "border-amber-200 bg-amber-50 text-amber-700", LOW: "border-blue-200 bg-blue-50 text-blue-700" }[s] || "")
+
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/moderation", itemCount: risks.length })
 
   return (
     <div className="space-y-6">

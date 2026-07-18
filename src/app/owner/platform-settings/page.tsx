@@ -14,7 +14,9 @@ export default async function PlatformSettingsPage() {
     settings = await getPlatformSettings()
     flags = await getFeatureFlags()
   } catch {
-    return (
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/platform-settings", settingsCount: Object.keys(settings).length, flagCount: flags.length })
+
+  return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">Platform Settings</h1>
         <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">

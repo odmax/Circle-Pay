@@ -9,11 +9,16 @@ import { PERMISSIONS } from "@/lib/ownerPermissions"
 export default async function BulkOperationsPage() {
   await requireOwnerPage(PERMISSIONS.BULK_OPERATIONS_RUN)
   let recentOps: any[] = []
+  let queryError = false
   try {
     recentOps = await prisma.bulkOperation.findMany({ orderBy: { createdAt: "desc" }, take: 10, include: { admin: { select: { name: true } } } })
-  } catch {
+  } catch (err) {
+    console.error("OWNER_BULK_OPS_QUERY_FAILED", err instanceof Error ? err.message : String(err))
+    queryError = true
     recentOps = []
   }
+
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/bulk-operations", itemCount: recentOps.length, queryError })
 
   return (
     <div className="space-y-6">
@@ -61,7 +66,11 @@ export default async function BulkOperationsPage() {
 
       {/* Recent Operations */}
       <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Recent Bulk Operations</CardTitle></CardHeader><CardContent>
-        {recentOps.length === 0 ? <p className="text-sm text-muted-foreground">No bulk operations yet</p> : (
+        {queryError && (
+          <div className="flex items-center gap-2 text-sm text-amber-700 py-2"><AlertTriangle className="size-4" /> Could not load recent operations</div>
+        )}
+        {!queryError && recentOps.length === 0 && <p className="text-sm text-muted-foreground">No bulk operations yet</p>}
+        {!queryError && recentOps.length > 0 && (
           <div className="space-y-2">{recentOps.map((op) => (
             <div key={op.id} className="flex items-center justify-between text-sm border-b pb-2">
               <div><span className="font-medium capitalize">{op.type.toLowerCase()} {op.target.toLowerCase()}s</span><span className="text-muted-foreground ml-2">by {op.admin?.name || "System"}</span></div>

@@ -21,6 +21,8 @@ export default async function OwnerHealthPage() {
     )
   }
 
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/health", status: data.status })
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Health</h1>

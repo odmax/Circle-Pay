@@ -33,7 +33,9 @@ export default async function OwnerPromotionsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {promos.map((p) => {
           const plans = (p.appliesToPlanIds as string[]) || []
-          return (
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/promotions", itemCount: promos.length })
+
+  return (
             <Card key={p.id} className={`rounded-2xl ${!p.isActive ? "opacity-60" : ""}`}>
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-start justify-between">

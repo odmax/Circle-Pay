@@ -32,7 +32,9 @@ export default async function OwnerDiscoverPage({ searchParams }: { searchParams
       prisma.joinRequest.count({ where: { circle: { visibility: "PUBLIC" }, status: "PENDING" } }),
     ])
   } catch {
-    return (
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/discover", itemCount: circles.length, total })
+
+  return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">Discover Admin</h1>
         <Card className="rounded-2xl border-red-200 bg-red-50/10"><CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">

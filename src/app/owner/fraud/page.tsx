@@ -56,6 +56,8 @@ export default async function OwnerFraudPage({ searchParams }: { searchParams: P
     )
   }
 
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/fraud", itemCount: signals.length })
+
   const filtered = sev ? signals.filter((s) => s.severity === sev) : signals
   const severityBadge = (s: string) => ({ CRITICAL: "border-red-200 bg-red-50 text-red-700", HIGH: "border-orange-200 bg-orange-50 text-orange-700", MEDIUM: "border-amber-200 bg-amber-50 text-amber-700", LOW: "border-blue-200 bg-blue-50 text-blue-700" }[s] || "")
 

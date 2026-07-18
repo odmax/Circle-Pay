@@ -45,6 +45,8 @@ export default async function VerificationsPage({ searchParams }: { searchParams
       prisma.circleVerification.count({ where: { status: "REJECTED" } }),
     ])
 
+    console.info("OWNER_PAGE_DATA_READY", { route: "/owner/verifications", itemCount: verifications.length, filter })
+
     return (
       <VerificationLayout pending={pending} verified={verified} rejected={rejected} filter={filter}>
         <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Verification Criteria</CardTitle></CardHeader><CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">

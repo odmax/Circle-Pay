@@ -52,6 +52,8 @@ export default async function OwnerAnalyticsPage() {
     )
   }
 
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/analytics", totalUsers, totalCircles })
+
   const planBreakdown = subs.map((s) => ({ plan: plans.find((p) => p.id === s.planId)?.name || "?", count: s._count }))
 
   return (

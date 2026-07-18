@@ -29,6 +29,8 @@ export default async function OwnerOverviewPage() {
     )
   }
 
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner", itemCount: 1 })
+
   return (
     <AppPage>
       <PageHeader

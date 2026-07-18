@@ -24,6 +24,8 @@ export default async function OwnerRevenuePage({ searchParams }: { searchParams:
     )
   }
 
+  console.info("OWNER_PAGE_DATA_READY", { route: "/owner/revenue", mrr: data.mrr })
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
