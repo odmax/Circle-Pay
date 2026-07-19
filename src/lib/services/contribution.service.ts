@@ -1,12 +1,13 @@
 import { prisma } from "@/lib/prisma"
 import type { ContributionFrequency, ContributionStatus } from "@/generated/prisma"
-import { notifyCircleMembers } from "@/lib/services/notification.service"
+import { notifyCircleMembers, createBulkNotifications } from "@/lib/services/notification.service"
 import { createAuditLog } from "@/lib/services/audit.service"
 import { recordContributionToLedger, reverseContributionLedger } from "@/lib/services/wallet.service"
 import { createSystemPost } from "@/lib/services/feed.service"
 import { markCircleStale } from "@/lib/services/snapshot.service"
 import { requireCirclePermission, hasCirclePermission } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
+import { createApprovalRequest, getApprovalConfig, getCircleReviewers } from "@/lib/services/approval.service"
 
 // ─── Contribution Plans ──────────────────────────────────
 
@@ -199,6 +200,77 @@ export async function addContribution(
     }
   }
 
+  // Check if approval is required for contributions
+  const approvalConfig = await getApprovalConfig(circleId)
+  const approvalEnabled = approvalConfig.contribution?.enabled ?? false
+
+  if (approvalEnabled) {
+    // Approval flow: create as PENDING_REVIEW, no ledger, no system post yet
+    const contribution = await prisma.contribution.create({
+      data: {
+        circleId,
+        userId: data.userId,
+        planId: data.planId || null,
+        amount: data.amount,
+        status: "PENDING_REVIEW",
+        paymentDate: new Date(data.paymentDate),
+        note: data.note || null,
+        createdById: actorUserId,
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+        plan: { select: { id: true, name: true, amount: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+    })
+
+    // Create approval request
+    const approvalRequest = await createApprovalRequest({
+      circleId,
+      type: "CONTRIBUTION",
+      requestedById: actorUserId,
+      title: `Contribution of ${data.amount} from ${contribution.user.name || contribution.user.email}`,
+      description: data.note || null,
+      resourceId: contribution.id,
+      amount: data.amount,
+      metadata: {
+        contributionId: contribution.id,
+        userId: data.userId,
+        planId: data.planId || null,
+      },
+    })
+
+    // Link approval request to contribution
+    await prisma.contribution.update({
+      where: { id: contribution.id },
+      data: { approvalRequestId: approvalRequest.id },
+    })
+
+    // Notify reviewers only (fire-and-forget)
+    getCircleReviewers(circleId)
+      .then((reviewerIds) => {
+        const reviewerNotifications = reviewerIds
+          .filter((id) => id !== actorUserId)
+          .map((userId) => ({
+            userId,
+            circleId,
+            type: "CONTRIBUTION_MADE" as const,
+            title: "Contribution pending review",
+            message: `A contribution of ${data.amount} is awaiting your approval`,
+            link: `/circles/${circleId}/contributions`,
+          }))
+        return createBulkNotifications(reviewerNotifications)
+      })
+      .catch(console.error)
+
+    return {
+      ...contribution,
+      amount: Number(contribution.amount),
+      plan: contribution.plan ? { ...contribution.plan, amount: Number(contribution.plan.amount) } : null,
+    }
+  }
+
+  // Standard flow: no approval required
   const contribution = await prisma.contribution.create({
     data: {
       circleId,
@@ -222,7 +294,7 @@ export async function addContribution(
     type: "CONTRIBUTION_MADE",
     title: `${contributor} contributed`,
     message: `${contributor} recorded a contribution of ${data.amount}`,
-      link: `/circles/${circleId}/contributions`,
+    link: `/circles/${circleId}/contributions`,
   })
 
   // Record to wallet ledger (fire-and-forget)
@@ -298,6 +370,112 @@ export async function deleteContribution(
   reverseContributionLedger(circleId, contributionId, Number(contribution.amount), actorUserId).catch(console.error)
 
   return { success: true }
+}
+
+// ─── Summary ─────────────────────────────────────────────
+
+export async function confirmContribution(
+  circleId: string,
+  contributionId: string,
+  reviewerId: string
+) {
+  const contribution = await prisma.contribution.findUnique({
+    where: { id: contributionId },
+    include: {
+      user: { select: { id: true, name: true, email: true, image: true } },
+      plan: { select: { id: true, name: true, amount: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+  })
+  if (!contribution || contribution.circleId !== circleId) {
+    throw new Error("Contribution not found")
+  }
+  if (contribution.status !== "PENDING_REVIEW") {
+    throw new Error("Contribution is not pending review")
+  }
+
+  const updated = await prisma.contribution.update({
+    where: { id: contributionId },
+    data: { status: "CONFIRMED" },
+    include: {
+      user: { select: { id: true, name: true, email: true, image: true } },
+      plan: { select: { id: true, name: true, amount: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+  })
+
+  // Record to ledger (fire-and-forget)
+  recordContributionToLedger(circleId, contributionId, Number(contribution.amount), reviewerId).catch(console.error)
+
+  // System post (fire-and-forget)
+  const contributor = contribution.user.name || contribution.user.email
+  createSystemPost(circleId, { type: "CONTRIBUTION", content: `${contributor} contributed ${contribution.amount}` }).catch(console.error)
+
+  // Notify the contributor
+  createBulkNotifications([{
+    userId: contribution.userId,
+    circleId,
+    type: "CONTRIBUTION_MADE",
+    title: "Contribution confirmed",
+    message: `Your contribution of ${contribution.amount} has been confirmed`,
+    link: `/circles/${circleId}/contributions`,
+  }]).catch(console.error)
+
+  return {
+    ...updated,
+    amount: Number(updated.amount),
+    plan: updated.plan ? { ...updated.plan, amount: Number(updated.plan.amount) } : null,
+  }
+}
+
+export async function rejectContribution(
+  circleId: string,
+  contributionId: string,
+  reviewerId: string,
+  reason?: string | null
+) {
+  const contribution = await prisma.contribution.findUnique({
+    where: { id: contributionId },
+    include: {
+      user: { select: { id: true, name: true, email: true, image: true } },
+      plan: { select: { id: true, name: true, amount: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+  })
+  if (!contribution || contribution.circleId !== circleId) {
+    throw new Error("Contribution not found")
+  }
+  if (contribution.status !== "PENDING_REVIEW") {
+    throw new Error("Contribution is not pending review")
+  }
+
+  const updated = await prisma.contribution.update({
+    where: { id: contributionId },
+    data: { status: "REJECTED" },
+    include: {
+      user: { select: { id: true, name: true, email: true, image: true } },
+      plan: { select: { id: true, name: true, amount: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+  })
+
+  // Notify the contributor with reason
+  createBulkNotifications([{
+    userId: contribution.userId,
+    circleId,
+    type: "CONTRIBUTION_MADE",
+    title: "Contribution rejected",
+    message: reason
+      ? `Your contribution of ${contribution.amount} was rejected: ${reason}`
+      : `Your contribution of ${contribution.amount} was rejected`,
+    link: `/circles/${circleId}/contributions`,
+  }]).catch(console.error)
+
+  return {
+    ...updated,
+    amount: Number(updated.amount),
+    plan: updated.plan ? { ...updated.plan, amount: Number(updated.plan.amount) } : null,
+  }
 }
 
 // ─── Summary ─────────────────────────────────────────────

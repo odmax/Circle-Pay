@@ -21,6 +21,7 @@ import { CircleSetupDetails } from "@/components/circles/circle-setup-details"
 import { getAutomationLogs, getCircleWidgets } from "@/lib/services/circle-template.service"
 import { TypeSpecificHero } from "@/components/circles/type-specific-hero"
 import { CircleWidgetRenderer } from "@/components/circles/widgets/circle-widget-renderer"
+import { PendingApprovalsWidget } from "@/components/approvals/pending-approvals-widget"
 import { WidgetGridSkeleton, CardSkeleton, ListSkeleton } from "@/components/shared/skeletons"
 import { CURRENCIES } from "@/lib/constants"
 import { getCircleTypeConfig } from "@/lib/circle-types"
@@ -359,6 +360,8 @@ export default async function CircleOverviewPage({
               })}
             </CardContent>
           </Card>
+
+          <PendingApprovalsWidget circleId={circleId} />
         </div>
       </div>
     </div>

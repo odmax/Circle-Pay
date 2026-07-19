@@ -25,7 +25,7 @@ export const addContributionSchema = z.object({
   userId: z.string().min(1, "Member is required"),
   planId: z.string().optional().or(z.literal("")),
   amount: z.coerce.number().positive("Amount must be positive"),
-  status: z.enum(["PAID", "PENDING", "CANCELLED"]),
+  status: z.enum(["PAID", "PENDING", "PENDING_REVIEW", "CANCELLED"]),
   paymentDate: z.string().min(1, "Payment date is required"),
   note: z.string().max(300).optional().or(z.literal("")),
 })

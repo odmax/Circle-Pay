@@ -1,9 +1,77 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import {
   updateContribution,
   deleteContribution,
 } from "@/lib/services/contribution.service"
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ circleId: string; contributionId: string }> }
+) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  try {
+    const { circleId, contributionId } = await params
+    const canView = await hasCirclePermission({
+      userId: session.user.id,
+      circleId,
+      permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW,
+    })
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const contribution = await prisma.contribution.findFirst({
+      where: { id: contributionId, circleId, deletedAt: null },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+        plan: { select: { id: true, name: true, amount: true } },
+        createdBy: { select: { id: true, name: true } },
+        approvalRequest: {
+          include: {
+            requestedBy: { select: { id: true, name: true, email: true, image: true } },
+            decisions: {
+              include: {
+                reviewer: { select: { id: true, name: true, email: true, image: true } },
+              },
+              orderBy: { createdAt: "desc" },
+            },
+          },
+        },
+      },
+    })
+
+    if (!contribution) {
+      return NextResponse.json({ error: "Contribution not found" }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      ...contribution,
+      amount: Number(contribution.amount),
+      plan: contribution.plan
+        ? { ...contribution.plan, amount: Number(contribution.plan.amount) }
+        : null,
+      approvalRequest: contribution.approvalRequest
+        ? {
+            ...contribution.approvalRequest,
+            amount: contribution.approvalRequest.amount
+              ? Number(contribution.approvalRequest.amount)
+              : null,
+          }
+        : null,
+    })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to fetch contribution"
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}
 
 export async function PATCH(
   req: Request,

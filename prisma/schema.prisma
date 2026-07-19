@@ -98,6 +98,8 @@ model User {
   legalAcceptances         UserLegalAcceptance[]
   mobileSessions           MobileSession[]
   mobilePushTokens         MobilePushToken[]
+  univApprovalRequests     ApprovalRequest[]            @relation("UnivApprovalRequester")
+  univApprovalDecisions    ApprovalRequestDecision[]    @relation("UnivApprovalReviewer")
 
   @@index([email])
 }
@@ -214,47 +216,48 @@ model Circle {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
-  createdBy          User                     @relation("CircleCreator", fields: [createdById], references: [id])
-  members            CircleMember[]
-  contributions      Contribution[]
-  contributionPlans  ContributionPlan[]
-  goals              Goal[]
-  goalAllocations    GoalAllocation[]
-  expenses           Expense[]
-  balances           Balance[]
-  settlements        Settlement[]
-  transactions       Transaction[]
-  notifications      Notification[]
-  invitations        Invitation[]
-  auditLogs          AuditLog[]               @relation("AuditLogCircle")
-  aiInsights         AIInsight[]              @relation("AIInsightCircle")
-  automationLogs     CircleAutomationLog[]
-  widgets            CircleWidget[]
-  expenseCategories  ExpenseCategory[]
-  joinRequests       JoinRequest[]
-  wallets            Wallet[]
-  ledgerTransactions LedgerTransaction[]
-  approvalRules      WalletApprovalRule[]
-  approvalRequests   WalletApprovalRequest[]
-  payoutCycles       PayoutCycle[]
-  moderationReviews  CircleModerationReview[]
-  supportTickets     SupportTicket[]
-  feedPosts          FeedPost[]
-  events             CircleEvent[]
-  polls              CirclePoll[]
-  verification       CircleVerification?
-  reputation         CircleReputation?
-  inviteEvents       CircleInviteEvent[]
-  investmentAssets   InvestmentAsset[]
-  investmentReturns  InvestmentReturn[]
-  workflow           CircleWorkflow?
-  automationRules    CircleAutomationRule[]
-  paymentIntents     CirclePaymentIntent[]
-  projects           Project[]
-  projectExpenses    ProjectExpense[]
-  projectAssets      ProjectAsset[]
-  projectRevenues    ProjectRevenue[]
-  distributions      ProjectDistribution[]
+  createdBy              User                     @relation("CircleCreator", fields: [createdById], references: [id])
+  members                CircleMember[]
+  contributions          Contribution[]
+  contributionPlans      ContributionPlan[]
+  goals                  Goal[]
+  goalAllocations        GoalAllocation[]
+  expenses               Expense[]
+  balances               Balance[]
+  settlements            Settlement[]
+  transactions           Transaction[]
+  notifications          Notification[]
+  invitations            Invitation[]
+  auditLogs              AuditLog[]               @relation("AuditLogCircle")
+  aiInsights             AIInsight[]              @relation("AIInsightCircle")
+  automationLogs         CircleAutomationLog[]
+  widgets                CircleWidget[]
+  expenseCategories      ExpenseCategory[]
+  joinRequests           JoinRequest[]
+  wallets                Wallet[]
+  ledgerTransactions     LedgerTransaction[]
+  approvalRules          WalletApprovalRule[]
+  approvalRequests       WalletApprovalRequest[]
+  circleApprovalRequests ApprovalRequest[]
+  payoutCycles           PayoutCycle[]
+  moderationReviews      CircleModerationReview[]
+  supportTickets         SupportTicket[]
+  feedPosts              FeedPost[]
+  events                 CircleEvent[]
+  polls                  CirclePoll[]
+  verification           CircleVerification?
+  reputation             CircleReputation?
+  inviteEvents           CircleInviteEvent[]
+  investmentAssets       InvestmentAsset[]
+  investmentReturns      InvestmentReturn[]
+  workflow               CircleWorkflow?
+  automationRules        CircleAutomationRule[]
+  paymentIntents         CirclePaymentIntent[]
+  projects               Project[]
+  projectExpenses        ProjectExpense[]
+  projectAssets          ProjectAsset[]
+  projectRevenues        ProjectRevenue[]
+  distributions          ProjectDistribution[]
 }
 
 model CircleMember {
@@ -288,23 +291,25 @@ model CircleMemberPermission {
 }
 
 model Contribution {
-  id          String             @id @default(cuid())
-  circleId    String
-  userId      String
-  planId      String?
-  amount      Decimal            @db.Decimal(12, 2)
-  status      ContributionStatus @default(PAID)
-  paymentDate DateTime           @default(now())
-  note        String?
-  createdById String
-  deletedAt   DateTime?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id                String             @id @default(cuid())
+  circleId          String
+  userId            String
+  planId            String?
+  amount            Decimal            @db.Decimal(12, 2)
+  status            ContributionStatus @default(PAID)
+  paymentDate       DateTime           @default(now())
+  note              String?
+  createdById       String
+  approvalRequestId String?            @unique
+  deletedAt         DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   circle          Circle            @relation(fields: [circleId], references: [id], onDelete: Cascade)
   user            User              @relation("ContributionPayer", fields: [userId], references: [id])
   plan            ContributionPlan? @relation(fields: [planId], references: [id])
   createdBy       User              @relation("ContributionRecorder", fields: [createdById], references: [id])
+  approvalRequest ApprovalRequest?  @relation(fields: [approvalRequestId], references: [id])
   goalAllocations GoalAllocation[]
 
   @@index([circleId])
@@ -323,8 +328,37 @@ enum ContributionFrequency {
 enum ContributionStatus {
   PAID
   PENDING
+  PENDING_REVIEW
+  CONFIRMED
+  REJECTED
   OVERDUE
   CANCELLED
+}
+
+enum ApprovalType {
+  CONTRIBUTION
+  EXPENSE
+  SETTLEMENT
+  PROJECT
+  WALLET_WITHDRAWAL
+  WALLET_TRANSFER
+  GOAL_WITHDRAWAL
+  JOIN_REQUEST
+  MEMBER_PROMOTION
+  OTHER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum ApprovalDecision {
+  APPROVE
+  REJECT
 }
 
 model ContributionPlan {
@@ -2440,4 +2474,53 @@ model MobilePushToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// ─── Universal Approval Engine ─────────────────────────
+
+model ApprovalRequest {
+  id               String         @id @default(cuid())
+  circleId         String
+  type             ApprovalType
+  status           ApprovalStatus @default(PENDING)
+  resourceId       String?
+  title            String
+  description      String?
+  requestedById    String
+  requestedAt      DateTime       @default(now())
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  completedAt      DateTime?
+  minimumApprovals Int            @default(1)
+  currentApprovals Int            @default(0)
+  amount           Decimal?       @db.Decimal(12, 2)
+  currency         String?
+  metadata         Json?
+  expiresAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  circle       Circle                    @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  requestedBy  User                      @relation("UnivApprovalRequester", fields: [requestedById], references: [id])
+  decisions    ApprovalRequestDecision[]
+  contribution Contribution?
+
+  @@index([circleId])
+  @@index([status])
+  @@index([type])
+  @@index([resourceId])
+}
+
+model ApprovalRequestDecision {
+  id                String           @id @default(cuid())
+  approvalRequestId String
+  reviewerId        String
+  decision          ApprovalDecision
+  comment           String?
+  createdAt         DateTime         @default(now())
+
+  approvalRequest ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  reviewer        User            @relation("UnivApprovalReviewer", fields: [reviewerId], references: [id])
+
+  @@unique([approvalRequestId, reviewerId])
 }
