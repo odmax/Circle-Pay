@@ -4,34 +4,14 @@ import { notifyCircleMembers } from "@/lib/services/notification.service"
 import { createAuditLog } from "@/lib/services/audit.service"
 import { recordContributionToLedger, reverseContributionLedger } from "@/lib/services/wallet.service"
 import { createSystemPost } from "@/lib/services/feed.service"
-import { markCircleStale, markDashboardStale } from "@/lib/services/snapshot.service"
-
-async function getMemberRole(
-  circleId: string,
-  userId: string
-): Promise<string | null> {
-  const member = await prisma.circleMember.findUnique({
-    where: { circleId_userId: { circleId, userId } },
-    select: { role: true },
-  })
-  return member?.role ?? null
-}
-
-async function requireMemberRole(
-  circleId: string,
-  userId: string,
-  allowedRoles: string[]
-): Promise<string> {
-  const role = await getMemberRole(circleId, userId)
-  if (!role) throw new Error("Not a member of this circle")
-  if (!allowedRoles.includes(role)) throw new Error("Insufficient permissions")
-  return role
-}
+import { markCircleStale } from "@/lib/services/snapshot.service"
+import { requireCirclePermission, hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 // ─── Contribution Plans ──────────────────────────────────
 
 export async function getContributionPlans(circleId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL })
 
   const plans = await prisma.contributionPlan.findMany({
     where: { circleId, deletedAt: null },
@@ -62,7 +42,7 @@ export async function createContributionPlan(
     endDate?: string | null
   }
 ) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_CREATE })
 
   const plan = await prisma.contributionPlan.create({
     data: {
@@ -105,7 +85,7 @@ export async function updateContributionPlan(
     isActive?: boolean
   }
 ) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_CREATE })
 
   const plan = await prisma.contributionPlan.findUnique({
     where: { id: planId },
@@ -138,7 +118,7 @@ export async function deleteContributionPlan(
   planId: string,
   userId: string
 ) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
 
   const plan = await prisma.contributionPlan.findUnique({
     where: { id: planId },
@@ -159,7 +139,7 @@ export async function getContributions(
   userId: string,
   filters?: { userId?: string; planId?: string; status?: string }
 ) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL })
 
   const where: Record<string, string> = {}
   if (filters?.userId) where.userId = filters.userId
@@ -195,14 +175,11 @@ export async function addContribution(
     note?: string | null
   }
 ) {
-  const role = await requireMemberRole(circleId, actorUserId, [
-    "OWNER",
-    "ADMIN",
-    "MEMBER",
-  ])
+  await requireCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_SUBMIT_OWN })
 
   // Members can only record their own contributions
-  if (role === "MEMBER" && data.userId !== actorUserId) {
+  const hasCreate = await hasCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_CREATE })
+  if (!hasCreate && data.userId !== actorUserId) {
     throw new Error("Members can only record their own contributions")
   }
 
@@ -267,7 +244,7 @@ export async function updateContribution(
   actorUserId: string,
   data: { amount?: number; status?: string; paymentDate?: string; note?: string | null }
 ) {
-  await requireMemberRole(circleId, actorUserId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
 
   const contribution = await prisma.contribution.findUnique({
     where: { id: contributionId },
@@ -305,7 +282,7 @@ export async function deleteContribution(
   contributionId: string,
   actorUserId: string
 ) {
-  await requireMemberRole(circleId, actorUserId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
 
   const contribution = await prisma.contribution.findUnique({
     where: { id: contributionId },
@@ -326,7 +303,7 @@ export async function deleteContribution(
 // ─── Summary ─────────────────────────────────────────────
 
 export async function getContributionSummary(circleId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL })
 
   const [totalPaid, totalPending, plans, memberSummaries] = await Promise.all([
     prisma.contribution.aggregate({

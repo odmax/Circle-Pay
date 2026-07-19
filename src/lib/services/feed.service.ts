@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import type { FeedPostType } from "@/generated/prisma"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function validateMember(circleId: string, userId: string) {
   const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
@@ -73,13 +75,13 @@ export async function toggleReaction(postId: string, userId: string, emoji: stri
 }
 
 export async function deletePost(postId: string, userId: string, circleId: string) {
-  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } }, select: { role: true } })
-  if (!member || (member.role !== "OWNER" && member.role !== "ADMIN")) throw new Error("Admin required")
+  const canDelete = await hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.FEED_DELETE })
+  if (!canDelete) throw new Error("Forbidden")
   return prisma.feedPost.update({ where: { id: postId }, data: { deletedAt: new Date() } })
 }
 
 export async function pinPost(postId: string, userId: string, circleId: string) {
-  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } }, select: { role: true } })
-  if (!member || (member.role !== "OWNER" && member.role !== "ADMIN")) throw new Error("Admin required")
+  const canPin = await hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.FEED_PIN })
+  if (!canPin) throw new Error("Forbidden")
   return prisma.feedPost.update({ where: { id: postId }, data: { isPinned: true } })
 }

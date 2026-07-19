@@ -86,7 +86,13 @@ export function MembersList({
         toast.error(err.error || "Failed to update role")
         return
       }
-      toast.success(`${memberName} is now ${newRole === "ADMIN" ? "an Admin" : "a Member"}`)
+      const roleLabels: Record<string, string> = {
+        ADMIN: "an Admin",
+        TREASURER: "a Treasurer",
+        MEMBER: "a Member",
+        VIEWER: "a Viewer",
+      }
+      toast.success(`${memberName} is now ${roleLabels[newRole] || newRole}`)
       router.refresh()
     } catch {
       toast.error("Something went wrong")
@@ -151,7 +157,9 @@ export function MembersList({
                   </SelectTrigger>
                   <SelectContent align="end">
                     <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="TREASURER">Treasurer</SelectItem>
                     <SelectItem value="MEMBER">Member</SelectItem>
+                    <SelectItem value="VIEWER">Viewer</SelectItem>
                   </SelectContent>
                 </Select>
                 {isOwner && (
@@ -305,6 +313,8 @@ export function InviteSection({
                   <SelectContent>
                     <SelectItem value="MEMBER">Member</SelectItem>
                     <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="TREASURER">Treasurer</SelectItem>
+                    <SelectItem value="VIEWER">Viewer</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button

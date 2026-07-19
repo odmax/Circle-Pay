@@ -3,8 +3,8 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { createProjectAsset, markAssetSold, getProjectROIDashboard } from "@/lib/services/project-roi.service"
 import { requireProjectInCircle } from "@/lib/services/project.service"
-
-async function checkAdmin(circleId: string, userId: string) { const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } }); if (!m || (m.role !== "OWNER" && m.role !== "ADMIN")) throw new Error("Forbidden") }
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function handle(req: Request, { params }: { params: Promise<{ circleId: string; projectId: string; assetId?: string }> }, action: string) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -14,7 +14,8 @@ async function handle(req: Request, { params }: { params: Promise<{ circleId: st
   await requireProjectInCircle(projectId, circleId)
   try {
     if (action === "get") return NextResponse.json(await getProjectROIDashboard(projectId))
-    await checkAdmin(circleId, s.user.id)
+    const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.PROJECT_MANAGE })
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     if (action === "create") return NextResponse.json(await createProjectAsset(projectId, circleId, s.user.id, await req.json()), { status: 201 })
     if (!assetId) return NextResponse.json({ error: "Missing id" }, { status: 400 })
     if (action === "sold") { const { saleValue } = await req.json(); return NextResponse.json(await markAssetSold(assetId, s.user.id, saleValue)) }

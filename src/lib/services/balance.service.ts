@@ -1,26 +1,13 @@
 import { prisma } from "@/lib/prisma"
 import { notifyCircleMembers } from "@/lib/services/notification.service"
 import { recordSettlementToLedger } from "@/lib/services/wallet.service"
-
-async function getMemberRole(circleId: string, userId: string) {
-  const m = await prisma.circleMember.findUnique({
-    where: { circleId_userId: { circleId, userId } },
-    select: { role: true },
-  })
-  return m?.role ?? null
-}
-
-async function requireMemberRole(circleId: string, userId: string, allowed: string[]) {
-  const role = await getMemberRole(circleId, userId)
-  if (!role) throw new Error("Not a member of this circle")
-  if (!allowed.includes(role)) throw new Error("Insufficient permissions")
-  return role
-}
+import { requireCirclePermission, getCircleMemberPermissions } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 // ─── Balances ─────────────────────────────────────────────
 
 export async function getCircleBalances(circleId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LEDGER_VIEW })
 
   const [balances, myDebts, myCredits] = await Promise.all([
     prisma.balance.findMany({
@@ -62,7 +49,7 @@ export async function getCircleBalances(circleId: string, userId: string) {
 // ─── Settlements ──────────────────────────────────────────
 
 export async function listSettlements(circleId: string, userId: string, status?: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.SETTLEMENT_VIEW })
 
   const where: Record<string, unknown> = { circleId, deletedAt: null }
   if (status) where.status = status
@@ -86,10 +73,12 @@ export async function createSettlement(
   userId: string,
   data: { debtorId: string; creditorId: string; amount: number; settlementDate: string; note?: string | null }
 ) {
-  const role = await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.SETTLEMENT_CREATE })
 
   // Members can only create settlements they are part of
-  if (role === "MEMBER" && userId !== data.debtorId && userId !== data.creditorId) {
+  const memberPerms = await getCircleMemberPermissions({ userId, circleId })
+  if (!memberPerms) throw new Error("Not a member of this circle")
+  if (memberPerms.role === "MEMBER" && userId !== data.debtorId && userId !== data.creditorId) {
     throw new Error("You must be the debtor or creditor to create a settlement")
   }
 
@@ -139,7 +128,7 @@ export async function createSettlement(
 }
 
 export async function confirmSettlement(circleId: string, settlementId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.SETTLEMENT_CONFIRM })
 
   const settlement = await prisma.settlement.findUnique({ where: { id: settlementId } })
   if (!settlement || settlement.circleId !== circleId) throw new Error("Settlement not found")
@@ -209,7 +198,7 @@ export async function confirmSettlement(circleId: string, settlementId: string, 
 }
 
 export async function rejectSettlement(circleId: string, settlementId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.SETTLEMENT_VIEW })
 
   const settlement = await prisma.settlement.findUnique({ where: { id: settlementId, deletedAt: null } })
   if (!settlement || settlement.circleId !== circleId) throw new Error("Settlement not found")

@@ -2,11 +2,16 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { ensureDefaultAutomations, getCircleAutomations, updateAutomationRule, runAutomationRule } from "@/lib/services/automation.service"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function checkAccess(circleId: string, userId: string, requireAdmin = false) {
   const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
   if (!member) throw new Error("Not a member")
-  if (requireAdmin && member.role !== "OWNER" && member.role !== "ADMIN") throw new Error("Forbidden")
+  if (requireAdmin) {
+    const allowed = await hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.AUTOMATION_MANAGE })
+    if (!allowed) throw new Error("Forbidden")
+  }
 }
 
 async function handle(req: Request, { params }: { params: Promise<{ circleId: string; ruleId?: string }> }, action: string) {

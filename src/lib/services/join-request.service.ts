@@ -1,11 +1,6 @@
 import { prisma } from "@/lib/prisma"
-
-async function requireRole(circleId: string, userId: string, allowed: string[]) {
-  const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } }, select: { role: true } })
-  if (!m) throw new Error("Not a member")
-  if (!allowed.includes(m.role)) throw new Error("Insufficient permissions")
-  return m.role
-}
+import { requireCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export async function requestToJoin(circleId: string, userId: string, message?: string | null) {
   const circle = await prisma.circle.findUnique({ where: { id: circleId } })
@@ -22,7 +17,7 @@ export async function requestToJoin(circleId: string, userId: string, message?: 
 }
 
 export async function getJoinRequests(circleId: string, userId: string) {
-  await requireRole(circleId, userId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.JOIN_REQUEST_REVIEW })
   return prisma.joinRequest.findMany({
     where: { circleId },
     include: { user: { select: { id: true, name: true, email: true, image: true } } },
@@ -31,12 +26,12 @@ export async function getJoinRequests(circleId: string, userId: string) {
 }
 
 export async function getPendingCount(circleId: string, userId: string) {
-  await requireRole(circleId, userId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.JOIN_REQUEST_REVIEW })
   return prisma.joinRequest.count({ where: { circleId, status: "PENDING" } })
 }
 
 export async function approveJoinRequest(circleId: string, requestId: string, reviewerId: string) {
-  await requireRole(circleId, reviewerId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId: reviewerId, circleId, permission: CIRCLE_PERMISSIONS.JOIN_REQUEST_REVIEW })
   const req = await prisma.joinRequest.findUnique({ where: { id: requestId } })
   if (!req || req.circleId !== circleId) throw new Error("Request not found")
   if (req.status !== "PENDING") throw new Error("Request is not pending")
@@ -47,7 +42,7 @@ export async function approveJoinRequest(circleId: string, requestId: string, re
 }
 
 export async function rejectJoinRequest(circleId: string, requestId: string, reviewerId: string) {
-  await requireRole(circleId, reviewerId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId: reviewerId, circleId, permission: CIRCLE_PERMISSIONS.JOIN_REQUEST_REVIEW })
   const req = await prisma.joinRequest.findUnique({ where: { id: requestId } })
   if (!req || req.circleId !== circleId) throw new Error("Request not found")
   if (req.status !== "PENDING") throw new Error("Request is not pending")

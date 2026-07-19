@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma"
 import type { LedgerAccountType } from "@/generated/prisma"
 import { createAuditLog } from "@/lib/services/audit.service"
+import { requireCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 // ═══════════════════════════════════════════════════════════
 // BALANCE COMPUTATION — always derived from immutable entries
@@ -320,11 +322,6 @@ async function validateMember(circleId: string, userId: string) {
   if (!m) throw new Error("Not a member")
 }
 
-async function requireAdmin(circleId: string, userId: string) {
-  const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } }, select: { role: true } })
-  if (!m || (m.role !== "OWNER" && m.role !== "ADMIN")) throw new Error("Admin access required")
-}
-
 // ═══════════════════════════════════════════════════════════
 // APPROVAL RULES
 // ═══════════════════════════════════════════════════════════
@@ -352,7 +349,7 @@ export async function ensureDefaultApprovalRules(circleId: string) {
 // ═══════════════════════════════════════════════════════════
 
 export async function createPayoutRequest(circleId: string, userId: string, data: { recipientId: string; amount: number; reason: string; payoutDate: string; method?: string; reference?: string; notes?: string }) {
-  await requireAdmin(circleId, userId)
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_REQUEST })
   if (data.amount <= 0) throw new Error("Amount must be positive")
 
   const wallet = await prisma.wallet.findFirst({ where: { circleId, type: "CIRCLE_WALLET" } })
@@ -384,7 +381,7 @@ export async function createPayoutRequest(circleId: string, userId: string, data
 }
 
 export async function approvePayoutRequest(circleId: string, requestId: string, userId: string) {
-  await requireAdmin(circleId, userId)
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_APPROVE })
 
   const request = await prisma.walletApprovalRequest.findUnique({ where: { id: requestId }, include: { walletTx: true } })
   if (!request || request.circleId !== circleId) throw new Error("Request not found")
@@ -427,7 +424,7 @@ export async function approvePayoutRequest(circleId: string, requestId: string, 
 }
 
 export async function rejectPayoutRequest(circleId: string, requestId: string, userId: string) {
-  await requireAdmin(circleId, userId)
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_APPROVE })
   const request = await prisma.walletApprovalRequest.findUnique({ where: { id: requestId }, include: { walletTx: true } })
   if (!request || request.circleId !== circleId) throw new Error("Request not found")
   if (request.status !== "PENDING") throw new Error("Request is not pending")

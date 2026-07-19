@@ -27,11 +27,11 @@ export const updateCircleSchema = z.object({
 
 export const addMemberSchema = z.object({
   email: z.string().email("Invalid email address"),
-  role: z.enum(["ADMIN", "MEMBER"]),
+  role: z.enum(["ADMIN", "MEMBER", "TREASURER", "VIEWER"]),
 })
 
 export const updateMemberRoleSchema = z.object({
-  role: z.enum(["ADMIN", "MEMBER"]),
+  role: z.enum(["ADMIN", "MEMBER", "TREASURER", "VIEWER"]),
 })
 
 export type CreateCircleInput = z.infer<typeof createCircleSchema>

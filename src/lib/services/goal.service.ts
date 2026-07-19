@@ -2,30 +2,13 @@ import { prisma } from "@/lib/prisma"
 import type { GoalStatus } from "@/generated/prisma"
 import { notifyCircleMembers } from "@/lib/services/notification.service"
 import { createAuditLog } from "@/lib/services/audit.service"
-
-async function getMemberRole(circleId: string, userId: string) {
-  const m = await prisma.circleMember.findUnique({
-    where: { circleId_userId: { circleId, userId } },
-    select: { role: true },
-  })
-  return m?.role ?? null
-}
-
-async function requireMemberRole(
-  circleId: string,
-  userId: string,
-  allowed: string[]
-) {
-  const role = await getMemberRole(circleId, userId)
-  if (!role) throw new Error("Not a member of this circle")
-  if (!allowed.includes(role)) throw new Error("Insufficient permissions")
-  return role
-}
+import { requireCirclePermission, hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 // ─── Goals ────────────────────────────────────────────────
 
 export async function getGoals(circleId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
 
   const goals = await prisma.goal.findMany({
     where: { circleId, deletedAt: null },
@@ -53,7 +36,7 @@ export async function createGoal(
   userId: string,
   data: { name: string; description?: string | null; targetAmount: number; deadline?: string | null }
 ) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOAL_CREATE })
 
   const goal = await prisma.goal.create({
     data: {
@@ -85,7 +68,7 @@ export async function updateGoal(
     deadline?: string | null; status?: string
   }
 ) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOAL_UPDATE })
 
   const goal = await prisma.goal.findUnique({ where: { id: goalId, deletedAt: null } })
   if (!goal || goal.circleId !== circleId) throw new Error("Goal not found")
@@ -105,7 +88,7 @@ export async function updateGoal(
 }
 
 export async function deleteGoal(circleId: string, goalId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOAL_DELETE })
   const goal = await prisma.goal.findUnique({ where: { id: goalId, deletedAt: null } })
   if (!goal || goal.circleId !== circleId) throw new Error("Goal not found")
   await prisma.goal.update({ where: { id: goalId }, data: { deletedAt: new Date() } })
@@ -116,7 +99,7 @@ export async function deleteGoal(circleId: string, goalId: string, userId: strin
 // ─── Goal Allocations ────────────────────────────────────
 
 export async function getAllocations(circleId: string, goalId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
 
   const goal = await prisma.goal.findUnique({ where: { id: goalId, deletedAt: null } })
   if (!goal || goal.circleId !== circleId) throw new Error("Goal not found")
@@ -142,8 +125,9 @@ export async function allocateToGoal(
   actorUserId: string,
   data: { userId: string; contributionId?: string | null; amount: number; allocationDate: string; note?: string | null }
 ) {
-  const role = await requireMemberRole(circleId, actorUserId, ["OWNER", "ADMIN", "MEMBER"])
-  if (role === "MEMBER" && data.userId !== actorUserId) {
+  await requireCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
+  const hasCreate = await hasCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.GOAL_CREATE })
+  if (!hasCreate && data.userId !== actorUserId) {
     throw new Error("Members can only allocate their own funds")
   }
 
@@ -209,7 +193,7 @@ export async function allocateToGoal(
 // ─── Stats ────────────────────────────────────────────────
 
 export async function getGoalStats(circleId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
 
   const [active, totalSaved, totalTarget, completed] = await Promise.all([
     prisma.goal.count({ where: { circleId, status: "ACTIVE", deletedAt: null } }),

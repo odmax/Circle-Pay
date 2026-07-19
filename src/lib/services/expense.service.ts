@@ -3,31 +3,13 @@ import type { SplitType } from "@/generated/prisma"
 import { notifyCircleMembers } from "@/lib/services/notification.service"
 import { createAuditLog } from "@/lib/services/audit.service"
 import { recordExpenseToLedger, reverseExpenseLedger } from "@/lib/services/wallet.service"
-import { markCircleStale } from "@/lib/services/snapshot.service"
-
-async function getMemberRole(circleId: string, userId: string) {
-  const m = await prisma.circleMember.findUnique({
-    where: { circleId_userId: { circleId, userId } },
-    select: { role: true },
-  })
-  return m?.role ?? null
-}
-
-async function requireMemberRole(
-  circleId: string,
-  userId: string,
-  allowed: string[]
-) {
-  const role = await getMemberRole(circleId, userId)
-  if (!role) throw new Error("Not a member of this circle")
-  if (!allowed.includes(role)) throw new Error("Insufficient permissions")
-  return role
-}
+import { requireCirclePermission, hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 // ─── Expense CRUD ─────────────────────────────────────────
 
 export async function listExpenses(circleId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EXPENSE_VIEW })
 
   const expenses = await prisma.expense.findMany({
     where: { circleId, deletedAt: null },
@@ -55,7 +37,7 @@ export async function listExpenses(circleId: string, userId: string) {
 }
 
 export async function getExpenseById(circleId: string, expenseId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EXPENSE_VIEW })
 
   const expense = await prisma.expense.findUnique({
     where: { id: expenseId },
@@ -92,7 +74,7 @@ export async function createExpense(
     paidById: string; splits: { userId: string; amount?: number; percentage?: number }[]
   }
 ) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EXPENSE_CREATE })
 
   // Verify payer is a member
   const payer = await prisma.circleMember.findUnique({
@@ -160,7 +142,7 @@ export async function createExpense(
 }
 
 export async function deleteExpense(circleId: string, expenseId: string, userId: string) {
-  const role = await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EXPENSE_VIEW })
 
   const expense = await prisma.expense.findUnique({
     where: { id: expenseId },
@@ -169,11 +151,12 @@ export async function deleteExpense(circleId: string, expenseId: string, userId:
   if (!expense || expense.circleId !== circleId) throw new Error("Expense not found")
 
   // Only OWNER/ADMIN or the creator can delete (if no splits settled)
-  if (role === "MEMBER" && expense.createdById !== userId) {
+  const hasDelete = await hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EXPENSE_DELETE })
+  if (!hasDelete && expense.createdById !== userId) {
     throw new Error("Insufficient permissions")
   }
   const hasSettled = expense.splits.some((s) => s.settled)
-  if (role === "MEMBER" && hasSettled) {
+  if (!hasDelete && hasSettled) {
     throw new Error("Cannot delete an expense with settled splits")
   }
 
@@ -304,7 +287,7 @@ export async function recalculateCircleBalances(circleId: string) {
 // ─── Summary ──────────────────────────────────────────────
 
 export async function getExpenseSummary(circleId: string, userId: string) {
-  await requireMemberRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EXPENSE_VIEW })
 
   const [totalExpenses, myPaid, myOwed] = await Promise.all([
     prisma.expense.aggregate({

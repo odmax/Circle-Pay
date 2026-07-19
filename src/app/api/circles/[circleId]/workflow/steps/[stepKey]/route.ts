@@ -2,11 +2,16 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { ensureCircleWorkflow, getCircleWorkflow, completeWorkflowStep, skipWorkflowStep, resetWorkflow, startNextCycle } from "@/lib/services/workflow.service"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function checkAccess(circleId: string, userId: string, requireAdmin = false) {
   const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
   if (!member) throw new Error("Not a member")
-  if (requireAdmin && member.role !== "OWNER" && member.role !== "ADMIN") throw new Error("Forbidden")
+  if (requireAdmin) {
+    const allowed = await hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.WORKFLOW_MANAGE })
+    if (!allowed) throw new Error("Forbidden")
+  }
   return true
 }
 

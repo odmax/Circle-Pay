@@ -1,14 +1,11 @@
 import { prisma } from "@/lib/prisma"
 import type { CirclePollType } from "@/generated/prisma"
+import { requireCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function validateMember(circleId: string, userId: string) {
   const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
   if (!m) throw new Error("Not a member")
-}
-
-async function requireAdmin(circleId: string, userId: string) {
-  const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } }, select: { role: true } })
-  if (!m || (m.role !== "OWNER" && m.role !== "ADMIN")) throw new Error("Admin required")
 }
 
 export async function getCirclePolls(circleId: string) {
@@ -25,7 +22,7 @@ export async function getCirclePolls(circleId: string) {
 }
 
 export async function createPoll(circleId: string, userId: string, data: { title: string; description?: string; type?: string; options: string[]; closesAt?: string; isAnonymous?: boolean }) {
-  await requireAdmin(circleId, userId)
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.POLL_MANAGE })
   return prisma.circlePoll.create({
     data: {
       circleId, createdById: userId, title: data.title, description: data.description,
@@ -50,6 +47,6 @@ export async function votePoll(circleId: string, pollId: string, userId: string,
 }
 
 export async function closePoll(circleId: string, pollId: string, userId: string) {
-  await requireAdmin(circleId, userId)
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.POLL_MANAGE })
   return prisma.circlePoll.update({ where: { id: pollId }, data: { status: "CLOSED" } })
 }

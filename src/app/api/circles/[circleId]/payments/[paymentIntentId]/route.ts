@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getUserPaymentIntents, getCirclePaymentIntents, generateMonthlyPaymentIntents, submitProofOfPayment, confirmPaymentIntent, rejectPaymentIntent } from "@/lib/services/circle-payment.service"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function handle(req: Request, { params }: { params: Promise<{ circleId: string; paymentIntentId?: string }> }, action: string) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -18,8 +20,8 @@ async function handle(req: Request, { params }: { params: Promise<{ circleId: st
   }
 
   if (action === "generate") {
-    const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
-    if (!member || (member.role !== "OWNER" && member.role !== "ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_APPROVE })
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     return NextResponse.json(await generateMonthlyPaymentIntents(circleId, s.user.id))
   }
 
@@ -30,13 +32,13 @@ async function handle(req: Request, { params }: { params: Promise<{ circleId: st
     return NextResponse.json(await submitProofOfPayment(paymentIntentId, s.user.id, proofReference || "", proofUrl))
   }
   if (action === "confirm") {
-    const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
-    if (!member || (member.role !== "OWNER" && member.role !== "ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_APPROVE })
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     return NextResponse.json(await confirmPaymentIntent(paymentIntentId, s.user.id))
   }
   if (action === "reject") {
-    const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
-    if (!member || (member.role !== "OWNER" && member.role !== "ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_APPROVE })
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     return NextResponse.json(await rejectPaymentIntent(paymentIntentId, s.user.id))
   }
   return NextResponse.json({ error: "Unknown action" }, { status: 400 })

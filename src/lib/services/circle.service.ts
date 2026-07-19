@@ -1,32 +1,18 @@
 import { prisma } from "@/lib/prisma"
-import type { MemberRole, CircleType } from "@/generated/prisma"
+import type { CircleType, MemberRole } from "@/generated/prisma"
 import { notifyCircleMembers } from "@/lib/services/notification.service"
 import { createAuditLog } from "@/lib/services/audit.service"
 import { createSystemPost } from "@/lib/services/feed.service"
 import { markCircleStale } from "@/lib/services/snapshot.service"
 import { APP_URL } from "@/lib/constants"
-
-async function getMemberRole(
-  circleId: string,
-  userId: string
-): Promise<MemberRole | null> {
-  const member = await prisma.circleMember.findUnique({
-    where: { circleId_userId: { circleId, userId } },
-    select: { role: true },
-  })
-  return member?.role ?? null
-}
-
-async function requireRole(
-  circleId: string,
-  userId: string,
-  allowedRoles: MemberRole[]
-): Promise<MemberRole> {
-  const role = await getMemberRole(circleId, userId)
-  if (!role) throw new Error("Not a member of this circle")
-  if (!allowedRoles.includes(role)) throw new Error("Insufficient permissions")
-  return role
-}
+import {
+  requireCirclePermission,
+} from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
+import {
+  removeMember as removeMemberViaService,
+  updateMemberRole as updateMemberRoleViaService,
+} from "@/lib/services/circle-permission.service"
 
 function generateInviteCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -65,7 +51,11 @@ export async function getUserCircles(userId: string) {
 }
 
 export async function getCircleById(circleId: string, userId: string) {
-  await requireRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({
+    userId,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW,
+  })
 
   const circle = await prisma.circle.findUnique({
     where: { id: circleId },
@@ -127,15 +117,18 @@ export async function updateCircle(
   userId: string,
   data: { name?: string; description?: string | null; currency?: string; settings?: Record<string, unknown> | null }
 ) {
-  await requireRole(circleId, userId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({
+    userId,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.CIRCLE_UPDATE,
+  })
 
-  // Handle settings explicitly: undefined = skip, null = clear, object = update
   const settingsValue =
     data.settings !== undefined
       ? data.settings === null
-        ? null // intentionally clear settings
-        : JSON.parse(JSON.stringify(data.settings)) // sanitize and update
-      : undefined // do not modify
+        ? null
+        : JSON.parse(JSON.stringify(data.settings))
+      : undefined
 
   const circle = await prisma.circle.update({
     where: { id: circleId },
@@ -151,7 +144,11 @@ export async function updateCircle(
 }
 
 export async function deleteCircle(circleId: string, userId: string) {
-  await requireRole(circleId, userId, ["OWNER"])
+  await requireCirclePermission({
+    userId,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.CIRCLE_DELETE,
+  })
 
   await prisma.circle.update({
     where: { id: circleId },
@@ -164,7 +161,11 @@ export async function deleteCircle(circleId: string, userId: string) {
 }
 
 export async function getCircleMembers(circleId: string, userId: string) {
-  await requireRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({
+    userId,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.MEMBER_VIEW,
+  })
 
   const members = await prisma.circleMember.findMany({
     where: { circleId },
@@ -172,6 +173,7 @@ export async function getCircleMembers(circleId: string, userId: string) {
       user: {
         select: { id: true, name: true, email: true, image: true },
       },
+      permissions: { select: { permission: true, granted: true } },
     },
     orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
   })
@@ -181,6 +183,7 @@ export async function getCircleMembers(circleId: string, userId: string) {
     role: m.role,
     joinedAt: m.joinedAt,
     user: m.user,
+    overrideCount: m.permissions.length,
   }))
 }
 
@@ -188,9 +191,13 @@ export async function addMember(
   circleId: string,
   actorUserId: string,
   email: string,
-  role: "ADMIN" | "MEMBER" = "MEMBER"
+  role: "ADMIN" | "MEMBER" | "TREASURER" | "VIEWER" = "MEMBER"
 ) {
-  await requireRole(circleId, actorUserId, ["OWNER", "ADMIN"])
+  await requireCirclePermission({
+    userId: actorUserId,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.MEMBER_INVITE,
+  })
 
   const user = await prisma.user.findUnique({ where: { email } })
   if (!user) throw new Error("User with this email not found")
@@ -216,7 +223,6 @@ export async function addMember(
     link: `/circles/${circleId}/members`,
   })
 
-  // Auto system post
   createSystemPost(circleId, { type: "SYSTEM", content: `${name} joined ${circle?.name || "the circle"} 🎉` }).catch(console.error)
 
   markCircleStale(circleId).catch(console.error)
@@ -229,53 +235,21 @@ export async function removeMember(
   actorUserId: string,
   memberIdToRemove: string
 ) {
-  await requireRole(circleId, actorUserId, ["OWNER"])
-
-  const member = await prisma.circleMember.findUnique({
-    where: { id: memberIdToRemove },
-    include: { user: true },
-  })
-  if (!member || member.circleId !== circleId) {
-    throw new Error("Member not found")
-  }
-
-  if (member.role === "OWNER") {
-    const ownerCount = await prisma.circleMember.count({
-      where: { circleId, role: "OWNER" },
-    })
-    if (ownerCount <= 1) {
-      throw new Error("Cannot remove the last owner of the circle")
-    }
-  }
-
-  await prisma.circleMember.delete({ where: { id: memberIdToRemove } })
-  return { success: true }
+  return removeMemberViaService({ circleId, actorUserId, membershipId: memberIdToRemove })
 }
 
 export async function updateMemberRole(
   circleId: string,
   actorUserId: string,
   memberId: string,
-  newRole: "ADMIN" | "MEMBER"
+  newRole: "ADMIN" | "MEMBER" | "TREASURER" | "VIEWER"
 ) {
-  await requireRole(circleId, actorUserId, ["OWNER"])
-
-  const member = await prisma.circleMember.findUnique({
-    where: { id: memberId },
+  return updateMemberRoleViaService({
+    circleId,
+    membershipId: memberId,
+    role: newRole as MemberRole,
+    actorUserId,
   })
-  if (!member || member.circleId !== circleId) {
-    throw new Error("Member not found")
-  }
-
-  const updated = await prisma.circleMember.update({
-    where: { id: memberId },
-    data: { role: newRole },
-    include: {
-      user: { select: { id: true, name: true, email: true, image: true } },
-    },
-  })
-
-  return updated
 }
 
 export async function joinByInviteCode(inviteCode: string, userId: string) {
@@ -303,7 +277,11 @@ export async function joinByInviteCode(inviteCode: string, userId: string) {
 }
 
 export async function getCircleStats(circleId: string, userId: string) {
-  await requireRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({
+    userId,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW,
+  })
 
   const [memberCount, totalContributions, activeGoals, pendingBalances] =
     await Promise.all([
@@ -329,7 +307,11 @@ export async function getCircleStats(circleId: string, userId: string) {
 }
 
 export async function getInviteLink(circleId: string, userId: string) {
-  await requireRole(circleId, userId, ["OWNER", "ADMIN", "MEMBER"])
+  await requireCirclePermission({
+    userId,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW,
+  })
 
   const circle = await prisma.circle.findUnique({
     where: { id: circleId },

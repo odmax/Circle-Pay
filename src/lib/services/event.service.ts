@@ -2,15 +2,12 @@ import { prisma } from "@/lib/prisma"
 import type { CircleEventType } from "@/generated/prisma"
 
 import type { CircleEventRSVPStatus } from "@/generated/prisma"
+import { requireCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function validateMember(circleId: string, userId: string) {
   const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
   if (!m) throw new Error("Not a member")
-}
-
-async function requireAdmin(circleId: string, userId: string) {
-  const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } }, select: { role: true } })
-  if (!m || (m.role !== "OWNER" && m.role !== "ADMIN")) throw new Error("Admin required")
 }
 
 export async function getCircleEvents(circleId: string) {
@@ -26,7 +23,7 @@ export async function getCircleEvents(circleId: string) {
 }
 
 export async function createCircleEvent(circleId: string, userId: string, data: { title: string; description?: string; type?: string; startAt: string; endAt?: string; location?: string; isOnline?: boolean; meetingLink?: string; agenda?: string }) {
-  await requireAdmin(circleId, userId)
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EVENT_MANAGE })
   return prisma.circleEvent.create({
     data: {
       circleId, createdById: userId, title: data.title, description: data.description,
@@ -47,6 +44,6 @@ export async function rsvpToEvent(circleId: string, eventId: string, userId: str
 }
 
 export async function cancelEvent(circleId: string, eventId: string, userId: string) {
-  await requireAdmin(circleId, userId)
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EVENT_MANAGE })
   return prisma.circleEvent.update({ where: { id: eventId }, data: { status: "CANCELLED" } })
 }

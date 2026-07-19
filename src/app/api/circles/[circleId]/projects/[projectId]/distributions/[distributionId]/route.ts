@@ -3,8 +3,8 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { calculateProjectOwnership, createProfitDistribution, approveProfitDistribution, markDistributionPaid, cancelDistribution, getProjectDistributionDashboard } from "@/lib/services/project-distribution.service"
 import { requireProjectInCircle } from "@/lib/services/project.service"
-
-async function checkAdmin(circleId: string, userId: string) { const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } }); if (!m || (m.role !== "OWNER" && m.role !== "ADMIN")) throw new Error("Forbidden") }
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function handle(req: Request, { params }: { params: Promise<{ circleId: string; projectId: string; distributionId?: string }> }, action: string) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -15,7 +15,8 @@ async function handle(req: Request, { params }: { params: Promise<{ circleId: st
   try {
     if (action === "ownership") return NextResponse.json(await calculateProjectOwnership(projectId))
     if (action === "get") return NextResponse.json(await getProjectDistributionDashboard(projectId))
-    await checkAdmin(circleId, s.user.id)
+    const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.PROJECT_APPROVE })
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     if (action === "create") return NextResponse.json(await createProfitDistribution(projectId, circleId, s.user.id, await req.json()), { status: 201 })
     if (!distributionId) return NextResponse.json({ error: "Missing id" }, { status: 400 })
     if (action === "approve") return NextResponse.json(await approveProfitDistribution(distributionId, s.user.id))

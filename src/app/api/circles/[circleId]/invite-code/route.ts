@@ -2,10 +2,12 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { regenerateInviteCode, disableInviteCode, enableInviteCode, setInviteCodeExpiry, trackInviteCopied, trackInviteShared, trackInviteViewed } from "@/lib/services/invite.service"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function checkAccess(circleId: string, userId: string) {
-  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
-  if (!member || (member.role !== "OWNER" && member.role !== "ADMIN")) throw new Error("Forbidden")
+  const allowed = await hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.INVITE_MANAGE })
+  if (!allowed) throw new Error("Forbidden")
 }
 
 async function handle(req: Request, { params }: { params: Promise<{ circleId: string }> }, action: string) {
