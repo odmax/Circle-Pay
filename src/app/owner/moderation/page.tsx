@@ -17,7 +17,7 @@ export default async function OwnerModerationPage({ searchParams }: { searchPara
   const searchParamsObj = new URLSearchParams(params as Record<string, string>)
 
   let flagged = 0, deactivated = 0, lowRep = 0, inactive = 0, pendingVerification = 0
-  let risks: { id: string; name: string; type: string; owner: { name?: string; email?: string } | null; members: number; reputation: number; verification: string; reason: string; severity: "CRITICAL" | "HIGH" | "MEDIUM" }[] = []
+  let risks: { id: string; name: string; type: string; owner: { name: string | null; email: string } | null; members: number; reputation: number; verification: string; reason: string; severity: "CRITICAL" | "HIGH" | "MEDIUM" }[] = []
 
   try {
     const counts = await Promise.all([
