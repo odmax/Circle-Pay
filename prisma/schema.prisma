@@ -104,6 +104,7 @@ model User {
   receiptsIssuedBy         FinancialReceipt[]           @relation("ReceiptIssuedBy")
   receiptsVoidedBy         FinancialReceipt[]           @relation("ReceiptVoidedBy")
   workflowsCreated         ApprovalWorkflow[]           @relation("WorkflowCreator")
+  workflowsUpdated         ApprovalWorkflow[]           @relation("WorkflowUpdater")
 
   @@index([email])
 }
@@ -2532,17 +2533,28 @@ model ApprovalRequest {
   @@index([resourceId])
 }
 
+// ─── ApprovalRequestDecision ──────────────────────────
+//
+// Records a single reviewer's decision on a request.
+// For multi-stage workflows, requestStageId scopes the decision to a
+// specific stage. For simple (single-stage) approvals, requestStageId
+// is null and the decision counts against the top-level minimumApprovals.
+//
+// Backward compatible: existing single-stage decisions have null for all
+// new fields. No existing rows are modified.
+
 model ApprovalRequestDecision {
   id                  String           @id @default(cuid())
   approvalRequestId   String
   requestStageId      String?
   reviewerId          String
-  originalReviewerId  String?
-  delegatedReviewerId String?
+  originalReviewerId  String? // The originally assigned reviewer (before delegation)
+  delegatedReviewerId String? // The actual reviewer if delegation was used
   decision            ApprovalDecision
   comment             String?
-  source              String?
+  source              String? // "DIRECT", "DELEGATION", "ESCALATION", "AUTO"
   actedAt             DateTime?
+  metadata            Json?
   createdAt           DateTime         @default(now())
 
   approvalRequest ApprovalRequest       @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
@@ -2626,55 +2638,73 @@ model ReceiptSequence {
 }
 
 // ─── Multi-Stage Approval Workflows (Phase 4) ─────────
+//
+// Configurable multi-stage approval workflows that snapshot into
+// immutable runtime models at request creation time.
+//
+// Workflow configuration lives in ApprovalWorkflow + stages/reviewers.
+// Runtime snapshots live in ApprovalRequestStage + reviewers/decisions.
+// Once a request is created, the workflow config is NEVER re-read.
 
 enum ApprovalWorkflowStatus {
-  DRAFT
-  ACTIVE
-  INACTIVE
-  ARCHIVED
+  DRAFT // Not yet activated; can be freely edited
+  ACTIVE // Live — used to resolve new requests
+  INACTIVE // Temporarily disabled; existing requests continue
+  ARCHIVED // Permanently retired; cannot be reactivated
 }
 
 enum ApprovalStageMode {
-  SEQUENTIAL
-  PARALLEL
+  SEQUENTIAL // Reviewers act one after another; stages advance in order
+  PARALLEL // All reviewers act simultaneously within a stage
 }
 
+/// Runtime status of a stage on an ApprovalRequest.
+/// Named `ApprovalStageStatus` in the spec; called
+/// `ApprovalStageRuntimeStatus` here to avoid collision with the
+/// workflow-level configuration enums.
 enum ApprovalStageRuntimeStatus {
-  WAITING
-  ACTIVE
-  APPROVED
-  REJECTED
-  SKIPPED
-  EXPIRED
-  CANCELLED
+  WAITING // Not yet reached (earlier stages still in progress)
+  ACTIVE // Currently accepting decisions
+  APPROVED // Stage met its approval threshold
+  REJECTED // Stage met its rejection threshold
+  SKIPPED // Stage was skipped (e.g. amount below threshold)
+  EXPIRED // Stage expired before completion
+  CANCELLED // Parent request was cancelled
 }
 
 enum ApprovalReviewerType {
-  ROLE
-  MEMBER
-  PERMISSION
+  ROLE // Resolve reviewer(s) by circle role (OWNER, ADMIN, …)
+  MEMBER // Specific circle member by userId
+  PERMISSION // Resolve reviewer(s) by a circle permission
 }
 
 enum ApprovalEscalationAction {
-  NOTIFY
-  REASSIGN
-  ADD_REVIEWER
-  ESCALATE_TO_OWNER
-  AUTO_REJECT
+  NOTIFY // Send a notification to the escalation target
+  REASSIGN // Move the review to a different reviewer
+  ADD_REVIEWER // Add an additional reviewer to the stage
+  ESCALATE_TO_OWNER // Escalate to the circle owner
+  AUTO_REJECT // Automatically reject if escalation target doesn't act
 }
 
 enum ApprovalDelegationStatus {
-  ACTIVE
-  REVOKED
-  EXPIRED
+  ACTIVE // Delegation is in effect (within startsAt..endsAt window)
+  REVOKED // Manually revoked by the delegator or an admin
+  EXPIRED // Automatically expired by the cron processor
 }
+
+// ─── ApprovalWorkflow ─────────────────────────────────
+//
+// Defines a reusable, versioned approval process for a circle + approvalType.
+// Only ONE workflow may be marked isDefault per circle + type.
+// Only one workflow should be ACTIVE at a time per circle + type (enforced in service).
+// Workflows are resolved by: type match → amount range → priority → createdAt.
 
 model ApprovalWorkflow {
   id            String                 @id @default(cuid())
   circleId      String
+  type          ApprovalType
   name          String
   description   String?
-  type          ApprovalType
   status        ApprovalWorkflowStatus @default(DRAFT)
   priority      Int                    @default(0)
   minimumAmount Decimal?               @db.Decimal(12, 2)
@@ -2683,18 +2713,29 @@ model ApprovalWorkflow {
   isDefault     Boolean                @default(false)
   version       Int                    @default(1)
   createdById   String
+  updatedById   String?
   archivedAt    DateTime?
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
 
   circle    Circle                  @relation(fields: [circleId], references: [id], onDelete: Cascade)
   createdBy User                    @relation("WorkflowCreator", fields: [createdById], references: [id])
+  updatedBy User?                   @relation("WorkflowUpdater", fields: [updatedById], references: [id])
   stages    ApprovalWorkflowStage[]
 
   @@index([circleId])
   @@index([type])
   @@index([status])
+  @@index([priority])
+  @@index([isDefault])
+  @@index([circleId, type])
 }
+
+// ─── ApprovalWorkflowStage ────────────────────────────
+//
+// A single stage within a workflow. Stages are ordered (1, 2, …) and
+// executed according to the workflow's mode (sequential or parallel).
+// Deleting a workflow cascades to its stages.
 
 model ApprovalWorkflowStage {
   id                   String            @id @default(cuid())
@@ -2704,12 +2745,12 @@ model ApprovalWorkflowStage {
   order                Int
   mode                 ApprovalStageMode @default(SEQUENTIAL)
   minimumApprovals     Int               @default(1)
-  rejectionThreshold   Int?
+  rejectionThreshold   Int? // Number of rejections that kill the stage (null = any single reject)
   requireAllReviewers  Boolean           @default(false)
   allowSelfApproval    Boolean           @default(false)
   ownerRequired        Boolean           @default(false)
-  expiresAfterHours    Int?
-  escalationAfterHours Int?
+  expiresAfterHours    Int? // Hours after activation before the stage expires
+  escalationAfterHours Int? // Hours after activation before escalation triggers
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
@@ -2719,6 +2760,16 @@ model ApprovalWorkflowStage {
   @@unique([workflowId, order])
   @@index([workflowId])
 }
+
+// ─── ApprovalWorkflowStageReviewer ────────────────────
+//
+// Defines who reviews at a given workflow stage.
+// reviewerType determines how memberId / role / permission are used:
+//   ROLE       → role column holds the MemberRole string
+//   MEMBER     → memberId holds the target userId
+//   PERMISSION → permission column holds a CirclePermission string
+// This is the CONFIGURATION model; runtime snapshots use
+// ApprovalRequestStageReviewer.
 
 model ApprovalWorkflowStageReviewer {
   id           String               @id @default(cuid())
@@ -2733,7 +2784,22 @@ model ApprovalWorkflowStageReviewer {
   stage ApprovalWorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
   @@index([stageId])
+  @@index([memberId])
 }
+
+// ─── ApprovalRequestStage (Runtime Snapshot) ──────────
+//
+// Immutable snapshot of a workflow stage at the time a request is created.
+// Once created, the workflow configuration is NEVER re-read for this request.
+// Status transitions: WAITING → ACTIVE → APPROVED/REJECTED/EXPIRED/CANCELLED
+//                     WAITING → SKIPPED (if amount below threshold, etc.)
+//
+// Lifecycle:
+//   1. Created for each stage when request is submitted
+//   2. First stage set to ACTIVE; rest remain WAITING
+//   3. On stage APPROVED → next WAITING stage becomes ACTIVE
+//   4. On stage REJECTED/EXPIRED → entire request is terminated
+//   5. On final stage APPROVED → request becomes APPROVED
 
 model ApprovalRequestStage {
   id                  String                     @id @default(cuid())
@@ -2746,6 +2812,7 @@ model ApprovalRequestStage {
   minimumApprovals    Int                        @default(1)
   rejectionThreshold  Int?
   requireAllReviewers Boolean                    @default(false)
+  allowSelfApproval   Boolean                    @default(false)
   ownerRequired       Boolean                    @default(false)
   expiresAt           DateTime?
   activatedAt         DateTime?
@@ -2760,7 +2827,15 @@ model ApprovalRequestStage {
 
   @@index([approvalRequestId])
   @@index([status])
+  @@index([order])
 }
+
+// ─── ApprovalRequestStageReviewer (Runtime Snapshot) ──
+//
+// Immutable snapshot of the resolved reviewer set for a runtime stage.
+// At creation time, reviewerType + role/memberId/permission from the
+// workflow config are resolved to concrete memberIds.
+// delegatedFromMemberId tracks delegation chains for audit.
 
 model ApprovalRequestStageReviewer {
   id                    String    @id @default(cuid())
@@ -2777,6 +2852,14 @@ model ApprovalRequestStageReviewer {
   @@index([requestStageId])
   @@index([memberId])
 }
+
+// ─── ApprovalDelegation ───────────────────────────────
+//
+// Allows a member to delegate their approval authority to another member
+// for a specific time window and scope (circle-wide, per type, per workflow,
+// or per stage). Cycle detection is enforced in the service layer.
+//
+// Lifecycle: ACTIVE → REVOKED (manual) or EXPIRED (cron processor)
 
 model ApprovalDelegation {
   id                String                   @id @default(cuid())
