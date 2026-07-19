@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
-import { hasCirclePermission, getCircleMemberPermissions } from "@/lib/permissions/circle-permissions"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
-import { getApprovalTimeline, cancelRequest } from "@/lib/services/approval.service"
-import { getRequestStageProgress } from "@/lib/services/approval-workflow-engine.service"
+import { getApprovalTimeline } from "@/lib/services/approval.service"
+import { getRequestStageProgress, getCurrentStage } from "@/lib/services/approval-workflow-engine.service"
 import { prisma } from "@/lib/prisma"
+import { toApprovalDetail, toRuntimeStage } from "@/lib/api/dtos"
+import { apiSuccess, apiError, mapServiceError } from "@/lib/api/errors"
 
 export async function GET(
   _req: NextRequest,
@@ -12,18 +14,19 @@ export async function GET(
 ) {
   const session = await auth()
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return apiError("UNAUTHORIZED", "Authentication required")
   }
 
   try {
     const { circleId, approvalId } = await params
+
     const canView = await hasCirclePermission({
       userId: session.user.id,
       circleId,
       permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW,
     })
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return apiError("FORBIDDEN", "You do not have permission to view this approval")
     }
 
     const approval = await prisma.approvalRequest.findUnique({
@@ -40,76 +43,134 @@ export async function GET(
     })
 
     if (!approval || approval.circleId !== circleId) {
-      return NextResponse.json({ error: "Approval request not found" }, { status: 404 })
+      return apiError("NOT_FOUND", "Approval request not found")
     }
 
     const timeline = await getApprovalTimeline(approvalId)
-    const stages = approval.workflowSnapshot ? await getRequestStageProgress(approvalId) : null
 
-    return NextResponse.json({
-      ...approval,
-      amount: approval.amount ? Number(approval.amount) : null,
-      isExpired: approval.expiresAt ? new Date() > approval.expiresAt : false,
-      approvalsNeeded: approval.minimumApprovals - approval.currentApprovals,
-      timeline: timeline.events,
-      stages,
-    })
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : "Failed to fetch approval request"
-    return NextResponse.json({ error: msg }, { status: 500 })
-  }
-}
+    const hasWorkflow = !!approval.workflowSnapshot
+    let stages = hasWorkflow
+      ? (await getRequestStageProgress(approvalId)).map(toRuntimeStage)
+      : []
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ circleId: string; approvalId: string }> }
-) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  try {
-    const { circleId, approvalId } = await params
-    const body = await req.json()
-    const { action } = body as { action?: string }
-
-    if (action !== "cancel") {
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 })
-    }
-
-    const approval = await prisma.approvalRequest.findUnique({
-      where: { id: approvalId },
-      select: { id: true, circleId: true, requestedById: true },
-    })
-    if (!approval || approval.circleId !== circleId) {
-      return NextResponse.json({ error: "Approval request not found" }, { status: 404 })
-    }
+    const activeStage = hasWorkflow ? await getCurrentStage(approvalId) : null
 
     const isRequester = approval.requestedById === session.user.id
-    if (!isRequester) {
-      const perms = await getCircleMemberPermissions({
-        userId: session.user.id,
-        circleId,
-      })
-      const isOwner = perms?.role === "OWNER"
-      if (!isOwner) {
-        return NextResponse.json(
-          { error: "Only the requester or circle owner can cancel" },
-          { status: 403 }
+
+    const reviewerIds = new Set(
+      approval.decisions.map((d) => d.reviewerId)
+    )
+    const isAssignedReviewer = stages.some((s) =>
+      s.reviewers.some((r) => r.memberId === session.user.id)
+    )
+
+    const hasViewAll = await hasCirclePermission({
+      userId: session.user.id,
+      circleId,
+      permission: CIRCLE_PERMISSIONS.APPROVAL_VIEW_ALL,
+    })
+
+    const filteredDecisions = approval.decisions.map((d) => {
+      if (d.comment && !isRequester && !isAssignedReviewer && !hasViewAll && d.reviewerId !== session.user.id) {
+        return { ...d, comment: null }
+      }
+      return d
+    })
+
+    const eligibleActions: string[] = []
+    if (approval.status === "PENDING") {
+      if (isRequester) {
+        eligibleActions.push("CANCEL")
+      }
+      if (hasWorkflow && activeStage) {
+        const isStageReviewer = activeStage.reviewers.some(
+          (r) => r.memberId === session.user.id
         )
+        const hasReviewAny = await hasCirclePermission({
+          userId: session.user.id,
+          circleId,
+          permission: CIRCLE_PERMISSIONS.APPROVAL_REVIEW_ANY,
+        })
+        if (isStageReviewer || hasReviewAny) {
+          eligibleActions.push("APPROVE", "REJECT")
+        }
+        const hasEscalate = await hasCirclePermission({
+          userId: session.user.id,
+          circleId,
+          permission: CIRCLE_PERMISSIONS.APPROVAL_ESCALATE,
+        })
+        if (hasEscalate) {
+          eligibleActions.push("ESCALATE", "REASSIGN")
+        }
+      }
+      if (!hasWorkflow) {
+        const hasReviewOwn = await hasCirclePermission({
+          userId: session.user.id,
+          circleId,
+          permission: CIRCLE_PERMISSIONS.APPROVAL_REVIEW_OWN,
+        })
+        if (hasReviewOwn) {
+          eligibleActions.push("APPROVE", "REJECT")
+        }
       }
     }
 
-    const updated = await cancelRequest({
-      approvalRequestId: approvalId,
-      userId: session.user.id,
-    })
+    let currentStageInfo = null
+    if (activeStage) {
+      const memberIds = activeStage.reviewers.map((r) => r.memberId)
+      const members = memberIds.length
+        ? await prisma.user.findMany({
+            where: { id: { in: memberIds } },
+            select: { id: true, name: true, email: true, image: true },
+          })
+        : []
+      const memberMap = new Map(members.map((m) => [m.id, m]))
+      currentStageInfo = {
+        id: activeStage.id,
+        name: activeStage.name,
+        order: activeStage.order,
+        status: activeStage.status,
+        activatedAt: activeStage.activatedAt?.toISOString() ?? null,
+        expiresAt: activeStage.expiresAt?.toISOString() ?? null,
+        reviewers: activeStage.reviewers.map((r) => ({
+          memberId: r.memberId,
+          required: r.required,
+          member: memberMap.get(r.memberId) ?? null,
+        })),
+      }
+    }
 
-    return NextResponse.json(updated)
+    const isOverdue = approval.expiresAt
+      ? approval.status === "PENDING" && new Date() > approval.expiresAt
+      : false
+
+    const detail = toApprovalDetail(approval, stages, timeline.events)
+
+    return apiSuccess({
+      ...detail,
+      decisions: filteredDecisions.map((d) => ({
+        id: d.id,
+        approvalRequestId: d.approvalRequestId,
+        requestStageId: d.requestStageId,
+        reviewerId: d.reviewerId,
+        originalReviewerId: d.originalReviewerId,
+        delegatedReviewerId: d.delegatedReviewerId,
+        decision: d.decision,
+        comment: d.comment,
+        source: d.source,
+        actedAt: d.actedAt?.toISOString() ?? null,
+        createdAt: d.createdAt.toISOString(),
+        reviewer: d.reviewer
+          ? { id: d.reviewer.id, name: d.reviewer.name, email: d.reviewer.email, image: d.reviewer.image }
+          : null,
+      })),
+      currentStage: currentStageInfo,
+      eligibleActions,
+      isOverdue,
+      deadline: approval.expiresAt?.toISOString() ?? null,
+      escalationState: isOverdue ? "OVERDUE" : activeStage ? "ACTIVE" : "NONE",
+    })
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "Failed to cancel approval request"
-    const status = msg.includes("not found") ? 404 : 500
-    return NextResponse.json({ error: msg }, { status })
+    return mapServiceError(error)
   }
 }
