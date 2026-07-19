@@ -8,6 +8,7 @@ import { markCircleStale } from "@/lib/services/snapshot.service"
 import { requireCirclePermission, hasCirclePermission } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import { createApprovalRequest, getApprovalConfig, getCircleReviewers } from "@/lib/services/approval.service"
+import { createReceiptForContribution } from "@/lib/services/receipt.service"
 
 // ─── Contribution Plans ──────────────────────────────────
 
@@ -404,11 +405,54 @@ export async function confirmContribution(
     },
   })
 
-  // Record to ledger (fire-and-forget)
-  recordContributionToLedger(circleId, contributionId, Number(contribution.amount), reviewerId).catch(console.error)
+  const ledgerTx = await recordContributionToLedger(circleId, contributionId, Number(contribution.amount), reviewerId)
+
+  const contributor = contribution.user.name || contribution.user.email
+
+  // Create receipt if one doesn't already exist (idempotent)
+  const existingReceipt = await prisma.financialReceipt.findFirst({
+    where: { resourceId: contributionId, resourceType: "CONTRIBUTION" },
+  })
+
+  if (!existingReceipt) {
+    try {
+      const circle = await prisma.circle.findUnique({
+        where: { id: circleId },
+        select: { id: true, name: true, currency: true },
+      })
+
+      if (circle && ledgerTx) {
+        const circleCode = circle.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 10)
+          .toUpperCase()
+
+        await createReceiptForContribution({
+          circleId,
+          contributionId,
+          ledgerEntryId: ledgerTx.id,
+          circleName: circle.name,
+          circleCode,
+          payerUserId: contribution.userId,
+          payerName: contribution.user.name || contribution.user.email,
+          payerEmail: contribution.user.email,
+          amount: Number(contribution.amount),
+          currency: circle.currency,
+          paymentDate: contribution.paymentDate,
+          approvalDate: new Date(),
+          planName: contribution.plan?.name ?? null,
+          approverNames: reviewerId,
+          issuedByUserId: reviewerId,
+        })
+      }
+    } catch {
+      // Receipt creation is non-critical; don't fail the contribution confirmation
+    }
+  }
 
   // System post (fire-and-forget)
-  const contributor = contribution.user.name || contribution.user.email
   createSystemPost(circleId, { type: "CONTRIBUTION", content: `${contributor} contributed ${contribution.amount}` }).catch(console.error)
 
   // Notify the contributor
