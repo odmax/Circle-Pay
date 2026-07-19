@@ -9,6 +9,7 @@ import {
   getApprovalHistory,
   getApprovalConfig,
 } from "@/lib/services/approval.service"
+import { getWorkflows } from "@/lib/services/approval-workflow.service"
 import { ApprovalQueueManager } from "@/components/approvals/approval-queue-manager"
 
 export default async function ApprovalsPage({
@@ -28,11 +29,12 @@ export default async function ApprovalsPage({
 
   if (!circle || !actorPerms) notFound()
 
-  const [pendingApprovals, stats, approvalConfig, historyResult] = await Promise.all([
+  const [pendingApprovals, stats, approvalConfig, historyResult, workflows] = await Promise.all([
     getPendingApprovals(circleId),
     getApprovalStats(circleId),
     getApprovalConfig(circleId),
     getApprovalHistory(circleId, { limit: 50 }),
+    getWorkflows(circleId).catch(() => []),
   ])
 
   const serializedPending = pendingApprovals.map((a) => ({
@@ -83,6 +85,13 @@ export default async function ApprovalsPage({
       historyHasMore={historyResult.hasMore}
       approvalConfig={approvalConfig}
       hasReviewPermission={hasReviewPermission}
+      workflows={workflows.map((w) => ({
+        id: w.id,
+        name: w.name,
+        type: w.type,
+        status: w.status,
+        stagesCount: w._count.stages,
+      }))}
     />
   )
 }

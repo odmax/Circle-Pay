@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { ApprovalTimeline } from "./approval-timeline"
+import { StageProgressIndicator } from "./stage-progress-indicator"
 import { toast } from "sonner"
 
 type Decision = {
@@ -39,6 +40,33 @@ type ApprovalRequest = {
   minimumApprovals: number
   isExpired: boolean
   approvalsNeeded: number
+  workflowSnapshot?: { workflowId: string; workflowName: string; workflowVersion: number; stagesCount: number } | null
+  stages?: Array<{
+    id: string
+    name: string
+    order: number
+    mode: string
+    status: string
+    minimumApprovals: number
+    totalReviewers: number
+    decidedCount: number
+    approvedCount: number
+    rejectedCount: number
+    reviewers: Array<{
+      id: string
+      memberId: string
+      required: boolean
+      delegatedFromMemberId: string | null
+      member: { id: string; name: string | null; email: string; image: string | null }
+    }>
+    decisions: Array<{
+      id: string
+      decision: string
+      comment: string | null
+      createdAt: string
+      reviewer: { id: string; name: string | null; email: string; image: string | null }
+    }>
+  }> | null
   requestedBy: { id: string; name: string | null; email?: string; image: string | null }
   decisions: Decision[]
 }
@@ -124,10 +152,15 @@ export function ApprovalDetailPanel({
   async function handleAction(action: "approve" | "reject") {
     setLoading(action)
     try {
-      const res = await fetch(`/api/circles/${circleId}/approvals/${request.id}`, {
-        method: "PATCH",
+      const activeStage = request.stages?.find((s) => s.status === "ACTIVE")
+      const res = await fetch(`/api/circles/${circleId}/approvals/${request.id}/decide`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, comment: comment || undefined }),
+        body: JSON.stringify({
+          decision: action === "approve" ? "APPROVE" : "REJECT",
+          comment: comment || undefined,
+          requestStageId: activeStage?.id || undefined,
+        }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -194,6 +227,14 @@ export function ApprovalDetailPanel({
             <p className="text-sm text-muted-foreground">{request.description}</p>
           )}
 
+          {request.workflowSnapshot && (
+            <div className="rounded-xl bg-muted/30 px-3 py-2">
+              <p className="text-[10px] text-muted-foreground">
+                Workflow: {request.workflowSnapshot.workflowName} (v{request.workflowSnapshot.workflowVersion})
+              </p>
+            </div>
+          )}
+
           {request.amount != null && (
             <div className="rounded-xl bg-muted/50 px-3 py-2">
               <p className="text-xs text-muted-foreground">Amount</p>
@@ -257,6 +298,12 @@ export function ApprovalDetailPanel({
                 ? "Expired"
                 : `Expires ${formatTimeAgo(request.expiresAt)}`}
             </span>
+          </div>
+        )}
+
+        {request.stages && request.stages.length > 0 && (
+          <div className="rounded-xl border border-border/40 p-3">
+            <StageProgressIndicator stages={request.stages as any} />
           </div>
         )}
 

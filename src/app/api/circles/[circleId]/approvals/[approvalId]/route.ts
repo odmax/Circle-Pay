@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { hasCirclePermission, getCircleMemberPermissions } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import { getApprovalTimeline, cancelRequest } from "@/lib/services/approval.service"
+import { getRequestStageProgress } from "@/lib/services/approval-workflow-engine.service"
 import { prisma } from "@/lib/prisma"
 
 export async function GET(
@@ -43,6 +44,7 @@ export async function GET(
     }
 
     const timeline = await getApprovalTimeline(approvalId)
+    const stages = approval.workflowSnapshot ? await getRequestStageProgress(approvalId) : null
 
     return NextResponse.json({
       ...approval,
@@ -50,6 +52,7 @@ export async function GET(
       isExpired: approval.expiresAt ? new Date() > approval.expiresAt : false,
       approvalsNeeded: approval.minimumApprovals - approval.currentApprovals,
       timeline: timeline.events,
+      stages,
     })
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to fetch approval request"

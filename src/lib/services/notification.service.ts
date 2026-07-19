@@ -16,6 +16,9 @@ const TYPE_TO_PREF: Record<string, string> = {
   SYSTEM: "system", SECURITY: "system", BILLING: "system",
   NEW_MEMBER_JOINED: "contributions", INVITATION_RECEIVED: "contributions", INVITATION_ACCEPTED: "contributions",
   RECEIPT_ISSUED: "system", RECEIPT_VOIDED: "system", RECEIPT_REPLACED: "system", STATEMENT_READY: "system",
+  APPROVAL_STAGE_ACTIVATED: "system", APPROVAL_STAGE_COMPLETED: "system", APPROVAL_ASSIGNED: "system",
+  APPROVAL_DELEGATED: "system", APPROVAL_ESCALATED: "system", APPROVAL_OVERDUE: "system",
+  APPROVAL_WORKFLOW_COMPLETED: "system",
 }
 
 async function isBlocked(userId: string, type: string): Promise<boolean> {

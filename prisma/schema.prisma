@@ -103,6 +103,7 @@ model User {
   receiptsIssuedTo         FinancialReceipt[]           @relation("ReceiptIssuedTo")
   receiptsIssuedBy         FinancialReceipt[]           @relation("ReceiptIssuedBy")
   receiptsVoidedBy         FinancialReceipt[]           @relation("ReceiptVoidedBy")
+  workflowsCreated         ApprovalWorkflow[]           @relation("WorkflowCreator")
 
   @@index([email])
 }
@@ -243,6 +244,8 @@ model Circle {
   approvalRequests       WalletApprovalRequest[]
   circleApprovalRequests ApprovalRequest[]
   financialReceipts      FinancialReceipt[]
+  approvalWorkflows      ApprovalWorkflow[]
+  approvalDelegations    ApprovalDelegation[]
   payoutCycles           PayoutCycle[]
   moderationReviews      CircleModerationReview[]
   supportTickets         SupportTicket[]
@@ -582,6 +585,13 @@ enum NotificationType {
   RECEIPT_VOIDED
   RECEIPT_REPLACED
   STATEMENT_READY
+  APPROVAL_STAGE_ACTIVATED
+  APPROVAL_STAGE_COMPLETED
+  APPROVAL_ASSIGNED
+  APPROVAL_DELEGATED
+  APPROVAL_ESCALATED
+  APPROVAL_OVERDUE
+  APPROVAL_WORKFLOW_COMPLETED
 }
 
 model Notification {
@@ -2505,11 +2515,14 @@ model ApprovalRequest {
   currency         String?
   metadata         Json?
   expiresAt        DateTime?
+  workflowSnapshot Json?
+  currentStageId   String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
   circle       Circle                    @relation(fields: [circleId], references: [id], onDelete: Cascade)
   requestedBy  User                      @relation("UnivApprovalRequester", fields: [requestedById], references: [id])
+  stages       ApprovalRequestStage[]
   decisions    ApprovalRequestDecision[]
   contribution Contribution?
 
@@ -2520,15 +2533,21 @@ model ApprovalRequest {
 }
 
 model ApprovalRequestDecision {
-  id                String           @id @default(cuid())
-  approvalRequestId String
-  reviewerId        String
-  decision          ApprovalDecision
-  comment           String?
-  createdAt         DateTime         @default(now())
+  id                  String           @id @default(cuid())
+  approvalRequestId   String
+  requestStageId      String?
+  reviewerId          String
+  originalReviewerId  String?
+  delegatedReviewerId String?
+  decision            ApprovalDecision
+  comment             String?
+  source              String?
+  actedAt             DateTime?
+  createdAt           DateTime         @default(now())
 
-  approvalRequest ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
-  reviewer        User            @relation("UnivApprovalReviewer", fields: [reviewerId], references: [id])
+  approvalRequest ApprovalRequest       @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  requestStage    ApprovalRequestStage? @relation(fields: [requestStageId], references: [id])
+  reviewer        User                  @relation("UnivApprovalReviewer", fields: [reviewerId], references: [id])
 
   @@unique([approvalRequestId, reviewerId])
 }
@@ -2604,4 +2623,180 @@ model ReceiptSequence {
   updatedAt    DateTime @updatedAt
 
   @@unique([circleId, year])
+}
+
+// ─── Multi-Stage Approval Workflows (Phase 4) ─────────
+
+enum ApprovalWorkflowStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ApprovalStageMode {
+  SEQUENTIAL
+  PARALLEL
+}
+
+enum ApprovalStageRuntimeStatus {
+  WAITING
+  ACTIVE
+  APPROVED
+  REJECTED
+  SKIPPED
+  EXPIRED
+  CANCELLED
+}
+
+enum ApprovalReviewerType {
+  ROLE
+  MEMBER
+  PERMISSION
+}
+
+enum ApprovalEscalationAction {
+  NOTIFY
+  REASSIGN
+  ADD_REVIEWER
+  ESCALATE_TO_OWNER
+  AUTO_REJECT
+}
+
+enum ApprovalDelegationStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+model ApprovalWorkflow {
+  id            String                 @id @default(cuid())
+  circleId      String
+  name          String
+  description   String?
+  type          ApprovalType
+  status        ApprovalWorkflowStatus @default(DRAFT)
+  priority      Int                    @default(0)
+  minimumAmount Decimal?               @db.Decimal(12, 2)
+  maximumAmount Decimal?               @db.Decimal(12, 2)
+  currency      String?
+  isDefault     Boolean                @default(false)
+  version       Int                    @default(1)
+  createdById   String
+  archivedAt    DateTime?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  circle    Circle                  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User                    @relation("WorkflowCreator", fields: [createdById], references: [id])
+  stages    ApprovalWorkflowStage[]
+
+  @@index([circleId])
+  @@index([type])
+  @@index([status])
+}
+
+model ApprovalWorkflowStage {
+  id                   String            @id @default(cuid())
+  workflowId           String
+  name                 String
+  description          String?
+  order                Int
+  mode                 ApprovalStageMode @default(SEQUENTIAL)
+  minimumApprovals     Int               @default(1)
+  rejectionThreshold   Int?
+  requireAllReviewers  Boolean           @default(false)
+  allowSelfApproval    Boolean           @default(false)
+  ownerRequired        Boolean           @default(false)
+  expiresAfterHours    Int?
+  escalationAfterHours Int?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  workflow  ApprovalWorkflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  reviewers ApprovalWorkflowStageReviewer[]
+
+  @@unique([workflowId, order])
+  @@index([workflowId])
+}
+
+model ApprovalWorkflowStageReviewer {
+  id           String               @id @default(cuid())
+  stageId      String
+  reviewerType ApprovalReviewerType
+  role         String?
+  memberId     String?
+  permission   String?
+  required     Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+
+  stage ApprovalWorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([stageId])
+}
+
+model ApprovalRequestStage {
+  id                  String                     @id @default(cuid())
+  approvalRequestId   String
+  workflowStageId     String?
+  name                String
+  order               Int
+  mode                ApprovalStageMode          @default(SEQUENTIAL)
+  status              ApprovalStageRuntimeStatus @default(WAITING)
+  minimumApprovals    Int                        @default(1)
+  rejectionThreshold  Int?
+  requireAllReviewers Boolean                    @default(false)
+  ownerRequired       Boolean                    @default(false)
+  expiresAt           DateTime?
+  activatedAt         DateTime?
+  completedAt         DateTime?
+  metadata            Json?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  approvalRequest ApprovalRequest                @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  reviewers       ApprovalRequestStageReviewer[]
+  decisions       ApprovalRequestDecision[]
+
+  @@index([approvalRequestId])
+  @@index([status])
+}
+
+model ApprovalRequestStageReviewer {
+  id                    String    @id @default(cuid())
+  requestStageId        String
+  memberId              String
+  required              Boolean   @default(false)
+  delegatedFromMemberId String?
+  notifiedAt            DateTime?
+  actedAt               DateTime?
+  createdAt             DateTime  @default(now())
+
+  requestStage ApprovalRequestStage @relation(fields: [requestStageId], references: [id], onDelete: Cascade)
+
+  @@index([requestStageId])
+  @@index([memberId])
+}
+
+model ApprovalDelegation {
+  id                String                   @id @default(cuid())
+  circleId          String
+  delegatorMemberId String
+  delegateMemberId  String
+  approvalType      ApprovalType?
+  workflowId        String?
+  stageId           String?
+  startsAt          DateTime                 @default(now())
+  endsAt            DateTime
+  status            ApprovalDelegationStatus @default(ACTIVE)
+  reason            String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+
+  @@index([circleId])
+  @@index([delegatorMemberId])
+  @@index([delegateMemberId])
+  @@index([status])
 }

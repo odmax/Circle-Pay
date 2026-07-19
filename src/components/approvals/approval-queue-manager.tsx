@@ -13,6 +13,7 @@ import {
   Settings,
   Loader2,
   ChevronRight,
+  GitBranch,
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -186,6 +187,7 @@ export function ApprovalQueueManager({
   historyHasMore: boolean
   approvalConfig: CircleApprovalConfig
   hasReviewPermission: boolean
+  workflows?: Array<{ id: string; name: string; type: string; status: string; stagesCount: number }>
 }) {
   const router = useRouter()
   const { can } = useCirclePermissions(actorPermissions)
@@ -329,10 +331,16 @@ export function ApprovalQueueManager({
           </div>
         </div>
         {canManageSettings && (
-          <Button render={<Link href={`/circles/${circleId}/manage/approvals/settings`} />} variant="outline" size="sm" className="rounded-xl">
-            <Settings className="size-3 mr-1" />
-            Settings
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button render={<Link href={`/circles/${circleId}/manage/approvals/workflows`} />} variant="outline" size="sm" className="rounded-xl">
+              <GitBranch className="size-3 mr-1" />
+              Workflows
+            </Button>
+            <Button render={<Link href={`/circles/${circleId}/manage/approvals/settings`} />} variant="outline" size="sm" className="rounded-xl">
+              <Settings className="size-3 mr-1" />
+              Settings
+            </Button>
+          </div>
         )}
       </div>
 

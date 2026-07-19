@@ -4,6 +4,7 @@ import { requireCirclePermission, hasCirclePermission, getCircleMemberPermission
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import { createAuditLog } from "@/lib/services/audit.service"
 import { createNotification, notifyCircleMembers } from "@/lib/services/notification.service"
+import { initialiseApprovalWorkflow } from "@/lib/services/approval-workflow-engine.service"
 
 // ─── Types & Defaults ─────────────────────────────────────
 
@@ -199,6 +200,20 @@ export async function createApprovalRequest(data: {
     message: `A new ${data.type.toLowerCase().replace(/_/g, " ")} request requires your review.`,
     link: `/circles/${data.circleId}/approvals`,
   }).catch(console.error)
+
+  // Try to initialise a multi-stage workflow for this request
+  try {
+    await initialiseApprovalWorkflow({
+      circleId: data.circleId,
+      requestId: request.id,
+      type: data.type,
+      amount: data.amount,
+      currency: data.currency,
+      createdById: data.requestedById,
+    })
+  } catch {
+    // Workflow initialisation failure doesn't block the request — fall back to simple approval
+  }
 
   return request
 }
