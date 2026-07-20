@@ -67,3 +67,8 @@ export async function registerUser(formData: FormData) {
 
   return { success: true, error: null }
 }
+
+export async function signoutUser() {
+  const { signOut } = await import("@/lib/auth")
+  await signOut({ redirectTo: "/login" })
+}

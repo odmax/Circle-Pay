@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useSession, signOut } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import { useAdminStatus } from "@/hooks/use-admin-status"
 import { LayoutDashboard, Globe, Settings, PlusCircle, Loader2, Bell, ArrowUp, Compass, MessageCircle, Users, Search, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CircleSwitcher } from "@/components/layout/circle-switcher"
+import { SignOutItem } from "@/components/layout/signout-item"
 
 const groups = [
   {
@@ -101,7 +102,7 @@ function UserMenu() {
         <DropdownMenuItem render={<Link href="/support" />}>Support</DropdownMenuItem>
         {isAdmin && <DropdownMenuItem render={<Link href="/owner" />}><Shield className="size-4 mr-2" /> Admin Dashboard</DropdownMenuItem>}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })} className="text-destructive cursor-pointer">Sign Out</DropdownMenuItem>
+        <SignOutItem />
       </DropdownMenuContent>
     </DropdownMenu>
   )
