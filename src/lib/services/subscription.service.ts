@@ -61,6 +61,33 @@ const DEFAULT_PLANS = [
   },
 ]
 
+/**
+ * Internal-only plan for the primary owner.
+ * Not visible in public pricing, not selectable by ordinary users.
+ */
+const OWNER_UNLIMITED_PLAN = {
+  name: "Owner Unlimited",
+  slug: "owner-unlimited",
+  description: "Internal unlimited plan for the primary owner",
+  price: 0,
+  currency: "ZAR",
+  interval: "MONTHLY" as const,
+  circleLimit: 99999,
+  memberLimit: 99999,
+  storageLimitMb: 999999,
+  sortOrder: 999,
+  isPublic: false,
+  isActive: true,
+  features: [
+    "Unlimited circles",
+    "Unlimited members",
+    "Unlimited storage",
+    "All premium features",
+    "Platform administration",
+    "Internal tools",
+  ],
+}
+
 export async function seedPlans() {
   for (const plan of DEFAULT_PLANS) {
     await prisma.plan.upsert({
@@ -86,11 +113,41 @@ export async function seedPlans() {
       },
     })
   }
+
+  // Upsert owner-unlimited plan (hidden from public)
+  await prisma.plan.upsert({
+    where: { slug: OWNER_UNLIMITED_PLAN.slug },
+    create: {
+      name: OWNER_UNLIMITED_PLAN.name,
+      slug: OWNER_UNLIMITED_PLAN.slug,
+      description: OWNER_UNLIMITED_PLAN.description,
+      price: OWNER_UNLIMITED_PLAN.price,
+      currency: OWNER_UNLIMITED_PLAN.currency,
+      interval: OWNER_UNLIMITED_PLAN.interval,
+      circleLimit: OWNER_UNLIMITED_PLAN.circleLimit,
+      memberLimit: OWNER_UNLIMITED_PLAN.memberLimit,
+      storageLimitMb: OWNER_UNLIMITED_PLAN.storageLimitMb,
+      features: OWNER_UNLIMITED_PLAN.features,
+      sortOrder: OWNER_UNLIMITED_PLAN.sortOrder,
+      isPublic: OWNER_UNLIMITED_PLAN.isPublic,
+      isActive: OWNER_UNLIMITED_PLAN.isActive,
+    },
+    update: {
+      name: OWNER_UNLIMITED_PLAN.name,
+      description: OWNER_UNLIMITED_PLAN.description,
+      circleLimit: OWNER_UNLIMITED_PLAN.circleLimit,
+      memberLimit: OWNER_UNLIMITED_PLAN.memberLimit,
+      storageLimitMb: OWNER_UNLIMITED_PLAN.storageLimitMb,
+      features: OWNER_UNLIMITED_PLAN.features,
+      isPublic: OWNER_UNLIMITED_PLAN.isPublic,
+      isActive: OWNER_UNLIMITED_PLAN.isActive,
+    },
+  })
 }
 
 export async function getPlans() {
   const plans = await prisma.plan.findMany({
-    where: { isActive: true },
+    where: { isActive: true, isPublic: true },
     orderBy: { sortOrder: "asc" },
   })
 
@@ -216,4 +273,40 @@ export async function activateSubscription(
   } catch {}
 
   return { ...sub, plan: { ...sub.plan, price: Number(sub.plan.price) } }
+}
+
+/**
+ * Assign the hidden owner-unlimited plan to a user.
+ * Only call this for the primary owner ( OWNER_EMAIL ).
+ * Idempotent: upserts the subscription.
+ */
+export async function assignOwnerUnlimitedPlan(userId: string) {
+  await seedPlans()
+  const plan = await prisma.plan.findUnique({ where: { slug: "owner-unlimited" } })
+  if (!plan) throw new Error("owner-unlimited plan not found after seeding")
+
+  const now = new Date()
+  const farFuture = new Date(now.getFullYear() + 100, 0, 1)
+
+  const sub = await prisma.userSubscription.upsert({
+    where: { userId },
+    create: {
+      userId,
+      planId: plan.id,
+      status: "ACTIVE",
+      currentPeriodStart: now,
+      currentPeriodEnd: farFuture,
+    },
+    update: {
+      planId: plan.id,
+      status: "ACTIVE",
+      currentPeriodStart: now,
+      currentPeriodEnd: farFuture,
+      trialEndsAt: null,
+      cancelledAt: null,
+    },
+    include: { plan: true },
+  })
+
+  return { ...sub, plan: { ...sub.plan, price: Number(sub.plan.price), features: sub.plan.features as string[] } }
 }

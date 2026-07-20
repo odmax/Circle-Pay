@@ -7,7 +7,8 @@ import crypto from "crypto"
 import { authConfig } from "./auth.config"
 import { prisma } from "./prisma"
 import { loginSchema } from "./validations/auth"
-import { seedPlans, assignFreePlan } from "./services/subscription.service"
+import { seedPlans, assignFreePlan, assignOwnerUnlimitedPlan } from "./services/subscription.service"
+import { isPrimaryOwnerEmail } from "./owner-email"
 
 if (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 32) {
   if (process.env.NODE_ENV === "production") {
@@ -60,13 +61,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!user.id) return
       await seedPlans()
       await assignFreePlan(user.id)
-      if (process.env.OWNER_EMAIL && user.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase()) {
+      if (isPrimaryOwnerEmail(user.email)) {
         try {
           await prisma.internalAdmin.upsert({
             where: { userId: user.id },
             create: { userId: user.id, role: "SUPER_ADMIN" },
             update: {},
           })
+          await assignOwnerUnlimitedPlan(user.id)
         } catch {}
       }
     },
@@ -84,7 +86,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         ])
         token.isAdmin = !!(dbAdmin?.isActive)
         token.adminRole = dbAdmin?.role as string || undefined
-        token.isPrimaryOwner = !!(process.env.OWNER_EMAIL && dbOwner?.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase())
+        token.isPrimaryOwner = isPrimaryOwnerEmail(dbOwner?.email)
       }
       if (trigger === "update" && token.id) {
         const uid = token.id as string
@@ -98,7 +100,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.name = dbUser.name
           token.isAdmin = !!(dbAdmin?.isActive)
           token.adminRole = dbAdmin?.role as string || undefined
-          token.isPrimaryOwner = !!(process.env.OWNER_EMAIL && dbUser.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase())
+          token.isPrimaryOwner = isPrimaryOwnerEmail(dbUser.email)
         }
       }
       return token

@@ -3,7 +3,8 @@
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 import { registerSchema } from "@/lib/validations/auth"
-import { seedPlans, assignFreePlan } from "@/lib/services/subscription.service"
+import { seedPlans, assignFreePlan, assignOwnerUnlimitedPlan } from "@/lib/services/subscription.service"
+import { isPrimaryOwnerEmail } from "@/lib/owner-email"
 
 export async function registerUser(formData: FormData) {
   const raw = {
@@ -53,13 +54,14 @@ export async function registerUser(formData: FormData) {
   await assignFreePlan(user.id)
 
   // Seed owner admin if email matches (case-insensitive)
-  if (process.env.OWNER_EMAIL && email.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase()) {
+  if (isPrimaryOwnerEmail(email)) {
     try {
       await prisma.internalAdmin.upsert({
         where: { userId: user.id },
         create: { userId: user.id, role: "SUPER_ADMIN" },
         update: {},
       })
+      await assignOwnerUnlimitedPlan(user.id)
     } catch {}
   }
 

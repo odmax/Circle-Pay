@@ -101,7 +101,7 @@ function UserMenu() {
         <DropdownMenuItem render={<Link href="/support" />}>Support</DropdownMenuItem>
         {isAdmin && <DropdownMenuItem render={<Link href="/owner" />}><Shield className="size-4 mr-2" /> Admin Dashboard</DropdownMenuItem>}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); signOut({ callbackUrl: "/login" }) }} className="text-destructive">Sign Out</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })} className="text-destructive cursor-pointer">Sign Out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { canPerform } from "@/lib/ownerPermissions"
+import { isPrimaryOwnerEmail } from "@/lib/owner-email"
 
 export async function getCurrentInternalAdmin() {
   const session = await auth()
@@ -9,8 +10,7 @@ export async function getCurrentInternalAdmin() {
   if (!admin || !admin.isActive) {
     return { isAdmin: false, isPrimaryOwner: false, isActive: false }
   }
-  const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase()
-  const isPrimaryOwner = !!ownerEmail && session.user.email?.trim().toLowerCase() === ownerEmail
+  const isPrimaryOwner = isPrimaryOwnerEmail(session.user.email)
   return {
     isAdmin: true, adminId: admin.id, role: admin.role as string,
     isPrimaryOwner, isActive: true,
@@ -24,8 +24,7 @@ export async function canManageAdmin(actorAdminId: string, targetAdminId: string
   if (!actor || !actor.isActive) return { allowed: false, reason: "Your admin account is not active" }
   if (!target) return { allowed: false, reason: "Target admin not found" }
 
-  const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase()
-  const targetIsPrimary = !!ownerEmail && target.user.email?.trim().toLowerCase() === ownerEmail
+  const targetIsPrimary = isPrimaryOwnerEmail(target.user.email)
 
   // No one can touch the primary owner
   if (targetIsPrimary) return { allowed: false, reason: "You cannot modify the primary owner" }

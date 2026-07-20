@@ -1,15 +1,16 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { LogOut, AlertTriangle, Calendar, Phone, Wallet } from "lucide-react"
+import { AlertTriangle, Calendar, Phone, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { auth, signOut } from "@/lib/auth"
+import { auth } from "@/lib/auth"
 import { getProfile } from "@/lib/services/profile.service"
 import { ProfileForm } from "@/components/settings/profile-form"
 import { ChangePasswordForm } from "@/components/settings/change-password-form"
 import { CURRENCIES } from "@/lib/constants"
+import { SignoutButton } from "@/components/auth/signout-button"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -119,11 +120,10 @@ export default async function SettingsPage() {
               <CardTitle className="text-base text-red-600">Danger Zone</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }) }}>
-                <Button type="submit" variant="outline" className="w-full justify-start gap-2 rounded-xl text-red-600 border-red-200 hover:bg-red-50">
-                  <LogOut className="size-4" /> Sign Out
-                </Button>
-              </form>
+              <SignoutButton
+                variant="outline"
+                className="w-full justify-start gap-2 rounded-xl text-red-600 border-red-200 hover:bg-red-50"
+              />
               <Button variant="ghost" disabled className="w-full justify-start gap-2 rounded-xl text-muted-foreground">
                 <AlertTriangle className="size-4" /> Delete Account (coming soon)
               </Button>
