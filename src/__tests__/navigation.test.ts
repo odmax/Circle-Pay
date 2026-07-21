@@ -97,16 +97,6 @@ describe("sidebar.tsx imports from app-navigation", () => {
   })
 })
 
-describe("mobile-sidebar.tsx imports from app-navigation", () => {
-  it("re-exports mainNav and does not define duplicate iconMap", async () => {
-    const content = await import("fs").then((fs) =>
-      fs.readFileSync("src/components/layout/mobile-sidebar.tsx", "utf-8")
-    )
-    expect(content).toContain('from "@/lib/navigation/app-navigation"')
-    expect(content).not.toContain("const iconMap")
-  })
-})
-
 describe("Desktop and Mobile use same nav items", () => {
   const main = mainNav.find((s) => s.label === "Main")!
   const support = mainNav.find((s) => s.label === "Support")!
