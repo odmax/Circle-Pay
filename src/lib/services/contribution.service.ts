@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import type { ContributionFrequency, ContributionStatus } from "@/generated/prisma"
+import type { ContributionFrequency, ContributionStatus, LedgerAccountType } from "@/generated/prisma"
 import { notifyCircleMembers, createBulkNotifications } from "@/lib/services/notification.service"
 import { createAuditLog } from "@/lib/services/audit.service"
 import { recordContributionToLedger, reverseContributionLedger } from "@/lib/services/wallet.service"
@@ -315,7 +315,7 @@ export async function updateContribution(
   circleId: string,
   contributionId: string,
   actorUserId: string,
-  data: { amount?: number; status?: string; paymentDate?: string; note?: string | null; planId?: string | null }
+  data: { amount?: number; status?: string; paymentDate?: string; note?: string | null; planId?: string | null; correctionReason?: string }
 ) {
   await requireCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
 
@@ -348,10 +348,102 @@ export async function updateContribution(
   if (data.note !== undefined) updateData.note = data.note
   if (data.planId !== undefined) updateData.planId = data.planId
 
-  // For CONFIRMED or REJECTED contributions, only allow note/planId changes
-  if (contribution.status === "CONFIRMED" || contribution.status === "REJECTED") {
-    if (data.amount !== undefined || data.status !== undefined || data.paymentDate !== undefined) {
-      throw new Error("Cannot change amount, status, or date on a confirmed/rejected contribution. Void it first.")
+  const amountChanged = data.amount !== undefined && Number(data.amount) !== oldAmount
+  const dateChanged = data.paymentDate !== undefined && new Date(data.paymentDate).getTime() !== contribution.paymentDate.getTime()
+  const planChanged = data.planId !== undefined && data.planId !== contribution.planId
+
+  // ── REJECTED: allow full editing + resubmit to PENDING_REVIEW ──────────
+  if (contribution.status === "REJECTED") {
+    // Any field changes allowed
+    if (data.status === "PENDING_REVIEW") {
+      // Resubmission — create a fresh approval request
+      const approvalConfig = await getApprovalConfig(circleId)
+      if (approvalConfig.contribution?.enabled ?? false) {
+        const approvalRequest = await createApprovalRequest({
+          circleId,
+          type: "CONTRIBUTION",
+          requestedById: actorUserId,
+          title: `Contribution of ${data.amount ?? Number(contribution.amount)}`,
+          description: data.note ?? contribution.note ?? "Resubmitted after correction",
+          resourceId: contributionId,
+          amount: data.amount ? Number(data.amount) : Number(contribution.amount),
+          metadata: { contributionId, userId: contribution.userId, resubmitted: true },
+        })
+        updateData.approvalRequestId = approvalRequest.id
+      }
+    }
+  }
+
+  // ── CONFIRMED: controlled corrections only ────────────────────────────
+  if (contribution.status === "CONFIRMED") {
+    const hasMaterialChange = amountChanged || planChanged
+    const hasDateOnlyChange = dateChanged && !amountChanged && !planChanged
+
+    if (hasMaterialChange || hasDateOnlyChange) {
+      if (!data.correctionReason) {
+        throw new Error("Correction reason is required for confirmed contributions")
+      }
+      if (amountChanged) {
+        // Material amount correction — requires full ledger reversal + re-recording + receipt replacement
+        await reverseContributionLedger(circleId, contributionId, oldAmount, actorUserId)
+
+        // Create corrected ledger entry with a unique idempotency key
+        const correctionKey = `corrected:contribution:${contributionId}:${Date.now()}`
+        const wallet = await prisma.wallet.findFirst({ where: { circleId, type: "CIRCLE_WALLET" } })
+        if (wallet) {
+          const getAccountByType = async (type: LedgerAccountType) =>
+            prisma.ledgerAccount.findFirst({ where: { walletId: wallet.id, type } })
+          const contribAcc = await getAccountByType("CONTRIBUTIONS" as LedgerAccountType)
+          const adjAcc = await getAccountByType("ADJUSTMENTS" as LedgerAccountType)
+          if (contribAcc && adjAcc) {
+            await prisma.ledgerTransaction.create({
+              data: {
+                circleId, amount: Number(data.amount), type: "CONTRIBUTION", status: "CONFIRMED", idempotencyKey: correctionKey,
+                entries: {
+                  create: [
+                    { accountId: contribAcc.id, type: "CREDIT", amount: Number(data.amount), description: `Corrected contribution ${contributionId}` },
+                    { accountId: adjAcc.id, type: "DEBIT", amount: Number(data.amount), description: `Corrected contribution ${contributionId}` },
+                  ],
+                },
+              },
+            })
+          }
+        }
+      }
+      if (hasDateOnlyChange) {
+        // Date correction — no ledger impact, but receipt needs replacement
+        await replaceReceiptForContribution(contributionId, circleId, actorUserId, {
+          paymentDate: data.paymentDate,
+          correctionReason: data.correctionReason,
+        }).catch(console.error)
+      }
+      if (amountChanged || planChanged) {
+        // Replace receipt for amount or plan changes
+        await replaceReceiptForContribution(contributionId, circleId, actorUserId, {
+          amount: amountChanged ? Number(data.amount) : undefined,
+          planId: planChanged ? data.planId : undefined,
+          correctionReason: data.correctionReason,
+        }).catch(console.error)
+      }
+    }
+
+    // No status changes allowed for confirmed
+    if (data.status !== undefined) {
+      throw new Error("Cannot change status of a confirmed contribution")
+    }
+  }
+
+  // ── PAID / other statuses: existing behaviour for amount changes ──────
+  if (contribution.status !== "CONFIRMED" && contribution.status !== "REJECTED") {
+    if (amountChanged && contribution.status === "PAID") {
+      reverseContributionLedger(circleId, contributionId, oldAmount, actorUserId).catch(console.error)
+      recordContributionToLedger(circleId, contributionId, Number(data.amount), actorUserId).catch(console.error)
+      prisma.financialReceipt
+        .updateMany({
+          where: { resourceId: contributionId, resourceType: "CONTRIBUTION", status: "ACTIVE" },
+          data: { status: "REPLACED", voidedAt: new Date(), voidedByUserId: actorUserId, voidReason: "Amount changed via edit" },
+        })
+        .catch(console.error)
     }
   }
 
@@ -364,20 +456,6 @@ export async function updateContribution(
       createdBy: { select: { id: true, name: true } },
     },
   })
-
-  // If amount changed for a PAID contribution, reverse old ledger and record new one
-  if (data.amount !== undefined && Number(data.amount) !== oldAmount && contribution.status === "PAID") {
-    reverseContributionLedger(circleId, contributionId, oldAmount, actorUserId).catch(console.error)
-    recordContributionToLedger(circleId, contributionId, Number(data.amount), actorUserId).catch(console.error)
-
-    // Void any existing receipt and create a new one
-    prisma.financialReceipt
-      .updateMany({
-        where: { resourceId: contributionId, resourceType: "CONTRIBUTION", status: "ACTIVE" },
-        data: { status: "REPLACED", voidedAt: new Date(), voidedByUserId: actorUserId, voidReason: "Amount changed via edit" },
-      })
-      .catch(console.error)
-  }
 
   await createAuditLog({
     userId: actorUserId,
@@ -436,10 +514,10 @@ export async function deleteContribution(
     })
   }
 
-  // Soft-delete the contribution
+  // Soft-delete the contribution — preserve the prior status for safe restore
   await prisma.contribution.update({
     where: { id: contributionId },
-    data: { deletedAt: new Date(), status: "CANCELLED" },
+    data: { deletedAt: new Date(), status: "CANCELLED", statusBeforeDeletion: contribution.status },
   })
 
   await createAuditLog({
@@ -476,9 +554,81 @@ export async function restoreContribution(
     throw new Error("Contribution is not deleted")
   }
 
+  const priorStatus = contribution.statusBeforeDeletion
+
+  // Old records without statusBeforeDeletion — cannot safely restore
+  if (!priorStatus) {
+    throw new Error(
+      "This contribution cannot be restored because its pre-deletion status is unknown. Create a new contribution instead."
+    )
+  }
+
+  // Previously CONFIRMED — require a fresh record for safety
+  if (priorStatus === "CONFIRMED") {
+    throw new Error(
+      "Previously confirmed contributions cannot be restored. Create a new contribution instead."
+    )
+  }
+
+  // Ledger-impacted statuses (PAID) — restore to PENDING_REVIEW, keep ledger reversal intact,
+  // create a new approval request so ledger + receipt are recreated only after approval
+  const ledgerImpacted = priorStatus === "PAID"
+
+  if (ledgerImpacted) {
+    const restored = await prisma.contribution.update({
+      where: { id: contributionId },
+      data: { deletedAt: null, status: "PENDING_REVIEW" },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+        plan: { select: { id: true, name: true, amount: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+    })
+
+    // Create a fresh approval request
+    const approvalConfig = await getApprovalConfig(circleId)
+    if (approvalConfig.contribution?.enabled ?? false) {
+      try {
+        const approvalRequest = await createApprovalRequest({
+          circleId,
+          type: "CONTRIBUTION",
+          requestedById: actorUserId,
+          title: `Restored contribution of ${Number(contribution.amount)}`,
+          description: `Restored from ${priorStatus} status. Original reversal kept intact.`,
+          resourceId: contributionId,
+          amount: Number(contribution.amount),
+          metadata: { contributionId, userId: contribution.userId, restored: true, priorStatus },
+        })
+        await prisma.contribution.update({
+          where: { id: contributionId },
+          data: { approvalRequestId: approvalRequest.id },
+        })
+      } catch {
+        // Approval creation is non-critical; don't fail the restore
+      }
+    }
+
+    await createAuditLog({
+      userId: actorUserId,
+      circleId,
+      action: "RESTORE",
+      entityType: "Contribution",
+      entityId: contributionId,
+      oldValues: { deletedAt: contribution.deletedAt.toISOString(), status: contribution.status },
+      newValues: { deletedAt: null, status: "PENDING_REVIEW", priorStatus },
+    })
+
+    return {
+      ...restored,
+      amount: Number(restored.amount),
+      plan: restored.plan ? { ...restored.plan, amount: Number(restored.plan.amount) } : null,
+    }
+  }
+
+  // Non-ledger-impacted statuses — restore to the prior status directly
   const restored = await prisma.contribution.update({
     where: { id: contributionId },
-    data: { deletedAt: null, status: "PAID" },
+    data: { deletedAt: null, status: priorStatus },
     include: {
       user: { select: { id: true, name: true, email: true, image: true } },
       plan: { select: { id: true, name: true, amount: true } },
@@ -493,7 +643,7 @@ export async function restoreContribution(
     entityType: "Contribution",
     entityId: contributionId,
     oldValues: { deletedAt: contribution.deletedAt.toISOString(), status: contribution.status },
-    newValues: { deletedAt: null, status: "PAID" },
+    newValues: { deletedAt: null, status: priorStatus },
   })
 
   return {
@@ -671,6 +821,72 @@ export async function rejectContribution(
     amount: Number(updated.amount),
     plan: updated.plan ? { ...updated.plan, amount: Number(updated.plan.amount) } : null,
   }
+}
+
+// ─── Correction Helpers ─────────────────────────────────
+
+async function replaceReceiptForContribution(
+  contributionId: string,
+  circleId: string,
+  userId: string,
+  overrides: { paymentDate?: string; amount?: number; planId?: string | null; correctionReason?: string }
+) {
+  const existing = await prisma.financialReceipt.findFirst({
+    where: { resourceId: contributionId, resourceType: "CONTRIBUTION", status: "ACTIVE" },
+  })
+  if (!existing) return
+
+  const now = new Date()
+  const circle = await prisma.circle.findUnique({ where: { id: circleId }, select: { name: true, currency: true } })
+  if (!circle) return
+
+  const circleCode = circle.name
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 10).toUpperCase()
+
+  const year = now.getFullYear()
+  const seq = await prisma.receiptSequence.upsert({
+    where: { circleId_year: { circleId, year } },
+    create: { circleId, year, currentValue: 1 },
+    update: { currentValue: { increment: 1 } },
+  })
+  const receiptNumber = `CP-${year}-${circleCode}-${String(seq.currentValue).padStart(6, "0")}`
+
+  const oldMeta = (existing.metadata ?? {}) as Record<string, unknown>
+
+  await prisma.financialReceipt.update({
+    where: { id: existing.id },
+    data: {
+      status: "REPLACED",
+      voidedAt: now,
+      voidedByUserId: userId,
+      voidReason: overrides.correctionReason ?? "Contribution corrected",
+    },
+  })
+
+  const newPaymentDate = overrides.paymentDate ? new Date(overrides.paymentDate) : existing.transactionDate
+  const newAmount = overrides.amount ?? Number(existing.amount)
+
+  await prisma.financialReceipt.create({
+    data: {
+      circleId,
+      type: "CONTRIBUTION",
+      status: "ACTIVE",
+      receiptNumber,
+      resourceId: contributionId,
+      resourceType: "CONTRIBUTION",
+      ledgerEntryId: existing.ledgerEntryId,
+      issuedToUserId: existing.issuedToUserId,
+      issuedByUserId: userId,
+      amount: newAmount,
+      currency: circle.currency,
+      title: "Contribution Receipt",
+      transactionDate: newPaymentDate,
+      issuedAt: now,
+      verificationToken: crypto.randomUUID(),
+      replacementReceiptId: existing.id,
+      metadata: { ...oldMeta, paymentDate: newPaymentDate.toISOString(), correctionReason: overrides.correctionReason ?? null },
+    },
+  })
 }
 
 // ─── Summary ─────────────────────────────────────────────

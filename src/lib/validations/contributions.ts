@@ -36,6 +36,7 @@ export const updateContributionSchema = z.object({
   paymentDate: z.string().min(1, "Payment date is required").optional(),
   note: z.string().max(300).optional().nullable(),
   planId: z.string().optional().nullable(),
+  correctionReason: z.string().min(1, "Correction reason is required").optional(),
 })
 
 export const restoreContributionSchema = z.object({})

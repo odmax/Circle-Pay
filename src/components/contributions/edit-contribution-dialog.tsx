@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,7 +47,8 @@ export function EditContributionDialog({
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const isImmutable = contribution.status === "CONFIRMED" || contribution.status === "REJECTED"
+  const isConfirmed = contribution.status === "CONFIRMED"
+  const isRejected = contribution.status === "REJECTED"
 
   const {
     register,
@@ -62,24 +62,38 @@ export function EditContributionDialog({
       paymentDate: new Date(contribution.paymentDate).toISOString().split("T")[0],
       note: contribution.note || "",
       planId: contribution.planId || "",
+      correctionReason: "",
     },
   })
 
   const selectedPlanId = watch("planId")
 
-  async function onSubmit(data: Record<string, unknown>) {
+  async function onSubmit(formData: Record<string, unknown>) {
     const payload: Record<string, unknown> = {}
-    if (!isImmutable) {
-      if (Number(data.amount) !== contribution.amount) payload.amount = data.amount
-      if (data.paymentDate !== new Date(contribution.paymentDate).toISOString().split("T")[0]) {
-        payload.paymentDate = data.paymentDate
+    const originalDate = new Date(contribution.paymentDate).toISOString().split("T")[0]
+
+    if (isConfirmed) {
+      if (formData.paymentDate !== originalDate) {
+        payload.paymentDate = formData.paymentDate
+      }
+      if ((formData.note as string) !== (contribution.note || "")) {
+        payload.note = formData.note || null
+      }
+      if (payload.paymentDate && !payload.correctionReason) {
+        payload.correctionReason = formData.correctionReason || undefined
+      }
+    } else {
+      if (Number(formData.amount) !== contribution.amount) payload.amount = formData.amount
+      if (formData.paymentDate !== originalDate) payload.paymentDate = formData.paymentDate
+      const newPlanId = (formData.planId as string) || null
+      if (newPlanId !== contribution.planId) payload.planId = newPlanId
+      if ((formData.note as string) !== (contribution.note || "")) payload.note = formData.note || null
+      if (isRejected) {
+        payload.status = "PENDING_REVIEW"
       }
     }
-    const newPlanId = (data.planId as string) || null
-    if (newPlanId !== contribution.planId) payload.planId = newPlanId
-    if ((data.note as string) !== (contribution.note || "")) payload.note = data.note || null
 
-    if (Object.keys(payload).length === 0) {
+    if (Object.keys(payload).length === 0 || (Object.keys(payload).length === 1 && payload.correctionReason)) {
       toast.info("No changes made")
       setOpen(false)
       return
@@ -96,7 +110,7 @@ export function EditContributionDialog({
         toast.error(err.error || "Failed to update contribution")
         return
       }
-      toast.success("Contribution updated!")
+      toast.success(isRejected ? "Contribution resubmitted for review!" : "Contribution updated!")
       setOpen(false)
       router.refresh()
       onSuccess?.()
@@ -136,39 +150,58 @@ export function EditContributionDialog({
             </Select>
           </div>
 
-          {!isImmutable && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="edit-amount">Amount ({currencySymbol})</Label>
-                <Input
-                  id="edit-amount"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  className="rounded-xl"
-                  {...register("amount")}
-                />
-                {errors.amount && (
-                  <p className="text-xs text-destructive">{errors.amount.message as string}</p>
-                )}
-              </div>
+          {!isConfirmed && (
+            <div className="space-y-2">
+              <Label htmlFor="edit-amount">Amount ({currencySymbol})</Label>
+              <Input
+                id="edit-amount"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                className="rounded-xl"
+                {...register("amount")}
+              />
+              {errors.amount && (
+                <p className="text-xs text-destructive">{errors.amount.message as string}</p>
+              )}
+            </div>
+          )}
 
+          <div className="space-y-2">
+            <Label htmlFor="edit-date">Payment Date</Label>
+            <Input
+              id="edit-date"
+              type="date"
+              className="rounded-xl"
+              {...register("paymentDate")}
+            />
+          </div>
+
+          {isConfirmed && (
+            <>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                This contribution is confirmed. You can correct the date and note. All changes are
+                audit-logged and will replace the existing receipt.
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-date">Payment Date</Label>
+                <Label htmlFor="edit-reason">Correction reason *</Label>
                 <Input
-                  id="edit-date"
-                  type="date"
+                  id="edit-reason"
+                  placeholder="Why is this being corrected?"
                   className="rounded-xl"
-                  {...register("paymentDate")}
+                  {...register("correctionReason", { required: "Correction reason is required" })}
                 />
+                {errors.correctionReason && (
+                  <p className="text-xs text-destructive">{errors.correctionReason.message as string}</p>
+                )}
               </div>
             </>
           )}
 
-          {isImmutable && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-              This contribution is {contribution.status.toLowerCase()}. Amount and date cannot be changed.{" "}
-              <strong>Void it first</strong> to modify financial details.
+          {isRejected && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700">
+              This contribution was rejected. Editing and saving will resubmit it for review as{" "}
+              <strong>PENDING_REVIEW</strong>.
             </div>
           )}
 

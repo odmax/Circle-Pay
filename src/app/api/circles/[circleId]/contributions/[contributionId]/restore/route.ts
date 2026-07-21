@@ -18,9 +18,14 @@ export async function POST(
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to restore contribution"
     const status =
-      msg === "Not a member of this circle" || msg === "Insufficient permissions" || msg === "Contribution is not deleted"
-        ? msg === "Contribution is not deleted" ? 400 : 403
-        : msg === "Contribution not found" ? 404 : 500
+      msg === "Not a member of this circle" || msg === "Insufficient permissions"
+        ? 403
+        : msg === "Contribution is not deleted" || msg === "Contribution not found"
+        ? msg === "Contribution not found" ? 404 : 400
+        : msg.includes("cannot be restored") ||
+          msg.includes("pre-deletion status is unknown")
+        ? 400
+        : 500
     return NextResponse.json({ error: msg }, { status })
   }
 }

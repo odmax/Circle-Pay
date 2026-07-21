@@ -26,6 +26,7 @@ interface ContributionRow {
   note: string | null
   createdAt: Date | string
   deletedAt?: Date | string | null
+  statusBeforeDeletion?: string | null
   user: { id: string; name: string | null; email: string; image: string | null }
   plan: { id: string; name: string; amount: number } | null
   createdBy: { id: string; name: string | null }
@@ -193,8 +194,12 @@ export function ContributionHistoryTable({
                             size="icon-sm"
                             className="size-7"
                             onClick={() => handleRestore(c.id)}
-                            disabled={restoringId === c.id}
-                            title="Restore"
+                            disabled={restoringId === c.id || c.statusBeforeDeletion === "CONFIRMED"}
+                            title={
+                              c.statusBeforeDeletion === "CONFIRMED"
+                                ? "Create a new contribution instead"
+                                : "Restore"
+                            }
                           >
                             {restoringId === c.id ? (
                               <Loader2 className="size-3.5 animate-spin" />

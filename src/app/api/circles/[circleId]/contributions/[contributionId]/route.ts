@@ -109,7 +109,8 @@ export async function PATCH(
       msg === "Insufficient permissions" ||
       msg === "Contribution not found"
         ? msg === "Contribution not found" ? 404 : 403
-        : msg === "Cannot change amount, status, or date on a confirmed/rejected contribution. Void it first." ||
+        : msg === "Correction reason is required for confirmed contributions" ||
+          msg === "Cannot change status of a confirmed contribution" ||
           msg === "Cannot edit a deleted contribution"
         ? 400
         : 500
