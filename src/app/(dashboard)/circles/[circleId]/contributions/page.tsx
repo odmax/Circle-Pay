@@ -6,6 +6,7 @@ import {
   Clock,
   AlertTriangle,
   Users,
+  AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,7 +36,8 @@ export default async function ContributionsPage({
 
   const { circleId } = await params
 
-  let circle, summary, plans, contributions
+  let circle: any, summary: any, plans: any[] = [], contributions: any = []
+  let pageError: string | null = null
   try {
     ;[circle, summary, plans, contributions] = await Promise.all([
       getCircleById(circleId, session.user.id),
@@ -43,28 +45,29 @@ export default async function ContributionsPage({
       getContributionPlans(circleId, session.user.id),
       getContributions(circleId, session.user.id),
     ])
-  } catch {
-    notFound()
+  } catch (e) {
+    pageError = (e as Error).message; console.error("Contributions error:", e)
+    plans = []; contributions = []
   }
 
-  const currency = CURRENCIES.find((c) => c.code === circle.currency)
-  const symbol = currency?.symbol ?? circle.currency
+  const currency = circle ? CURRENCIES.find((c) => c.code === circle.currency) : null
+  const symbol = currency?.symbol ?? circle?.currency ?? "R"
 
-  const canManage = await hasCirclePermission({
+  const canManage = circle ? await hasCirclePermission({
     userId: session.user.id,
     circleId,
     permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW,
-  })
+  }) : false
 
-  const membersForForm = circle.members.map((m) => ({
+  const membersForForm = circle?.members.map((m: any) => ({
     id: m.user.id,
     name: m.user.name || m.user.email,
-  }))
+  })) ?? []
 
-  const plansForForm = plans.map((p) => ({
+  const plansForForm = plans?.map((p) => ({
     id: p.id,
     name: p.name,
-  }))
+  })) ?? []
 
   return (
     <div className="space-y-6">
@@ -83,7 +86,7 @@ export default async function ContributionsPage({
             <h1 className="text-2xl font-bold tracking-tight">
               Contributions
             </h1>
-            <p className="text-muted-foreground">{circle.name}</p>
+            <p className="text-muted-foreground">{circle?.name}</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -97,6 +100,15 @@ export default async function ContributionsPage({
         </div>
       </div>
 
+      {/* Error state */}
+      {pageError && (
+        <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-start gap-3 p-4">
+          <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+          <div><p className="font-medium text-amber-800">Could not load contributions</p><p className="text-xs text-amber-700 mt-1">{pageError}</p></div>
+        </CardContent></Card>
+      )}
+      {!pageError && circle && (
+      <>
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="rounded-2xl border-border/40">
@@ -221,6 +233,8 @@ export default async function ContributionsPage({
           />
         </div>
       </div>
+    </>
+    )}
     </div>
   )
 }

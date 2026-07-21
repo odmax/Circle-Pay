@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation"
+import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { ArrowLeft, PiggyBank, TrendingUp, Home, Plane, Target, Heart, Church, Settings, CheckCircle2, SkipForward, RefreshCw, CircleDot } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -26,11 +27,24 @@ const TYPE_META: Record<string, { icon: React.ComponentType<{ className?: string
 export default async function OperationsPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
   const { circleId } = await params
-  let circle, engine, wfData
+  let circle: Awaited<ReturnType<typeof getCircleById>> | undefined
+  let engine: Awaited<ReturnType<typeof getCircleTypeEngine>> | undefined
+  let wfData: Awaited<ReturnType<typeof ensureCircleWorkflow>> | undefined
+  let pageError: string | null = null
   try {
-    [circle, engine] = await Promise.all([getCircleById(circleId, session.user.id), getCircleTypeEngine(circleId)])
+    ;[circle, engine] = await Promise.all([getCircleById(circleId, session.user.id), getCircleTypeEngine(circleId)])
     wfData = await ensureCircleWorkflow(circleId)
-  } catch { notFound() }
+  } catch (e) { pageError = (e as Error).message; console.error("Operations page error:", e) }
+  if (pageError) {
+    return (<div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button render={<Link href={`/circles/${circleId}`} />} variant="outline" size="icon" className="rounded-xl"><ArrowLeft className="size-4" /></Button>
+        <div><h1 className="text-2xl font-bold tracking-tight">Operations</h1></div>
+      </div>
+      <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-start gap-3 p-6"><AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" /><div><p className="font-medium text-amber-800">Could not load operations data</p><p className="text-sm text-amber-700 mt-1">{pageError}</p></div></CardContent></Card>
+    </div>)
+  }
+  if (!circle || !wfData || !engine) { return <div>Missing data</div> }
   const meta = TYPE_META[circle.type] || TYPE_META.CUSTOM
   const Icon = meta.icon
   const steps = await prisma.circleWorkflowStep.findMany({ where: { workflowId: wfData.id }, orderBy: { sortOrder: "asc" } })

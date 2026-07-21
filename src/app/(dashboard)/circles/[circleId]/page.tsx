@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 import Link from "next/link"
 import {
-  ArrowLeft, Users, PiggyBank, Target, Settings, BookOpen, Repeat, TrendingUp, Clock, Lightbulb, Receipt, Scale, Check, FileText, Wallet, MessageCircle, Calendar, Vote, Sparkles, Zap, DollarSign, User, FolderKanban,
+  ArrowLeft, Users, PiggyBank, Target, Settings, BookOpen, Repeat, TrendingUp, Clock, Lightbulb, Receipt, Scale, Check, FileText, Wallet, MessageCircle, Calendar, Vote, Sparkles, Zap, DollarSign, User, FolderKanban, MessageSquare,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { auth } from "@/lib/auth"
 import { getCircleById } from "@/lib/services/circle.service"
-import { getCircleSnapshot, refreshCircleSnapshot } from "@/lib/services/snapshot.service"
 import { getCircleDashboard } from "@/lib/services/dashboard.service"
 import { CircleTypeBadge } from "@/components/circles/circle-type-badge"
 import { RoleBadge } from "@/components/circles/role-badge"
@@ -22,6 +21,7 @@ import { getAutomationLogs, getCircleWidgets } from "@/lib/services/circle-templ
 import { TypeSpecificHero } from "@/components/circles/type-specific-hero"
 import { CircleWidgetRenderer } from "@/components/circles/widgets/circle-widget-renderer"
 import { PendingApprovalsWidget } from "@/components/approvals/pending-approvals-widget"
+import { CircleOnboardingChecklist } from "@/components/circles/circle-onboarding-checklist"
 import { WidgetGridSkeleton, CardSkeleton, ListSkeleton } from "@/components/shared/skeletons"
 import { CURRENCIES } from "@/lib/constants"
 import { getCircleTypeConfig } from "@/lib/circle-types"
@@ -44,21 +44,12 @@ export default async function CircleOverviewPage({
 
   let circle, dashboard, widgets, automationLogs
   try {
-    // Try snapshot cache for dashboard data
-    const cached = await getCircleSnapshot(circleId)
-    if (cached) {
-      dashboard = cached.dashboard
-      widgets = cached.widgets
-      automationLogs = cached.automationLogs
-    } else {
-      ;[dashboard, widgets, automationLogs] = await Promise.all([
-        getCircleDashboard(circleId, session.user.id),
-        getCircleWidgets(circleId),
-        getAutomationLogs(circleId),
-      ])
-      refreshCircleSnapshot(circleId, { dashboard, widgets, automationLogs }).catch(console.error)
-    }
-    circle = await getCircleById(circleId, session.user.id)
+    ;[dashboard, widgets, automationLogs, circle] = await Promise.all([
+      getCircleDashboard(circleId, session.user.id),
+      getCircleWidgets(circleId),
+      getAutomationLogs(circleId),
+      getCircleById(circleId, session.user.id),
+    ])
   } catch {
     notFound()
   }
@@ -122,24 +113,48 @@ export default async function CircleOverviewPage({
           color="bg-emerald-50 text-emerald-600"
         />
         <StatCell
-          label="Active Plans"
-          value={ds.activePlans.toString()}
-          icon={<Repeat className="size-5" />}
+          label="Members"
+          value={ds.totalMembers.toString()}
+          icon={<Users className="size-5" />}
+          color="bg-blue-50 text-blue-600"
+        />
+        <StatCell
+          label="Wallet Balance"
+          value={`${symbol}${ds.walletBalance.toLocaleString()}`}
+          icon={<Wallet className="size-5" />}
           color="bg-violet-50 text-violet-600"
         />
         <StatCell
           label="Active Goals"
           value={ds.activeGoals.toString()}
           icon={<Target className="size-5" />}
-          color="bg-blue-50 text-blue-600"
+          color="bg-brand-50 text-brand"
         />
-        <StatCell
-          label="Goal Progress"
-          value={`${ds.goalProgress}%`}
-          icon={<TrendingUp className="size-5" />}
-          color={ds.goalProgress >= 100 ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-brand"}
-        />
+        {ds.totalInvested !== undefined && ds.totalInvested !== null && (
+          <StatCell
+            label="Total Invested"
+            value={`${symbol}${ds.totalInvested.toLocaleString()}`}
+            icon={<TrendingUp className="size-5" />}
+            color="bg-amber-50 text-amber-600"
+          />
+        )}
+        {ds.totalReturns !== undefined && ds.totalReturns !== null && (
+          <StatCell
+            label="Total Returns"
+            value={`${symbol}${ds.totalReturns.toLocaleString()}`}
+            icon={<DollarSign className="size-5" />}
+            color="bg-emerald-50 text-emerald-600"
+          />
+        )}
       </div>
+
+      {/* Onboarding Checklist */}
+      {dashboard.onboarding.stepsCompleted < dashboard.onboarding.totalSteps && (
+        <CircleOnboardingChecklist
+          circleId={circleId}
+          onboarding={dashboard.onboarding}
+        />
+      )}
 
       {/* Goal Progress Bar */}
       {ds.totalGoalTarget > 0 && (
@@ -303,6 +318,90 @@ export default async function CircleOverviewPage({
               )}
             </CardContent>
           </Card>
+
+          {/* Recent Expenses */}
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Recent Expenses</CardTitle>
+              <Button
+                render={<Link href={`/circles/${circleId}/expenses`} />}
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+              >
+                View all
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {dashboard.recentExpenses.length === 0 ? (
+                <EmptyRow icon={<Receipt />} text="No expenses yet" />
+              ) : (
+                <div className="space-y-2">
+                  {dashboard.recentExpenses.map((e: any) => {
+                    const initials = e.paidBy.name
+                      ? e.paidBy.name.split(" ").map((n: any) => n[0]).join("").toUpperCase().slice(0, 2)
+                      : "??"
+                    return (
+                      <div key={e.id} className="flex items-center gap-3 text-sm">
+                        <Avatar className="size-7">
+                          <AvatarImage src={e.paidBy.image || ""} />
+                          <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <span className="truncate block">{e.title}</span>
+                          <span className="text-xs text-muted-foreground">{e.category}</span>
+                        </div>
+                        <span className="font-mono font-semibold text-rose-600 shrink-0">
+                          {symbol}{e.amount.toLocaleString()}
+                        </span>
+                        <span className="hidden sm:inline text-xs text-muted-foreground w-20 text-right">
+                          {new Date(e.expenseDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Projects */}
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Projects</CardTitle>
+              <Button
+                render={<Link href={`/circles/${circleId}/projects`} />}
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+              >
+                View all
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {dashboard.recentProjects.length === 0 ? (
+                <EmptyRow icon={<FolderKanban />} text="No projects yet" />
+              ) : (
+                <div className="space-y-2">
+                  {dashboard.recentProjects.map((p: any) => (
+                    <div key={p.id} className="flex items-center gap-3 text-sm">
+                      <FolderKanban className="size-4 text-muted-foreground shrink-0" />
+                      <Link
+                        href={`/circles/${circleId}/projects/${p.id}`}
+                        className="flex-1 truncate font-medium hover:text-brand transition-colors"
+                      >
+                        {p.name}
+                      </Link>
+                      <Badge variant="outline" className="text-[10px]">{p.status}</Badge>
+                      <span className="hidden sm:inline text-xs text-muted-foreground">
+                        {new Date(p.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Sidebar */}
@@ -315,14 +414,23 @@ export default async function CircleOverviewPage({
             <CardContent className="space-y-2 text-sm">
               <Row label="Currency" value={`${symbol} ${circle.currency}`} />
               <Row label="Your Role" value={<RoleBadge role={circle.userRole as MemberRole} />} />
-              <Row
-                label="Members"
-                value={`${circle.memberCount} member${circle.memberCount !== 1 ? "s" : ""}`}
-              />
-              <Row
-                label="Created"
-                value={new Date(circle.createdAt).toLocaleDateString()}
-              />
+              <Row label="Members" value={`${ds.totalMembers}`} />
+              {ds.activePlans > 0 && <Row label="Active Plans" value={ds.activePlans.toString()} />}
+              {ds.pendingSettlements > 0 && (
+                <Row label="Pending Settlements" value={<Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">{ds.pendingSettlements}</Badge>} />
+              )}
+              {ds.pendingInvitations > 0 && (
+                <Row label="Pending Invites" value={<Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">{ds.pendingInvitations}</Badge>} />
+              )}
+              {ds.pendingJoinRequests > 0 && (
+                <Row label="Join Requests" value={<Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-700">{ds.pendingJoinRequests}</Badge>} />
+              )}
+              {ds.activePolls > 0 && <Row label="Active Polls" value={ds.activePolls.toString()} />}
+              {ds.goalProgress > 0 && <Row label="Goal Progress" value={`${ds.goalProgress}%`} />}
+              {ds.totalGoalTarget > 0 && (
+                <Row label="Goal Target" value={`${symbol}${ds.totalGoalTarget.toLocaleString()}`} />
+              )}
+              <Row label="Created" value={new Date(circle.createdAt).toLocaleDateString()} />
               <Row
                 label="Status"
                 value={
@@ -358,6 +466,89 @@ export default async function CircleOverviewPage({
                   />
                 )
               })}
+            </CardContent>
+          </Card>
+
+          {/* Upcoming Events */}
+          {dashboard.upcomingEvents.length > 0 && (
+            <Card className="rounded-2xl border-border/40">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Upcoming Events</CardTitle>
+                <Button
+                  render={<Link href={`/circles/${circleId}/events`} />}
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                >
+                  View all
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {dashboard.upcomingEvents.map((ev: any) => (
+                    <div key={ev.id} className="flex items-start gap-3 text-sm">
+                      <Calendar className="size-4 text-muted-foreground shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{ev.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(ev.startAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recent Activity / Feed Posts */}
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Recent Activity</CardTitle>
+              <Button
+                render={<Link href={`/circles/${circleId}/feed`} />}
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+              >
+                View all
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {dashboard.recentFeedPosts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <MessageSquare className="size-8 text-muted-foreground/50 mb-2" />
+                  <p className="text-xs text-muted-foreground">No recent activity</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {dashboard.recentFeedPosts.map((p: any) => {
+                    const initials = p.author.name
+                      ? p.author.name.split(" ").map((n: any) => n[0]).join("").toUpperCase().slice(0, 2)
+                      : "??"
+                    return (
+                      <Link
+                        key={p.id}
+                        href={`/circles/${circleId}/feed`}
+                        className="flex items-start gap-2 text-sm group"
+                      >
+                        <Avatar className="size-6 shrink-0">
+                          <AvatarImage src={p.author.image || ""} />
+                          <AvatarFallback className="text-[8px]">{initials}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground line-clamp-2 group-hover:text-foreground transition-colors">
+                            {p.content}
+                          </p>
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(p.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 

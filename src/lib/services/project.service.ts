@@ -12,6 +12,16 @@ export async function createProject(circleId: string, userId: string, data: { na
     },
   })
   await addProjectActivity(project.id, userId, "created", "Project created", `Created by ${userId}`)
+
+  // Notify all circle members
+  const { notifyCircleMembers } = await import("@/lib/services/notification.service")
+  notifyCircleMembers(circleId, userId, {
+    type: "PROJECT_CREATED",
+    title: `New project: ${data.name}`,
+    message: `A new project "${data.name}" was created`,
+    link: `/circles/${circleId}/projects/${project.id}`,
+  }).catch(() => {})
+
   return project
 }
 

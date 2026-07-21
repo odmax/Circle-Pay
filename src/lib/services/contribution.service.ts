@@ -473,6 +473,17 @@ export async function updateContribution(
     },
   })
 
+  // Notify circle members about the update
+  const contributorName = updated.user.name || updated.user.email
+  notifyCircleMembers(circleId, actorUserId, {
+    type: "CONTRIBUTION_MADE",
+    title: `${contributorName} — contribution updated`,
+    message: data.correctionReason
+      ? `Correction: ${data.correctionReason}`
+      : `Contribution of ${Number(updated.amount)} was updated (${updated.status})`,
+    link: `/circles/${circleId}/contributions`,
+  }).catch(() => {})
+
   return {
     ...updated,
     amount: Number(updated.amount),
@@ -533,6 +544,13 @@ export async function deleteContribution(
   if (contribution.status === "PAID" || contribution.status === "CONFIRMED") {
     reverseContributionLedger(circleId, contributionId, Number(contribution.amount), actorUserId).catch(console.error)
   }
+
+  notifyCircleMembers(circleId, actorUserId, {
+    type: "CONTRIBUTION_MADE",
+    title: `Contribution removed`,
+    message: `A ${contribution.status} contribution of ${Number(contribution.amount)} was removed by a reviewer`,
+    link: `/circles/${circleId}/contributions`,
+  }).catch(() => {})
 
   return { success: true }
 }
@@ -618,6 +636,13 @@ export async function restoreContribution(
       newValues: { deletedAt: null, status: "PENDING_REVIEW", priorStatus },
     })
 
+    notifyCircleMembers(circleId, actorUserId, {
+      type: "CONTRIBUTION_MADE",
+      title: `Contribution restored (pending review)`,
+      message: `A previously ${priorStatus} contribution of ${Number(contribution.amount)} was restored and needs approval`,
+      link: `/circles/${circleId}/contributions`,
+    }).catch(() => {})
+
     return {
       ...restored,
       amount: Number(restored.amount),
@@ -645,6 +670,13 @@ export async function restoreContribution(
     oldValues: { deletedAt: contribution.deletedAt.toISOString(), status: contribution.status },
     newValues: { deletedAt: null, status: priorStatus },
   })
+
+  notifyCircleMembers(circleId, actorUserId, {
+    type: "CONTRIBUTION_MADE",
+    title: `Contribution restored`,
+    message: `A previously ${priorStatus} contribution of ${Number(contribution.amount)} was restored`,
+    link: `/circles/${circleId}/contributions`,
+  }).catch(() => {})
 
   return {
     ...restored,
@@ -765,6 +797,14 @@ export async function confirmContribution(
     message: `Your contribution of ${contribution.amount} has been confirmed`,
     link: `/circles/${circleId}/contributions`,
   }]).catch(console.error)
+
+  // Notify all circle members
+  notifyCircleMembers(circleId, reviewerId, {
+    type: "CONTRIBUTION_MADE",
+    title: `${contributor} contributed ${contribution.amount}`,
+    message: `A contribution of ${contribution.amount} has been confirmed`,
+    link: `/circles/${circleId}/contributions`,
+  }).catch(() => {})
 
   return {
     ...updated,

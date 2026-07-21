@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation"
+import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { ArrowLeft, AlertTriangle, CheckCircle2, Clock, PiggyBank, Users, Target, Wallet, DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,8 +13,8 @@ import { CURRENCIES } from "@/lib/constants"
 export default async function MyStatusPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
   const { circleId } = await params
-  let status
-  try { status = await getMemberCircleStatus(circleId, session.user.id) } catch { notFound() }
+  let status, pageError: string | null = null
+  try { status = await getMemberCircleStatus(circleId, session.user.id) } catch (e) { pageError = (e as Error).message; console.error("MyStatus error:", e) }
   const s = status
   const symbol = CURRENCIES.find((c) => c.code === "ZAR")?.symbol || "R"
 
@@ -21,9 +22,17 @@ export default async function MyStatusPage({ params }: { params: Promise<{ circl
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button render={<Link href={`/circles/${circleId}`} />} variant="outline" size="icon" className="rounded-xl"><ArrowLeft className="size-4" /></Button>
-        <div><h1 className="text-2xl font-bold tracking-tight">My Status</h1><p className="text-muted-foreground">{s.circle.name} · {s.member.role}</p></div>
+        <div><h1 className="text-2xl font-bold tracking-tight">My Status</h1>{s && <p className="text-muted-foreground">{s.circle.name} · {s.member.role}</p>}</div>
       </div>
 
+      {/* Error state */}
+      {pageError && (
+        <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-start gap-3 p-4">
+          <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+          <div><p className="font-medium text-amber-800">Could not load your status</p><p className="text-xs text-amber-700 mt-1">{pageError}</p></div>
+        </CardContent></Card>
+      )}
+      {!pageError && s && (<>
       {/* Warnings */}
       {s.warnings.length > 0 && (
         <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-start gap-3 p-4">
@@ -63,9 +72,8 @@ export default async function MyStatusPage({ params }: { params: Promise<{ circl
           </table>
         </CardContent></Card>
       )}
-
-      {/* Next Actions */}
-      {s.nextActions.length > 0 && (
+      </>)}
+      {!pageError && s && s.nextActions.length > 0 && (
         <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Next Actions</CardTitle></CardHeader><CardContent>
           <div className="flex flex-wrap gap-2">
             {s.nextActions.map((a) => <Link key={a.label} href={a.href}><Button variant="outline" size="sm" className="rounded-xl">{a.label}</Button></Link>)}

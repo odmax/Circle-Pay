@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation"
+import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { ArrowLeft, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,8 +13,8 @@ import { CURRENCIES } from "@/lib/constants"
 export default async function MyStatementPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
   const { circleId } = await params
-  let stmt
-  try { stmt = await getMemberStatement(circleId, session.user.id) } catch { notFound() }
+  let stmt, pageError: string | null = null
+  try { stmt = await getMemberStatement(circleId, session.user.id) } catch (e) { pageError = (e as Error).message; console.error("Statement error:", e) }
   const symbol = CURRENCIES.find((c) => c.code === "ZAR")?.symbol || "R"
 
   const statusBadge = (s: string) => ({ PAID: "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]", PENDING: "border-amber-200 bg-amber-50 text-amber-700 text-[10px]", CONFIRMED: "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]", PROOF_SUBMITTED: "border-amber-200 bg-emerald-50 text-emerald-700 text-[10px]", REJECTED: "border-red-200 bg-red-50 text-red-700 text-[10px]" }[s] || "text-[10px]")
@@ -25,6 +26,13 @@ export default async function MyStatementPage({ params }: { params: Promise<{ ci
         <div><h1 className="text-2xl font-bold tracking-tight">My Statement</h1></div>
       </div>
 
+      {pageError && (
+        <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-start gap-3 p-4">
+          <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+          <div><p className="font-medium text-amber-800">Could not load your statement</p><p className="text-xs text-amber-700 mt-1">{pageError}</p></div>
+        </CardContent></Card>
+      )}
+      {!pageError && stmt && (<>
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Contributions</CardTitle></CardHeader><CardContent className="p-0">
           <table className="w-full text-sm"><thead><tr className="border-b text-left text-xs font-medium text-muted-foreground"><th className="p-3 pl-4">Date</th><th className="p-3">Amount</th><th className="p-3">Status</th></tr></thead>
@@ -42,9 +50,8 @@ export default async function MyStatementPage({ params }: { params: Promise<{ ci
           </table>
         </CardContent></Card>
       </div>
-
-      {/* Balances */}
-      {stmt.balances.length > 0 && (
+      </>)}
+      {!pageError && stmt && stmt.balances.length > 0 && (
         <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">Balances</CardTitle></CardHeader><CardContent className="p-0">
           <table className="w-full text-sm"><thead><tr className="border-b text-left text-xs font-medium text-muted-foreground"><th className="p-3 pl-4">With</th><th className="p-3">Amount</th><th className="p-3">Direction</th></tr></thead>
             <tbody>{stmt.balances.map((b) => <tr key={b.id} className="border-b hover:bg-muted/30"><td className="p-3 pl-4">{b.direction === "owed" ? b.creditor : b.debtor}</td><td className="p-3 font-mono">{symbol}{b.amount.toLocaleString()}</td><td className="p-3"><Badge variant="outline" className={b.direction === "owed" ? "border-amber-200 bg-amber-50 text-amber-700 text-[10px]" : "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]"}>{b.direction === "owed" ? "I Owe" : "Owes Me"}</Badge></td></tr>)}</tbody>

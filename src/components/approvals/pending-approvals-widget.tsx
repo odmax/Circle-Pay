@@ -12,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { toast } from "sonner"
 
 type ApprovalStats = {
   pending: number
@@ -70,17 +69,20 @@ export function PendingApprovalsWidget({
         fetch(`/api/circles/${circleId}/approvals?status=pending&limit=5`),
       ])
 
-      if (!statsRes.ok || !listRes.ok) {
-        throw new Error("Failed to fetch approvals")
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        // API wraps response in { success, data }
+        setStats(statsData.data ?? statsData)
       }
 
-      const statsData = await statsRes.json()
-      const listData = await listRes.json()
-
-      setStats(statsData)
-      setItems(Array.isArray(listData) ? listData : listData.data ?? [])
+      if (listRes.ok) {
+        const listData = await listRes.json()
+        const payload = listData.data ?? listData
+        const raw = Array.isArray(payload) ? payload : payload.requests ?? []
+        setItems(raw)
+      }
     } catch {
-      toast.error("Failed to load pending approvals")
+      // Silently degrade — permissions vary and the widget shouldn't error-spam
     } finally {
       setLoading(false)
     }

@@ -16,7 +16,7 @@ export function CreateFeedPost({ circleId }: { circleId: string }) {
     if (!content.trim()) return
     setSending(true)
     try {
-      const res = await fetch(`/api/circles/${circleId}/feed/posts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) })
+      const res = await fetch(`/api/circles/${circleId}/feed`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) })
       if (!res.ok) { toast.error("Failed"); return }
       setContent("")
       toast.success("Posted!")

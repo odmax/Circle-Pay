@@ -10,6 +10,7 @@ import { getCircleById } from "@/lib/services/circle.service"
 import { getCircleFeed } from "@/lib/services/feed.service"
 import { CreateFeedPost } from "@/components/feed/create-feed-post"
 import { FeedLoadMore } from "@/components/feed/feed-load-more"
+import { FeedAutoRefresh } from "@/components/feed/feed-auto-refresh"
 
 export default async function FeedPage({ params, searchParams }: { params: Promise<{ circleId: string }>; searchParams: Promise<{ cursor?: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
@@ -29,6 +30,7 @@ export default async function FeedPage({ params, searchParams }: { params: Promi
         <div><h1 className="text-2xl font-bold tracking-tight">Feed</h1><p className="text-muted-foreground">{circle.name}</p></div>
       </div>
 
+      <FeedAutoRefresh />
       <CreateFeedPost circleId={circleId} />
 
       {posts.length === 0 ? (

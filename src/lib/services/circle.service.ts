@@ -287,7 +287,7 @@ export async function getCircleStats(circleId: string, userId: string) {
     await Promise.all([
       prisma.circleMember.count({ where: { circleId } }),
       prisma.contribution.aggregate({
-        where: { circleId },
+        where: { circleId, deletedAt: null, status: { in: ["PAID", "CONFIRMED"] } },
         _sum: { amount: true },
       }),
       prisma.goal.count({
