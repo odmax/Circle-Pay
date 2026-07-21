@@ -4,6 +4,7 @@ import {
   getContributions,
   addContribution,
   getContributionSummary,
+  getDeletedContributions,
 } from "@/lib/services/contribution.service"
 import { addContributionSchema } from "@/lib/validations/contributions"
 
@@ -23,10 +24,16 @@ export async function GET(
     const planId = url.searchParams.get("planId") || undefined
     const status = url.searchParams.get("status") || undefined
     const summary = url.searchParams.get("summary") === "true"
+    const deleted = url.searchParams.get("deleted") === "true"
 
     if (summary) {
       const data = await getContributionSummary(circleId, session.user.id)
       return NextResponse.json(data)
+    }
+
+    if (deleted) {
+      const contributions = await getDeletedContributions(circleId, session.user.id)
+      return NextResponse.json(contributions)
     }
 
     const contributions = await getContributions(circleId, session.user.id, {

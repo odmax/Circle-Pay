@@ -7,6 +7,7 @@ import {
   updateContribution,
   deleteContribution,
 } from "@/lib/services/contribution.service"
+import { updateContributionSchema } from "@/lib/validations/contributions"
 
 export async function GET(
   _req: NextRequest,
@@ -29,7 +30,7 @@ export async function GET(
     }
 
     const contribution = await prisma.contribution.findFirst({
-      where: { id: contributionId, circleId, deletedAt: null },
+      where: { id: contributionId, circleId },
       include: {
         user: { select: { id: true, name: true, email: true, image: true } },
         plan: { select: { id: true, name: true, amount: true } },
@@ -48,7 +49,7 @@ export async function GET(
       },
     })
 
-    if (!contribution) {
+    if (!contribution || contribution.circleId !== circleId) {
       return NextResponse.json({ error: "Contribution not found" }, { status: 404 })
     }
 
@@ -86,11 +87,19 @@ export async function PATCH(
     const { circleId, contributionId } = await params
     const body = await req.json()
 
+    const parsed = updateContributionSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+
     const contribution = await updateContribution(
       circleId,
       contributionId,
       session.user.id,
-      body
+      parsed.data
     )
     return NextResponse.json(contribution)
   } catch (error) {
@@ -100,6 +109,9 @@ export async function PATCH(
       msg === "Insufficient permissions" ||
       msg === "Contribution not found"
         ? msg === "Contribution not found" ? 404 : 403
+        : msg === "Cannot change amount, status, or date on a confirmed/rejected contribution. Void it first." ||
+          msg === "Cannot edit a deleted contribution"
+        ? 400
         : 500
     return NextResponse.json({ error: msg }, { status })
   }
@@ -123,8 +135,9 @@ export async function DELETE(
     const status =
       msg === "Not a member of this circle" ||
       msg === "Insufficient permissions" ||
-      msg === "Contribution not found"
-        ? msg === "Contribution not found" ? 404 : 403
+      msg === "Contribution not found" ||
+      msg === "Contribution is already deleted"
+        ? msg === "Contribution not found" ? 404 : 400
         : 500
     return NextResponse.json({ error: msg }, { status })
   }

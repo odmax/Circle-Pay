@@ -315,31 +315,83 @@ export async function updateContribution(
   circleId: string,
   contributionId: string,
   actorUserId: string,
-  data: { amount?: number; status?: string; paymentDate?: string; note?: string | null }
+  data: { amount?: number; status?: string; paymentDate?: string; note?: string | null; planId?: string | null }
 ) {
   await requireCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
 
   const contribution = await prisma.contribution.findUnique({
     where: { id: contributionId },
+    include: {
+      approvalRequest: { select: { id: true, status: true } },
+    },
   })
   if (!contribution || contribution.circleId !== circleId) {
     throw new Error("Contribution not found")
   }
+  if (contribution.deletedAt) {
+    throw new Error("Cannot edit a deleted contribution")
+  }
+
+  const oldAmount = Number(contribution.amount)
+  const oldValues = {
+    amount: oldAmount,
+    status: contribution.status,
+    paymentDate: contribution.paymentDate.toISOString(),
+    note: contribution.note,
+    planId: contribution.planId,
+  }
+
+  const updateData: Record<string, unknown> = {}
+  if (data.amount !== undefined) updateData.amount = data.amount
+  if (data.status !== undefined) updateData.status = data.status as ContributionStatus
+  if (data.paymentDate !== undefined) updateData.paymentDate = new Date(data.paymentDate)
+  if (data.note !== undefined) updateData.note = data.note
+  if (data.planId !== undefined) updateData.planId = data.planId
+
+  // For CONFIRMED or REJECTED contributions, only allow note/planId changes
+  if (contribution.status === "CONFIRMED" || contribution.status === "REJECTED") {
+    if (data.amount !== undefined || data.status !== undefined || data.paymentDate !== undefined) {
+      throw new Error("Cannot change amount, status, or date on a confirmed/rejected contribution. Void it first.")
+    }
+  }
 
   const updated = await prisma.contribution.update({
     where: { id: contributionId },
-    data: {
-      ...(data.amount !== undefined && { amount: data.amount }),
-      ...(data.status !== undefined && { status: data.status as ContributionStatus }),
-      ...(data.paymentDate !== undefined && {
-        paymentDate: new Date(data.paymentDate),
-      }),
-      ...(data.note !== undefined && { note: data.note }),
-    },
+    data: updateData,
     include: {
       user: { select: { id: true, name: true, email: true, image: true } },
       plan: { select: { id: true, name: true, amount: true } },
       createdBy: { select: { id: true, name: true } },
+    },
+  })
+
+  // If amount changed for a PAID contribution, reverse old ledger and record new one
+  if (data.amount !== undefined && Number(data.amount) !== oldAmount && contribution.status === "PAID") {
+    reverseContributionLedger(circleId, contributionId, oldAmount, actorUserId).catch(console.error)
+    recordContributionToLedger(circleId, contributionId, Number(data.amount), actorUserId).catch(console.error)
+
+    // Void any existing receipt and create a new one
+    prisma.financialReceipt
+      .updateMany({
+        where: { resourceId: contributionId, resourceType: "CONTRIBUTION", status: "ACTIVE" },
+        data: { status: "REPLACED", voidedAt: new Date(), voidedByUserId: actorUserId, voidReason: "Amount changed via edit" },
+      })
+      .catch(console.error)
+  }
+
+  await createAuditLog({
+    userId: actorUserId,
+    circleId,
+    action: "UPDATE",
+    entityType: "Contribution",
+    entityId: contributionId,
+    oldValues,
+    newValues: {
+      amount: Number(updated.amount),
+      status: updated.status,
+      paymentDate: updated.paymentDate.toISOString(),
+      note: updated.note,
+      planId: updated.planId,
     },
   })
 
@@ -359,18 +411,117 @@ export async function deleteContribution(
 
   const contribution = await prisma.contribution.findUnique({
     where: { id: contributionId },
+    include: {
+      approvalRequest: { select: { id: true, status: true } },
+    },
   })
   if (!contribution || contribution.circleId !== circleId) {
     throw new Error("Contribution not found")
   }
+  if (contribution.deletedAt) {
+    throw new Error("Contribution is already deleted")
+  }
 
-  await prisma.contribution.update({ where: { id: contributionId }, data: { deletedAt: new Date() } })
-  await createAuditLog({ userId: actorUserId, circleId, action: "SOFT_DELETE", entityType: "Contribution", entityId: contributionId })
+  // Void any active receipts
+  await prisma.financialReceipt.updateMany({
+    where: { resourceId: contributionId, resourceType: "CONTRIBUTION", status: "ACTIVE" },
+    data: { status: "VOIDED", voidedAt: new Date(), voidedByUserId: actorUserId, voidReason: "Contribution voided" },
+  })
+
+  // Cancel pending approval request if one exists
+  if (contribution.approvalRequest?.status === "PENDING") {
+    await prisma.approvalRequest.update({
+      where: { id: contribution.approvalRequest.id },
+      data: { status: "CANCELLED" },
+    })
+  }
+
+  // Soft-delete the contribution
+  await prisma.contribution.update({
+    where: { id: contributionId },
+    data: { deletedAt: new Date(), status: "CANCELLED" },
+  })
+
+  await createAuditLog({
+    userId: actorUserId,
+    circleId,
+    action: "SOFT_DELETE",
+    entityType: "Contribution",
+    entityId: contributionId,
+    oldValues: { status: contribution.status, amount: Number(contribution.amount) },
+  })
 
   // Reverse wallet ledger entry (fire-and-forget)
-  reverseContributionLedger(circleId, contributionId, Number(contribution.amount), actorUserId).catch(console.error)
+  if (contribution.status === "PAID" || contribution.status === "CONFIRMED") {
+    reverseContributionLedger(circleId, contributionId, Number(contribution.amount), actorUserId).catch(console.error)
+  }
 
   return { success: true }
+}
+
+export async function restoreContribution(
+  circleId: string,
+  contributionId: string,
+  actorUserId: string
+) {
+  await requireCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
+
+  const contribution = await prisma.contribution.findUnique({
+    where: { id: contributionId },
+  })
+  if (!contribution || contribution.circleId !== circleId) {
+    throw new Error("Contribution not found")
+  }
+  if (!contribution.deletedAt) {
+    throw new Error("Contribution is not deleted")
+  }
+
+  const restored = await prisma.contribution.update({
+    where: { id: contributionId },
+    data: { deletedAt: null, status: "PAID" },
+    include: {
+      user: { select: { id: true, name: true, email: true, image: true } },
+      plan: { select: { id: true, name: true, amount: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+  })
+
+  await createAuditLog({
+    userId: actorUserId,
+    circleId,
+    action: "RESTORE",
+    entityType: "Contribution",
+    entityId: contributionId,
+    oldValues: { deletedAt: contribution.deletedAt.toISOString(), status: contribution.status },
+    newValues: { deletedAt: null, status: "PAID" },
+  })
+
+  return {
+    ...restored,
+    amount: Number(restored.amount),
+    plan: restored.plan ? { ...restored.plan, amount: Number(restored.plan.amount) } : null,
+  }
+}
+
+export async function getDeletedContributions(circleId: string, userId: string) {
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
+
+  const contributions = await prisma.contribution.findMany({
+    where: { circleId, deletedAt: { not: null } },
+    include: {
+      user: { select: { id: true, name: true, email: true, image: true } },
+      plan: { select: { id: true, name: true, amount: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+    orderBy: { deletedAt: "desc" },
+  })
+
+  return contributions.map((c) => ({
+    ...c,
+    amount: Number(c.amount),
+    plan: c.plan ? { ...c.plan, amount: Number(c.plan.amount) } : null,
+    deletedAt: c.deletedAt?.toISOString() ?? null,
+  }))
 }
 
 // ─── Summary ─────────────────────────────────────────────

@@ -16,6 +16,8 @@ import {
   getContributionPlans,
   getContributions,
 } from "@/lib/services/contribution.service"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import { AddContributionForm } from "@/components/contributions/add-contribution-form"
 import { CreateContributionPlanForm } from "@/components/contributions/create-contribution-plan-form"
 import { ContributionPlanCard } from "@/components/contributions/contribution-plan-card"
@@ -47,6 +49,12 @@ export default async function ContributionsPage({
 
   const currency = CURRENCIES.find((c) => c.code === circle.currency)
   const symbol = currency?.symbol ?? circle.currency
+
+  const canManage = await hasCirclePermission({
+    userId: session.user.id,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW,
+  })
 
   const membersForForm = circle.members.map((m) => ({
     id: m.user.id,
@@ -193,8 +201,12 @@ export default async function ContributionsPage({
             </CardHeader>
             <CardContent className="px-0 sm:px-6">
               <ContributionHistoryTable
+                circleId={circleId}
                 contributions={contributions}
                 currencySymbol={symbol}
+                plans={plansForForm}
+                canManage={canManage}
+                showDeletedToggle={canManage}
               />
             </CardContent>
           </Card>

@@ -30,6 +30,17 @@ export const addContributionSchema = z.object({
   note: z.string().max(300).optional().or(z.literal("")),
 })
 
+export const updateContributionSchema = z.object({
+  amount: z.coerce.number().positive("Amount must be positive").optional(),
+  status: z.enum(["PAID", "PENDING", "PENDING_REVIEW", "CONFIRMED", "REJECTED", "OVERDUE", "CANCELLED"]).optional(),
+  paymentDate: z.string().min(1, "Payment date is required").optional(),
+  note: z.string().max(300).optional().nullable(),
+  planId: z.string().optional().nullable(),
+})
+
+export const restoreContributionSchema = z.object({})
+
 export type CreateContributionPlanInput = z.infer<typeof createContributionPlanSchema>
 export type UpdateContributionPlanInput = z.infer<typeof updateContributionPlanSchema>
 export type AddContributionInput = z.infer<typeof addContributionSchema>
+export type UpdateContributionInput = z.infer<typeof updateContributionSchema>
