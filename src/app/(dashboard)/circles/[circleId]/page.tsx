@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 import Link from "next/link"
 import {
-  ArrowLeft, Users, PiggyBank, Target, Settings, BookOpen, Repeat, TrendingUp, Clock, Lightbulb, Receipt, Scale, Check, FileText, Wallet, MessageCircle, Calendar, Vote, Sparkles, Zap, DollarSign, User, FolderKanban, MessageSquare,
+  ArrowLeft, Users, PiggyBank, Target, Settings, BookOpen, Repeat, TrendingUp, Clock, Lightbulb, Receipt, Scale, Check, FileText, Wallet, MessageCircle, Calendar, Vote, Sparkles, Zap, DollarSign, User, FolderKanban, MessageSquare, AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,7 +42,7 @@ export default async function CircleOverviewPage({
 
   const { circleId } = await params
 
-  let circle, dashboard, widgets, automationLogs
+  let circle: any, dashboard: any, widgets: any, automationLogs: any, pageError: string | null = null
   try {
     ;[dashboard, widgets, automationLogs, circle] = await Promise.all([
       getCircleDashboard(circleId, session.user.id),
@@ -50,15 +50,17 @@ export default async function CircleOverviewPage({
       getAutomationLogs(circleId),
       getCircleById(circleId, session.user.id),
     ])
-  } catch {
-    notFound()
+  } catch (e) {
+    pageError = (e as Error).message
+    console.error("CircleOverview error:", e)
   }
 
-  const currency = CURRENCIES.find((c) => c.code === circle.currency)
-  const symbol = currency?.symbol ?? circle.currency
-  const canManage =
-    circle.userRole === "OWNER" || circle.userRole === "ADMIN"
-  const ds = dashboard.circleStats
+  const currency = circle ? CURRENCIES.find((c) => c.code === circle.currency) : null
+  const symbol = currency?.symbol ?? circle?.currency ?? "R"
+  const canManage = circle
+    ? circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+    : false
+  const ds = dashboard?.circleStats
 
   return (
     <div className="space-y-6">
@@ -98,6 +100,14 @@ export default async function CircleOverviewPage({
         )}
       </div>
 
+      {/* Error state */}
+      {pageError && (
+        <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-start gap-3 p-4">
+          <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+          <div><p className="font-medium text-amber-800">Could not load circle</p><p className="text-xs text-amber-700 mt-1">{pageError}</p></div>
+        </CardContent></Card>
+      )}
+      {!pageError && circle && (<>
       {/* Type-Specific Hero */}
       <TypeSpecificHero
         circle={{ id: circle.id, name: circle.name, type: circle.type, currency: circle.currency, settings: (circle as unknown as { settings: Record<string, unknown> | null }).settings, memberCount: circle.memberCount }}
@@ -555,6 +565,8 @@ export default async function CircleOverviewPage({
           <PendingApprovalsWidget circleId={circleId} />
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }
