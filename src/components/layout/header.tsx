@@ -3,7 +3,7 @@
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Sidebar } from "./sidebar"
+import { MobileSidebar } from "./mobile-sidebar"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 
 export function Header() {
@@ -15,8 +15,8 @@ export function Header() {
           <Menu className="size-5" />
           <span className="sr-only">Toggle navigation</span>
         </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
-          <Sidebar />
+        <SheetContent side="left" className="p-0 max-w-sm min-w-[280px]">
+          <MobileSidebar />
         </SheetContent>
       </Sheet>
 

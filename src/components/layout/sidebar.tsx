@@ -4,42 +4,22 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useAdminStatus } from "@/hooks/use-admin-status"
-import { LayoutDashboard, Globe, Settings, PlusCircle, Loader2, Bell, ArrowUp, Compass, MessageCircle, Users, Search, Shield } from "lucide-react"
+import { PlusCircle, Loader2, Search, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { mainNav } from "@/lib/navigation/app-navigation"
+import { isNavigationItemActive, filterNavigationSections } from "@/lib/navigation/navigation-utils"
+import { NavIcon } from "@/components/navigation/nav-icon"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CircleSwitcher } from "@/components/layout/circle-switcher"
 import { SignOutItem } from "@/components/layout/signout-item"
 
-const groups = [
-  {
-    label: "Main",
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/circles", label: "My Circles", icon: Users },
-      { href: "/discover", label: "Discover", icon: Compass },
-      { href: "/notifications", label: "Notifications", icon: Bell },
-    ],
-  },
-  {
-    label: "Finance",
-    items: [
-      { href: "/upgrade", label: "Upgrade", icon: ArrowUp },
-    ],
-  },
-  {
-    label: "Account",
-    items: [
-      { href: "/support", label: "Support", icon: MessageCircle },
-      { href: "/settings", label: "Settings", icon: Settings },
-    ],
-  },
-]
-
 export function Sidebar() {
   const pathname = usePathname()
   const isCircleRoute = pathname.startsWith("/circles/") && pathname.split("/").length >= 3
+  const { isAdmin, isPrimaryOwner } = useAdminStatus()
+  const sections = filterNavigationSections(mainNav, { isAdmin: !!isAdmin, isPrimaryOwner: !!isPrimaryOwner })
 
   return (
     <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex" role="navigation" aria-label="Main navigation">
@@ -49,15 +29,15 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-        {groups.map((group) => (
-          <div key={group.label}>
-            <p className="text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-1">{group.label}</p>
+        {sections.map((section) => (
+          <div key={section.label}>
+            <p className="text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-1">{section.label}</p>
             <div className="space-y-0.5">
-              {group.items.map((link) => {
-                const isActive = pathname === link.href || pathname.startsWith(link.href + "/")
+              {section.items.map((item) => {
+                const isActive = isNavigationItemActive(pathname, item.href)
                 return (
-                  <Link key={link.href} href={link.href} className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors", isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground")}>
-                    <link.icon className="size-4" />{link.label}
+                  <Link key={item.href} href={item.href} className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors", isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground")}>
+                    <NavIcon name={item.iconName} className="size-4" />{item.label}
                   </Link>
                 )
               })}
