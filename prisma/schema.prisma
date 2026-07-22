@@ -99,6 +99,8 @@ model User {
   capitalTxConfirmations   ProjectCapitalTransaction[] @relation("CapitalTxConfirmer")
   capitalTxRejections      ProjectCapitalTransaction[] @relation("CapitalTxRejector")
   shortfallCoversApproved  ShortfallCover[]            @relation("ShortfallCoverApprover")
+  agreementsApproved       ProjectInvestorAgreement[]  @relation("AgreementApprover")
+  ownershipSnapshotsApproved ProjectOwnershipSnapshot[] @relation("OwnershipSnapshotApprover")
   legalAcceptances         UserLegalAcceptance[]
   mobileSessions           MobileSession[]
   mobilePushTokens         MobilePushToken[]
@@ -884,6 +886,9 @@ model Project {
   shortfallCovers      ShortfallCover[]
   fundingAllocations   ProjectFundingAllocation[]
   fundingCommitments   ProjectFundingCommitment[]
+  investorAgreements   ProjectInvestorAgreement[]
+  ownershipSnapshots   ProjectOwnershipSnapshot[]
+  ownershipEntries     ProjectOwnershipEntry[]
 
   @@unique([circleId, slug])
   @@index([circleId])
@@ -2989,6 +2994,8 @@ model ProjectParticipant {
   allocations            ProjectFundingAllocation[]
   commitments            ProjectFundingCommitment[]
   capitalTransactions    ProjectCapitalTransaction[]
+  investorAgreements     ProjectInvestorAgreement[]
+  ownershipEntries       ProjectOwnershipEntry[]
   shortfallCoversGiven   ShortfallCover[]           @relation("ShortfallCoverGiver")
   shortfallCoversReceived ShortfallCover[]          @relation("ShortfallCoverReceiver")
 
@@ -3180,4 +3187,118 @@ model ShortfallCover {
   @@index([allocationId])
   @@index([coveringParticipantId])
   @@index([coveredParticipantId])
+}
+
+// ─── Phase B: Investor Agreements & Ownership Register ──────
+
+enum ProjectAgreementType {
+  EQUITY
+  PROFIT_SHARE
+  REVENUE_SHARE
+  FIXED_RETURN
+  LOAN
+  CAPPED_RETURN
+  DONATION
+}
+
+enum ProjectAgreementStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  CANCELLED
+}
+
+model ProjectInvestorAgreement {
+  id                  String                @id @default(cuid())
+  projectId           String
+  participantId       String
+  agreementType       ProjectAgreementType  @default(EQUITY)
+  principal           Decimal               @db.Decimal(12, 2)
+  ownershipPercentage Decimal?              @db.Decimal(6, 2)
+  profitPercentage    Decimal?              @db.Decimal(6, 2)
+  revenuePercentage   Decimal?              @db.Decimal(6, 2)
+  interestRate        Decimal?              @db.Decimal(5, 4)
+  repaymentPriority   Int?                  @default(0) // 0 = lowest, higher = repaid first
+  returnCap           Decimal?              @db.Decimal(12, 2)
+  effectiveDate       DateTime?
+  expiryDate          DateTime?
+  votingRights        Boolean               @default(false)
+  agreementDocumentUrl String?
+  terms               String?
+  status              ProjectAgreementStatus @default(DRAFT)
+  approvalRequestId   String?
+  approvedById        String?
+  approvedAt          DateTime?
+  version             Int                   @default(1)
+  metadata            Json?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  project     Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  participant ProjectParticipant   @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  approvedBy  User?                @relation("AgreementApprover", fields: [approvedById], references: [id])
+
+  @@index([projectId])
+  @@index([participantId])
+  @@index([status])
+}
+
+enum ProjectOwnershipProposalStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+  EFFECTIVE
+  SUPERSEDED
+}
+
+model ProjectOwnershipSnapshot {
+  id              String                          @id @default(cuid())
+  projectId       String
+  version         Int
+  totalCapital    Decimal                         @db.Decimal(12, 2)
+  status          ProjectOwnershipProposalStatus  @default(PROPOSED)
+  proposalNote    String?
+  approvedById    String?
+  approvedAt      DateTime?
+  effectiveDate   DateTime?
+  supersededAt    DateTime?
+  supersededById  String?
+  metadata        Json?
+  createdAt       DateTime                        @default(now())
+  updatedAt       DateTime                        @updatedAt
+
+  project  Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  approvedBy User?                  @relation("OwnershipSnapshotApprover", fields: [approvedById], references: [id])
+  entries   ProjectOwnershipEntry[]
+
+  @@unique([projectId, version])
+  @@index([projectId])
+  @@index([status])
+}
+
+model ProjectOwnershipEntry {
+  id                    String  @id @default(cuid())
+  snapshotId            String
+  projectId             String
+  participantId         String
+  capitalContributed    Decimal @db.Decimal(12, 2)
+  ownershipPercentage   Decimal @db.Decimal(6, 2)
+  profitSharePercentage Decimal @db.Decimal(6, 2)
+  votingPercentage      Decimal @db.Decimal(6, 2)
+  sourceTransactions    String? // JSON array of capital transaction IDs
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  snapshot    ProjectOwnershipSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  participant ProjectParticipant      @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, participantId])
+  @@index([snapshotId])
+  @@index([projectId])
+  @@index([participantId])
 }
