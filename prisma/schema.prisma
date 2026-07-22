@@ -94,7 +94,11 @@ model User {
   projectRevenuesCreated   ProjectRevenue[]             @relation("ProjectRevenueCreator")
   distributionsCreated     ProjectDistribution[]        @relation("DistributionCreator")
   distributionsApproved    ProjectDistribution[]        @relation("DistributionApprover")
-  distributionItems        ProjectDistributionItem[]    @relation("DistributionRecipient")
+   distributionItems        ProjectDistributionItem[]    @relation("DistributionRecipient")
+  projectParticipants      ProjectParticipant[]        @relation("ProjectParticipantUser")
+  capitalTxConfirmations   ProjectCapitalTransaction[] @relation("CapitalTxConfirmer")
+  capitalTxRejections      ProjectCapitalTransaction[] @relation("CapitalTxRejector")
+  shortfallCoversApproved  ShortfallCover[]            @relation("ShortfallCoverApprover")
   legalAcceptances         UserLegalAcceptance[]
   mobileSessions           MobileSession[]
   mobilePushTokens         MobilePushToken[]
@@ -822,10 +826,21 @@ model AuditLog {
 
 enum ProjectStatus {
   DRAFT
+  FUNDING_SETUP
+  FUNDING_OPEN
+  PARTIALLY_FUNDED
+  FULLY_FUNDED
+  ACTIVE
+  REVENUE_GENERATING
+  COMPLETED
+  CLOSED
+  SUSPENDED
+  CANCELLED
+  FAILED
+  // Legacy — map to ARCHIVED
   FUNDING
   FUNDED
   IN_PROGRESS
-  COMPLETED
   ARCHIVED
 }
 
@@ -864,6 +879,11 @@ model Project {
   assets               ProjectAsset[]
   revenues             ProjectRevenue[]
   distributions        ProjectDistribution[]
+  participants         ProjectParticipant[]
+  capitalTransactions  ProjectCapitalTransaction[]
+  shortfallCovers      ShortfallCover[]
+  fundingAllocations   ProjectFundingAllocation[]
+  fundingCommitments   ProjectFundingCommitment[]
 
   @@unique([circleId, slug])
   @@index([circleId])
@@ -2178,6 +2198,7 @@ model CirclePaymentIntent {
 enum ProjectFundingRoundStatus {
   DRAFT
   OPEN
+  CLOSING
   CLOSED
   CANCELLED
 }
@@ -2191,23 +2212,34 @@ enum ProjectContributionStatus {
 }
 
 model ProjectFundingRound {
-  id            String                    @id @default(cuid())
-  projectId     String
-  createdById   String
-  name          String
-  description   String?
-  targetAmount  Decimal                   @db.Decimal(12, 2)
-  currentAmount Decimal                   @default(0) @db.Decimal(12, 2)
-  status        ProjectFundingRoundStatus @default(DRAFT)
-  opensAt       DateTime?
-  closesAt      DateTime?
-  dueDate       DateTime?
-  createdAt     DateTime                  @default(now())
-  updatedAt     DateTime                  @updatedAt
+  id                       String                          @id @default(cuid())
+  projectId                String
+  createdById              String
+  name                     String
+  description              String?
+  targetAmount             Decimal                         @db.Decimal(12, 2)
+  currentAmount            Decimal                         @default(0) @db.Decimal(12, 2)
+  status                   ProjectFundingRoundStatus       @default(DRAFT)
+  allocationMethod         ProjectFundingAllocationMethod  @default(EQUAL)
+  minimumContribution      Decimal?                        @db.Decimal(12, 2)
+  maximumContribution      Decimal?                        @db.Decimal(12, 2)
+  allowOverfunding         Boolean                         @default(false)
+  overfundingTreatment     ProjectOverfundingTreatment?    @default(EXTRA_EQUITY)
+  opensAt                  DateTime?
+  closesAt                 DateTime?
+  dueDate                  DateTime?
+  approvedAt               DateTime?
+  closedAt                 DateTime?
+  metadata                 Json?
+  createdAt                DateTime                        @default(now())
+  updatedAt                DateTime                        @updatedAt
 
-  project       Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy     User                  @relation("FundingRoundCreator", fields: [createdById], references: [id])
+  project       Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy     User                        @relation("FundingRoundCreator", fields: [createdById], references: [id])
   contributions ProjectContribution[]
+  allocations   ProjectFundingAllocation[]
+  commitments   ProjectFundingCommitment[]
+  capitalTransactions ProjectCapitalTransaction[]
 
   @@index([projectId])
 }
@@ -2885,4 +2917,267 @@ model ApprovalDelegation {
   @@index([delegatorMemberId])
   @@index([delegateMemberId])
   @@index([status])
+}
+
+// ─── Project Capital Structure ──────────────────────────────
+//
+// Phase A: Participant tracking, funding rounds, allocations,
+// commitments, capital transactions, and shortfall engine.
+
+enum ProjectParticipantType {
+  CIRCLE_MEMBER
+  EXTERNAL_INVESTOR
+  DONOR
+  LENDER
+  SPONSOR
+  PARTNER
+}
+
+enum ProjectParticipantStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+  REMOVED
+}
+
+enum ProjectFundingAllocationMethod {
+  EQUAL
+  PERCENTAGE
+  CUSTOM
+  OPEN
+  HYBRID
+}
+
+enum ProjectOverfundingTreatment {
+  EXTRA_EQUITY
+  REPAYABLE_ADVANCE
+  SHORTFALL_COVER
+  DONATION
+  REQUIRE_SELECTION
+}
+
+enum ProjectAllocationStatus {
+  PENDING
+  COMMITTED
+  PARTIALLY_PAID
+  PAID
+  SHORTFALL
+  COVERED
+  WAIVED
+  CANCELLED
+}
+
+model ProjectParticipant {
+  id                   String                @id @default(cuid())
+  projectId            String
+  circleMemberId       String?               // nullable for external participants
+  userId               String?               // nullable for external participants
+  externalName         String?               // required if no userId
+  externalEmail        String?
+  externalPhone        String?
+  type                 ProjectParticipantType @default(CIRCLE_MEMBER)
+  status               ProjectParticipantStatus @default(INVITED)
+  votingEligible       Boolean               @default(false)
+  distributionEligible Boolean               @default(true)
+  joinedAt             DateTime?
+  metadata             Json?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  project                Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user                   User?                      @relation("ProjectParticipantUser", fields: [userId], references: [id])
+  allocations            ProjectFundingAllocation[]
+  commitments            ProjectFundingCommitment[]
+  capitalTransactions    ProjectCapitalTransaction[]
+  shortfallCoversGiven   ShortfallCover[]           @relation("ShortfallCoverGiver")
+  shortfallCoversReceived ShortfallCover[]          @relation("ShortfallCoverReceiver")
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([circleMemberId])
+}
+
+model ProjectFundingAllocation {
+  id                String                   @id @default(cuid())
+  fundingRoundId    String
+  projectId         String
+  participantId     String
+  allocatedAmount   Decimal                  @db.Decimal(12, 2)
+  committedAmount   Decimal                  @default(0) @db.Decimal(12, 2)
+  paidAmount        Decimal                  @default(0) @db.Decimal(12, 2)
+  shortfallAmount   Decimal                  @default(0) @db.Decimal(12, 2)
+  excessAmount      Decimal                  @default(0) @db.Decimal(12, 2)
+  dueDate           DateTime?
+  status            ProjectAllocationStatus  @default(PENDING)
+  generatedBy       String?                  // 'SYSTEM' or userId for manual
+  adjustedBy        String?
+  adjustmentReason  String?
+  metadata          Json?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  fundingRound ProjectFundingRound @relation(fields: [fundingRoundId], references: [id], onDelete: Cascade)
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  participant   ProjectParticipant  @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  capitalTransactions ProjectCapitalTransaction[]
+  shortfallCovers ShortfallCover[]
+
+  @@unique([fundingRoundId, participantId])
+  @@index([fundingRoundId])
+  @@index([projectId])
+  @@index([participantId])
+}
+
+enum ProjectCommitmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum ProjectFundingClassification {
+  REQUIRED_EQUITY
+  EXTRA_EQUITY
+  SHORTFALL_COVER_EQUITY
+  MEMBER_ADVANCE
+  EXTERNAL_INVESTMENT
+  LOAN
+  DONATION
+  SPONSORSHIP
+}
+
+model ProjectFundingCommitment {
+  id                  String                      @id @default(cuid())
+  fundingRoundId      String
+  projectId           String
+  participantId       String
+  amount              Decimal                     @db.Decimal(12, 2)
+  commitmentDate      DateTime                    @default(now())
+  dueDate             DateTime?
+  classification      ProjectFundingClassification @default(REQUIRED_EQUITY)
+  expectedReturn      Decimal?                    @db.Decimal(12, 2)
+  repaymentTerms      String?
+  ownershipImpact     Boolean                     @default(false)
+  approvalStatus      String                      @default("PENDING") // PENDING, APPROVED, REJECTED
+  approvalRequestId   String?
+  cancellationReason  String?
+  status              ProjectCommitmentStatus     @default(PENDING)
+  metadata            Json?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+
+  fundingRound ProjectFundingRound @relation(fields: [fundingRoundId], references: [id], onDelete: Cascade)
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  participant   ProjectParticipant  @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  capitalTransactions ProjectCapitalTransaction[]
+
+  @@index([fundingRoundId])
+  @@index([projectId])
+  @@index([participantId])
+}
+
+enum ProjectCapitalTxStatus {
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+enum ProjectCapitalTxClassification {
+  REQUIRED_EQUITY
+  EXTRA_EQUITY
+  SHORTFALL_COVER_EQUITY
+  MEMBER_ADVANCE
+  EXTERNAL_INVESTMENT
+  LOAN
+  DONATION
+  SPONSORSHIP
+}
+
+model ProjectCapitalTransaction {
+  id                      String                          @id @default(cuid())
+  projectId               String
+  fundingRoundId          String?
+  allocationId            String?
+  commitmentId            String?
+  participantId           String
+  amount                  Decimal                         @db.Decimal(12, 2)
+  transactionDate         DateTime                        @default(now())
+  reference               String?
+  proofUrl                String?
+  classification          ProjectCapitalTxClassification  @default(REQUIRED_EQUITY)
+  ownershipEligibleAmount Decimal                         @default(0) @db.Decimal(12, 2)
+  repaymentEligibleAmount Decimal                         @default(0) @db.Decimal(12, 2)
+  profitEligibleAmount    Decimal                         @default(0) @db.Decimal(12, 2)
+  status                  ProjectCapitalTxStatus          @default(PENDING)
+  confirmedById           String?
+  confirmedAt             DateTime?
+  rejectedById            String?
+  rejectedAt              DateTime?
+  rejectionReason         String?
+  ledgerEntryId           String?
+  receiptId               String?
+  metadata                Json?
+  createdAt               DateTime                        @default(now())
+  updatedAt               DateTime                        @updatedAt
+
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fundingRound ProjectFundingRound? @relation(fields: [fundingRoundId], references: [id], onDelete: SetNull)
+  allocation   ProjectFundingAllocation? @relation(fields: [allocationId], references: [id], onDelete: SetNull)
+  commitment   ProjectFundingCommitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  participant  ProjectParticipant  @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  confirmedBy User?                @relation("CapitalTxConfirmer", fields: [confirmedById], references: [id])
+  rejectedBy  User?                @relation("CapitalTxRejector", fields: [rejectedById], references: [id])
+
+  @@index([projectId])
+  @@index([fundingRoundId])
+  @@index([participantId])
+  @@index([status])
+}
+
+enum ShortfallCoverType {
+  COVER_ADVANCE
+  OWNERSHIP_TRANSFER
+  PROJECT_ADVANCE
+  DONATION
+}
+
+enum ShortfallCoverStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  SETTLED
+  CANCELLED
+}
+
+model ShortfallCover {
+  id                     String              @id @default(cuid())
+  projectId              String
+  allocationId           String
+  coveringParticipantId  String              // who is covering
+  coveredParticipantId   String?             // whose shortfall (null = general)
+  amount                 Decimal             @db.Decimal(12, 2)
+  type                   ShortfallCoverType  @default(COVER_ADVANCE)
+  repaymentDueDate       DateTime?
+  interestRate           Decimal?            @db.Decimal(5, 4) // e.g. 0.0500 = 5%
+  ownershipTransferRule  String?             // description of ownership effect
+  status                 ShortfallCoverStatus @default(PENDING)
+  approvedById           String?
+  approvedAt             DateTime?
+  settledAt              DateTime?
+  metadata               Json?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  allocation        ProjectFundingAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  coveringParticipant ProjectParticipant @relation("ShortfallCoverGiver", fields: [coveringParticipantId], references: [id], onDelete: Cascade)
+  coveredParticipant  ProjectParticipant? @relation("ShortfallCoverReceiver", fields: [coveredParticipantId], references: [id], onDelete: SetNull)
+  approvedBy        User?              @relation("ShortfallCoverApprover", fields: [approvedById], references: [id])
+
+  @@index([projectId])
+  @@index([allocationId])
+  @@index([coveringParticipantId])
+  @@index([coveredParticipantId])
 }
