@@ -1,14 +1,29 @@
 import { prisma } from "@/lib/prisma"
 import { addProjectActivity } from "@/lib/services/project.service"
 
-export async function createProjectExpense(projectId: string, circleId: string, userId: string, data: { title: string; description?: string; amount: number; category?: string; vendorName?: string; reference?: string }) {
+export async function createProjectExpense(projectId: string, circleId: string, userId: string, data: {
+  title: string; description?: string; amount: number; category?: string;
+  vendorName?: string; vendorContact?: string; reference?: string;
+  budgetAmount?: number; notes?: string; expenseDate?: Date
+}) {
   return prisma.projectExpense.create({
-    data: { projectId, circleId, createdById: userId, title: data.title, description: data.description || null, amount: data.amount, category: (data.category as any) || "OTHER", vendorName: data.vendorName || null, reference: data.reference || null },
+    data: {
+      projectId, circleId, createdById: userId, title: data.title,
+      description: data.description || null, amount: data.amount,
+      category: (data.category as any) || "OTHER",
+      vendorName: data.vendorName || null, vendorContact: data.vendorContact || null,
+      reference: data.reference || null, budgetAmount: data.budgetAmount || null,
+      notes: data.notes || null, expenseDate: data.expenseDate || new Date(),
+    },
   })
 }
 
 export async function approveProjectExpense(expenseId: string, adminId: string) {
-  const e = await prisma.projectExpense.update({ where: { id: expenseId }, data: { status: "APPROVED", approvedById: adminId, approvedAt: new Date() }, include: { project: { select: { id: true } } } })
+  const e = await prisma.projectExpense.update({
+    where: { id: expenseId },
+    data: { status: "APPROVED", approvedById: adminId, approvedAt: new Date() },
+    include: { project: { select: { id: true } } },
+  })
   await addProjectActivity(e.project.id, adminId, "expense_approved", `Expense "${e.title}" approved — R${Number(e.amount).toLocaleString()}`)
   return e
 }
@@ -20,7 +35,6 @@ export async function markProjectExpensePaid(expenseId: string, adminId: string)
 
   const updated = await prisma.projectExpense.update({ where: { id: expenseId }, data: { status: "PAID", paidById: adminId, paidAt: new Date() } })
 
-  // Ledger entry
   try {
     const wallet = await prisma.wallet.findFirst({ where: { circleId: e.project.circleId, type: "CIRCLE_WALLET" } })
     if (wallet) {
@@ -33,7 +47,10 @@ export async function markProjectExpensePaid(expenseId: string, adminId: string)
           await prisma.ledgerTransaction.create({
             data: {
               circleId: e.project.circleId, amount: Number(e.amount), type: "EXPENSE", status: "CONFIRMED", idempotencyKey: key,
-              entries: { create: [{ accountId: expAcc.id, type: "DEBIT", amount: Number(e.amount), description: `Project expense: ${e.title}` }, { accountId: adjAcc.id, type: "CREDIT", amount: Number(e.amount), description: `Project expense: ${e.title}` }] },
+              entries: { create: [
+                { accountId: expAcc.id, type: "DEBIT", amount: Number(e.amount), description: `Project expense: ${e.title}` },
+                { accountId: adjAcc.id, type: "CREDIT", amount: Number(e.amount), description: `Project expense: ${e.title}` },
+              ] },
             },
           })
         }
@@ -55,9 +72,14 @@ export async function cancelProjectExpense(expenseId: string) {
 
 export async function getProjectExpenseDashboard(projectId: string) {
   const [expenses, project] = await Promise.all([
-    prisma.projectExpense.findMany({ where: { projectId }, include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.projectExpense.findMany({
+      where: { projectId },
+      include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } },
+      orderBy: { createdAt: "desc" }, take: 100,
+    }),
     prisma.project.findUnique({ where: { id: projectId }, select: { currentAmount: true } }),
   ])
+
   const approved = expenses.filter((e) => e.status === "APPROVED" || e.status === "PAID")
   const paid = expenses.filter((e) => e.status === "PAID")
   const pending = expenses.filter((e) => e.status === "PENDING" || e.status === "DRAFT")
@@ -68,6 +90,25 @@ export async function getProjectExpenseDashboard(projectId: string) {
   const categoryBreakdown: Record<string, number> = {}
   for (const e of paid) { categoryBreakdown[e.category] = (categoryBreakdown[e.category] || 0) + Number(e.amount) }
 
+  // Budget variance per category
+  const budgetByCategory: Record<string, { budgeted: number; spent: number; variance: number }> = {}
+  for (const e of expenses) {
+    if (!budgetByCategory[e.category]) budgetByCategory[e.category] = { budgeted: 0, spent: 0, variance: 0 }
+    if (e.budgetAmount) budgetByCategory[e.category].budgeted += Number(e.budgetAmount)
+    if (e.status === "PAID" || e.status === "APPROVED") budgetByCategory[e.category].spent += Number(e.amount)
+  }
+  for (const cat of Object.keys(budgetByCategory)) {
+    budgetByCategory[cat].variance = budgetByCategory[cat].budgeted - budgetByCategory[cat].spent
+  }
+
+  // Warnings for over-budget categories
+  const warnings: string[] = []
+  for (const [cat, data] of Object.entries(budgetByCategory)) {
+    if (data.budgeted > 0 && data.spent > data.budgeted) {
+      warnings.push(`${cat}: over budget by R${(data.spent - data.budgeted).toLocaleString()}`)
+    }
+  }
+
   return {
     expenses,
     summary: {
@@ -76,7 +117,8 @@ export async function getProjectExpenseDashboard(projectId: string) {
       remainingBudget: raised - totalPaid,
       spendPercentage: raised > 0 ? Math.round((totalPaid / raised) * 100) : 0,
       categoryBreakdown,
+      budgetByCategory,
     },
-    warnings: [] as string[],
+    warnings,
   }
 }

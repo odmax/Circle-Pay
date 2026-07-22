@@ -101,6 +101,7 @@ model User {
   shortfallCoversApproved  ShortfallCover[]            @relation("ShortfallCoverApprover")
   agreementsApproved       ProjectInvestorAgreement[]  @relation("AgreementApprover")
   ownershipSnapshotsApproved ProjectOwnershipSnapshot[] @relation("OwnershipSnapshotApprover")
+  revenueApprovals         ProjectRevenue[]            @relation("ProjectRevenueApprover")
   legalAcceptances         UserLegalAcceptance[]
   mobileSessions           MobileSession[]
   mobilePushTokens         MobilePushToken[]
@@ -2312,6 +2313,7 @@ model ProjectExpense {
   title           String
   description     String?
   category        ProjectExpenseCategory @default(OTHER)
+  budgetAmount    Decimal?               @db.Decimal(12, 2)  // what was budgeted for this category
   amount          Decimal                @db.Decimal(12, 2)
   currency        String                 @default("ZAR")
   status          ProjectExpenseStatus   @default(DRAFT)
@@ -2322,7 +2324,9 @@ model ProjectExpense {
   rejectionReason String?
   receiptUrl      String?
   vendorName      String?
+  vendorContact   String?                // vendor email/phone
   reference       String?
+  notes           String?                // variance notes or additional context
   metadata        Json?
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
@@ -2368,23 +2372,30 @@ enum ProjectRevenueType {
 }
 
 model ProjectAsset {
-  id             String             @id @default(cuid())
-  projectId      String
-  circleId       String
-  createdById    String
-  name           String
-  description    String?
-  type           ProjectAssetType   @default(OTHER)
-  status         ProjectAssetStatus @default(PLANNED)
-  purchaseAmount Decimal?           @db.Decimal(12, 2)
-  currentValue   Decimal?           @db.Decimal(12, 2)
-  saleValue      Decimal?           @db.Decimal(12, 2)
-  purchaseDate   DateTime?
-  soldAt         DateTime?
-  notes          String?
-  metadata       Json?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id                     String             @id @default(cuid())
+  projectId              String
+  circleId               String
+  createdById            String
+  name                   String
+  description            String?
+  type                   ProjectAssetType   @default(OTHER)
+  status                 ProjectAssetStatus @default(PLANNED)
+  purchaseAmount         Decimal?           @db.Decimal(12, 2)
+  currentValue           Decimal?           @db.Decimal(12, 2)
+  saleValue              Decimal?           @db.Decimal(12, 2)
+  purchaseDate           DateTime?
+  soldAt                 DateTime?
+  custodianId            String?            // userId responsible for the asset
+  location               String?            // physical location
+  depreciationMethod     String?            // STRAIGHT_LINE, DECLINING_BALANCE, NONE
+  depreciationRate       Decimal?           @db.Decimal(5, 4) // e.g. 0.1000 = 10%
+  depreciationStartDate  DateTime?
+  accumulatedDepreciation Decimal?          @db.Decimal(12, 2)
+  linkedExpenseId        String?            // expense that purchased this asset
+  notes                  String?
+  metadata               Json?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   circle    Circle           @relation(fields: [circleId], references: [id], onDelete: Cascade)
@@ -2395,25 +2406,34 @@ model ProjectAsset {
 }
 
 model ProjectRevenue {
-  id          String             @id @default(cuid())
-  projectId   String
-  circleId    String
-  createdById String
-  assetId     String?
-  type        ProjectRevenueType @default(OTHER)
-  amount      Decimal            @db.Decimal(12, 2)
-  currency    String             @default("ZAR")
-  revenueDate DateTime?
-  description String?
-  reference   String?
-  metadata    Json?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id              String             @id @default(cuid())
+  projectId       String
+  circleId        String
+  createdById     String
+  assetId         String?
+  type            ProjectRevenueType @default(OTHER)
+  grossAmount     Decimal            @db.Decimal(12, 2)
+  directCosts     Decimal            @default(0) @db.Decimal(12, 2)
+  amount          Decimal            @db.Decimal(12, 2)  // net amount = grossAmount - directCosts
+  currency        String             @default("ZAR")
+  revenueDate     DateTime?
+  description     String?
+  reference       String?
+  invoiceUrl      String?            // link to invoice
+  proofUrl        String?            // proof of revenue received
+  approvedById    String?
+  approvedAt      DateTime?
+  status          String             @default("CONFIRMED") // DRAFT, PENDING, CONFIRMED, REJECTED
+  distributionPeriodId String?       // link to a distribution period
+  metadata        Json?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   circle    Circle        @relation(fields: [circleId], references: [id], onDelete: Cascade)
   createdBy User          @relation("ProjectRevenueCreator", fields: [createdById], references: [id])
   asset     ProjectAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  approvedBy User?        @relation("ProjectRevenueApprover", fields: [approvedById], references: [id])
 
   @@index([projectId])
 }
