@@ -78,16 +78,16 @@ export default async function CircleOverviewPage({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">
-                {circle.name}
+                {circle?.name ?? "Circle"}
               </h1>
-              <CircleTypeBadge type={circle.type} />
+              {circle?.type && <CircleTypeBadge type={circle.type} />}
             </div>
-            {circle.description && (
+            {circle?.description && (
               <p className="text-muted-foreground">{circle.description}</p>
             )}
           </div>
         </div>
-        {canManage && (
+        {canManage && circle && (
           <Button
             render={<Link href={`/circles/${circle.id}/manage`} />}
             variant="outline"
@@ -104,7 +104,7 @@ export default async function CircleOverviewPage({
       {pageError && (
         <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-start gap-3 p-4">
           <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
-          <div><p className="font-medium text-amber-800">Could not load circle</p><p className="text-xs text-amber-700 mt-1">{pageError}</p></div>
+          <div><p className="font-medium text-amber-800">Could not load circle data</p><p className="text-xs text-amber-700 mt-1">{pageError}</p></div>
         </CardContent></Card>
       )}
       {!pageError && circle && (<>
