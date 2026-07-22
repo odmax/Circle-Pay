@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation"
+import { redirect } from "next/navigation"
 import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { ArrowLeft, PiggyBank, TrendingUp, Home, Plane, Target, Heart, Church, Settings, CheckCircle2, SkipForward, RefreshCw, CircleDot } from "lucide-react"
@@ -11,6 +11,7 @@ import { getCircleTypeEngine } from "@/lib/services/circle-type-engine.service"
 import { ensureCircleWorkflow } from "@/lib/services/workflow.service"
 import { StatCard } from "@/components/ui/app/cards"
 import { prisma } from "@/lib/prisma"
+import { isPrimaryOwnerUser } from "@/lib/owner-email"
 
 const TYPE_META: Record<string, { icon: React.ComponentType<{ className?: string }>; title: string; desc: string }> = {
   STOKVEL: { icon: PiggyBank, title: "Stokvel Operations", desc: "Monthly collections, payout rotation, and member compliance tracking." },
@@ -48,7 +49,8 @@ export default async function OperationsPage({ params }: { params: Promise<{ cir
   const meta = TYPE_META[circle.type] || TYPE_META.CUSTOM
   const Icon = meta.icon
   const steps = await prisma.circleWorkflowStep.findMany({ where: { workflowId: wfData.id }, orderBy: { sortOrder: "asc" } })
-  const isAdmin = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const isOwner = await isPrimaryOwnerUser(session.user.id)
+  const isAdmin = isOwner || circle.userRole === "OWNER" || circle.userRole === "ADMIN"
   const completed = steps.filter((s) => s.status === "COMPLETED" || s.status === "SKIPPED").length
   const progress = steps.length > 0 ? Math.round((completed / steps.length) * 100) : 0
 

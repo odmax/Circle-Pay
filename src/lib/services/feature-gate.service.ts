@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { isPrimaryOwnerUser } from "@/lib/owner-email"
 
 const FALLBACK_FEATURES: Record<string, Record<string, boolean | number>> = {
   free: {
@@ -128,6 +129,7 @@ export async function getUserPlanFeatures(userId: string): Promise<Record<string
 }
 
 export async function hasFeature(userId: string, featureKey: string): Promise<boolean> {
+  if (await isPrimaryOwnerUser(userId)) return true
   const features = await getUserPlanFeatures(userId)
   const val = features[featureKey]
   if (val === undefined || val === false || val === 0) return false

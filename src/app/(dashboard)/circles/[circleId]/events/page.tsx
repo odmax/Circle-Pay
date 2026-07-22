@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth"
 import { getCircleById } from "@/lib/services/circle.service"
 import { getCircleEvents } from "@/lib/services/event.service"
 import { hasFeature, getCurrentPlanSlug } from "@/lib/services/feature-gate.service"
+import { isPrimaryOwnerUser } from "@/lib/owner-email"
 import { UpgradeCTA } from "@/components/owner/upgrade-cta"
 import { EventRSVPActions } from "@/components/events/event-rsvp-actions"
 import { CreateEventForm } from "@/components/events/create-event-form"
@@ -17,15 +18,25 @@ const typeLabels: Record<string, string> = { MEETING: "Meeting", CONTRIBUTION_DA
 export default async function EventsPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
   const { circleId } = await params
-  let circle, events
+  let circle: any, events: any[] = [], pageError: string | null = null
   try { [circle, events] = await Promise.all([getCircleById(circleId, session.user.id), getCircleEvents(circleId)]) }
-  catch { notFound() }
+  catch (e) { pageError = (e as Error).message; console.error("Events page error:", e) }
+  if (pageError || !circle) {
+    return (<div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button render={<Link href={`/circles/${circleId}`} />} variant="outline" size="icon" className="rounded-xl"><ArrowLeft className="size-4" /></Button>
+        <div><h1 className="text-2xl font-bold tracking-tight">Events</h1></div>
+      </div>
+      <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="p-4 text-sm text-amber-800">{pageError || "Could not load events"}</CardContent></Card>
+    </div>)
+  }
 
-  if (!await hasFeature(session.user.id, "EVENTS")) return <UpgradeCTA planName={await getCurrentPlanSlug(session.user.id)} />
+  const isOwner = await isPrimaryOwnerUser(session.user.id)
+  if (!isOwner && !await hasFeature(session.user.id, "EVENTS")) return <UpgradeCTA planName={await getCurrentPlanSlug(session.user.id)} />
 
   const upcoming = events.filter((e) => e.status === "UPCOMING")
   const past = events.filter((e) => e.status !== "UPCOMING")
-  const canManage = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canManage = isOwner || circle.userRole === "OWNER" || circle.userRole === "ADMIN"
 
   return (
     <div className="space-y-6">
@@ -38,7 +49,7 @@ export default async function EventsPage({ params }: { params: Promise<{ circleI
       </div>
 
       {events.length === 0 ? (
-        <Card className="rounded-2xl"><CardContent className="flex flex-col items-center justify-center py-16 text-center"><Calendar className="size-10 text-muted-foreground/50 mb-3" /><p className="font-medium">No events yet</p><p className="text-sm text-muted-foreground">Create your first event</p></CardContent></Card>
+        <Card className="rounded-2xl"><CardContent className="flex flex-col items-center justify-center py-16 text-center"><Calendar className="size-10 text-muted-foreground/50 mb-3" /><p className="font-medium">No events yet</p>{canManage ? <div className="mt-3"><CreateEventForm circleId={circleId} /></div> : <p className="text-sm text-muted-foreground">No events scheduled yet</p>}</CardContent></Card>
       ) : (
         <>
           {upcoming.length > 0 && (

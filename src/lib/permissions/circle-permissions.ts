@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import type { MemberRole } from "@/generated/prisma"
 import type { CirclePermission } from "./circlePermissions"
 import { getRoleDefaultPermissions } from "./circle-role-permissions"
+import { isPrimaryOwnerUser, getPrimaryOwnerPermissions } from "@/lib/owner-email"
 
 export class CirclePermissionDeniedError extends Error {
   constructor(circleId: string, permission: string) {
@@ -25,6 +26,21 @@ export async function getCircleMemberPermissions({
   userId: string
   circleId: string
 }): Promise<CircleMemberPermissionsResult | null> {
+  // Primary owner bypass: full access to all circles
+  if (await isPrimaryOwnerUser(userId)) {
+    const membership = await prisma.circleMember.findUnique({
+      where: { circleId_userId: { circleId, userId } },
+      select: { id: true, role: true },
+    })
+    return {
+      membershipId: membership?.id ?? "",
+      userId,
+      circleId,
+      role: membership?.role ?? "OWNER",
+      permissions: getPrimaryOwnerPermissions(),
+    }
+  }
+
   const membership = await prisma.circleMember.findUnique({
     where: { circleId_userId: { circleId, userId } },
     select: {

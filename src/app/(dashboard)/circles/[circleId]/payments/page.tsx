@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, CheckCircle2, XCircle, Clock, Upload, FileText, Plus } from "lucide-react"
+import { ArrowLeft, CheckCircle2, XCircle, Clock, Upload, FileText, Plus, AlertCircle } from "lucide-react"
+import { revalidatePath } from "next/cache"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -12,14 +13,26 @@ import { CURRENCIES } from "@/lib/constants"
 export default async function PaymentsPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
   const { circleId } = await params
-  let circle, userPayments, allPayments
+  let circle: any, userPayments: any[] = [], allPayments: any[] = [], pageError: string | null = null
   try {
-    [circle, userPayments, allPayments] = await Promise.all([
+    ;[circle, userPayments, allPayments] = await Promise.all([
       getCircleById(circleId, session.user.id),
       getUserPaymentIntents(session.user.id, circleId),
       getCirclePaymentIntents(circleId),
     ])
-  } catch { notFound() }
+  } catch (e) {
+    pageError = (e as Error).message
+    console.error("Payments page error:", e)
+  }
+  if (pageError || !circle) {
+    return (<div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button render={<Link href={`/circles/${circleId}`} />} variant="outline" size="icon" className="rounded-xl"><ArrowLeft className="size-4" /></Button>
+        <div><h1 className="text-2xl font-bold tracking-tight">Payments</h1></div>
+      </div>
+      <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-start gap-3 p-4"><AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" /><div><p className="font-medium text-amber-800">Could not load payments</p><p className="text-xs text-amber-700 mt-1">{pageError || "Missing data"}</p></div></CardContent></Card>
+    </div>)
+  }
   const isAdmin = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
   const symbol = CURRENCIES.find((c) => c.code === circle.currency)?.symbol || circle.currency
 
@@ -29,11 +42,23 @@ export default async function PaymentsPage({ params }: { params: Promise<{ circl
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button render={<Link href={`/circles/${circleId}/operations`} />} variant="outline" size="icon" className="rounded-xl"><ArrowLeft className="size-4" /></Button>
+          <Button render={<Link href={`/circles/${circleId}`} />} variant="outline" size="icon" className="rounded-xl"><ArrowLeft className="size-4" /></Button>
           <div><h1 className="text-2xl font-bold tracking-tight">Payments</h1><p className="text-muted-foreground">{circle.name} — Tracked payments and dues</p></div>
         </div>
         {isAdmin && (
-          <form action={async () => { "use server"; const { generateMonthlyPaymentIntents } = await import("@/lib/services/circle-payment.service"); const { auth } = await import("@/lib/auth"); const s = await auth(); if (s?.user?.id) await generateMonthlyPaymentIntents(circleId, s.user.id) }}>
+          <form action={async (fd) => {
+            "use server"
+            try {
+              const { generateMonthlyPaymentIntents } = await import("@/lib/services/circle-payment.service")
+              const { auth } = await import("@/lib/auth")
+              const s = await auth()
+              if (!s?.user?.id) return
+              await generateMonthlyPaymentIntents(circleId, s.user.id)
+              revalidatePath(`/circles/${circleId}/payments`)
+            } catch (e) {
+              console.error("Generate dues failed:", e)
+            }
+          }}>
             <Button type="submit" size="sm" className="rounded-xl bg-brand hover:bg-brand-600"><Plus className="size-3.5 mr-1" /> Generate Dues</Button>
           </form>
         )}
@@ -51,7 +76,19 @@ export default async function PaymentsPage({ params }: { params: Promise<{ circl
                 <td className="p-3 text-muted-foreground">{p.dueDate ? new Date(p.dueDate).toLocaleDateString() : "—"}</td>
                 <td className="p-3 pr-4">
                   {(p.status === "PENDING" || p.status === "OVERDUE") && (
-                    <form action={async (fd) => { "use server"; const { submitProofOfPayment } = await import("@/lib/services/circle-payment.service"); const { auth } = await import("@/lib/auth"); const s = await auth(); if (s?.user?.id) await submitProofOfPayment(p.id, s.user.id, fd.get("ref") as string) }} className="flex gap-1">
+                    <form action={async (fd) => {
+                      "use server"
+                      try {
+                        const { submitProofOfPayment } = await import("@/lib/services/circle-payment.service")
+                        const { auth } = await import("@/lib/auth")
+                        const s = await auth()
+                        if (!s?.user?.id) return
+                        await submitProofOfPayment(p.id, s.user.id, fd.get("ref") as string || "")
+                        revalidatePath(`/circles/${circleId}/payments`)
+                      } catch (e) {
+                        console.error("Proof submission failed:", e)
+                      }
+                    }} className="flex gap-1">
                       <input name="ref" className="rounded-lg border px-2 py-1 text-xs w-32" placeholder="Reference/note..." />
                       <Button type="submit" size="sm" className="h-7 rounded-lg text-xs bg-brand hover:bg-brand-600"><Upload className="size-3 mr-0.5" /> Proof</Button>
                     </form>
@@ -82,10 +119,34 @@ export default async function PaymentsPage({ params }: { params: Promise<{ circl
                     {p.status === "PROOF_SUBMITTED" && (
                       <div className="flex gap-1">
                         {p.proofReference && <span className="text-xs text-muted-foreground mr-1 truncate max-w-[80px]">{p.proofReference}</span>}
-                        <form action={async () => { "use server"; const { confirmPaymentIntent } = await import("@/lib/services/circle-payment.service"); const { auth } = await import("@/lib/auth"); const s = await auth(); if (s?.user?.id) await confirmPaymentIntent(p.id, s.user.id) }}>
+                        <form action={async () => {
+                          "use server"
+                          try {
+                            const { confirmPaymentIntent } = await import("@/lib/services/circle-payment.service")
+                            const { auth } = await import("@/lib/auth")
+                            const s = await auth()
+                            if (!s?.user?.id) return
+                            await confirmPaymentIntent(p.id, s.user.id)
+                            revalidatePath(`/circles/${circleId}/payments`)
+                          } catch (e) {
+                            console.error("Confirm payment failed:", e)
+                          }
+                        }}>
                           <Button type="submit" size="sm" className="h-6 rounded text-[10px] bg-emerald-600 hover:bg-emerald-700"><CheckCircle2 className="size-3" /></Button>
                         </form>
-                        <form action={async () => { "use server"; const { rejectPaymentIntent } = await import("@/lib/services/circle-payment.service"); const { auth } = await import("@/lib/auth"); const s = await auth(); if (s?.user?.id) await rejectPaymentIntent(p.id, s.user.id) }}>
+                        <form action={async () => {
+                          "use server"
+                          try {
+                            const { rejectPaymentIntent } = await import("@/lib/services/circle-payment.service")
+                            const { auth } = await import("@/lib/auth")
+                            const s = await auth()
+                            if (!s?.user?.id) return
+                            await rejectPaymentIntent(p.id, s.user.id)
+                            revalidatePath(`/circles/${circleId}/payments`)
+                          } catch (e) {
+                            console.error("Reject payment failed:", e)
+                          }
+                        }}>
                           <Button type="submit" size="sm" variant="outline" className="h-6 rounded text-[10px] text-red-600"><XCircle className="size-3" /></Button>
                         </form>
                       </div>
