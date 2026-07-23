@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, MoreHorizontal, Edit, FolderOpen, Receipt, DollarSign, TrendingUp, UserPlus, Waves, FileText, XCircle, Archive } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, MoreHorizontal, Edit, FolderOpen, Receipt, DollarSign, UserPlus, Waves, FileText, XCircle, Archive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -18,6 +19,8 @@ interface ProjectHeaderProps {
 }
 
 export function ProjectHeader({ project, circle, circleId, projectId }: ProjectHeaderProps) {
+  const router = useRouter()
+  const basePath = `/circles/${circleId}/projects/${projectId}`
   const symbol = circle?.currency || "ZAR"
   const progress = project.targetAmount && Number(project.targetAmount) > 0
     ? Math.round((Number(project.currentAmount) / Number(project.targetAmount)) * 100)
@@ -25,6 +28,10 @@ export function ProjectHeader({ project, circle, circleId, projectId }: ProjectH
   const funded = Number(project.currentAmount || 0)
   const target = Number(project.targetAmount || 0)
   const gap = Math.max(0, target - funded)
+
+  function navigateAction(tab: string) {
+    router.push(`${basePath}/${tab}`)
+  }
 
   return (
     <div className="space-y-4">
@@ -34,7 +41,6 @@ export function ProjectHeader({ project, circle, circleId, projectId }: ProjectH
         { label: project.name },
       ]} />
 
-      {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
           <Button render={<Link href={`/circles/${circleId}/projects`} />} variant="outline" size="icon-sm" className="rounded-xl shrink-0 mt-0.5">
@@ -53,54 +59,48 @@ export function ProjectHeader({ project, circle, circleId, projectId }: ProjectH
           </div>
         </div>
 
-        {/* Actions menu */}
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="outline" size="icon-sm" className="rounded-xl shrink-0" />}>
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem render={<Link href={`/circles/${circleId}/projects/${projectId}?edit=true`} />}>
+            <DropdownMenuItem render={<Link href={`${basePath}/overview?edit=true`} />}>
               <Edit className="size-4 mr-2" /> Edit Project
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("project:action", { detail: "open-funding" }))}>
-              <FolderOpen className="size-4 mr-2" /> Open Funding Round
+            <DropdownMenuItem onClick={() => navigateAction("funding")}>
+              <FolderOpen className="size-4 mr-2" /> Funding Rounds
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("project:action", { detail: "record-expense" }))}>
+            <DropdownMenuItem onClick={() => navigateAction("expenses")}>
               <Receipt className="size-4 mr-2" /> Record Expense
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("project:action", { detail: "record-revenue" }))}>
+            <DropdownMenuItem onClick={() => navigateAction("revenue")}>
               <DollarSign className="size-4 mr-2" /> Record Revenue
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("project:action", { detail: "invite-investor" }))}>
-              <UserPlus className="size-4 mr-2" /> Invite Investor
+            <DropdownMenuItem onClick={() => navigateAction("distributions")}>
+              <Waves className="size-4 mr-2" /> Distributions
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("project:action", { detail: "configure-waterfall" }))}>
-              <Waves className="size-4 mr-2" /> Configure Waterfall
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("project:action", { detail: "generate-statement" }))}>
-              <FileText className="size-4 mr-2" /> Generate Statement
+            <DropdownMenuItem onClick={() => navigateAction("statements")}>
+              <FileText className="size-4 mr-2" /> Financial Statements
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("project:action", { detail: "close-project" }))}>
+            <DropdownMenuItem onClick={() => navigateAction("overview")}>
               <XCircle className="size-4 mr-2" /> Close Project
             </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onClick={() => window.dispatchEvent(new CustomEvent("project:action", { detail: "archive-project" }))}>
+            <DropdownMenuItem variant="destructive" onClick={() => navigateAction("overview")}>
               <Archive className="size-4 mr-2" /> Archive Project
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard label="Target" value={target > 0 ? formatCurrency(target, symbol) : "—"} />
+        <SummaryCard label="Target" value={target > 0 ? formatCurrency(target, symbol) : "\u2014"} />
         <SummaryCard label="Funded" value={formatCurrency(funded, symbol)} accent />
         <SummaryCard label="Progress" value={`${progress}%`} />
         <SummaryCard label="Shortfall" value={gap > 0 ? formatCurrency(gap, symbol) : "None"} warning={gap > 0} />
       </div>
 
-      {/* Funding progress bar */}
       {target > 0 && (
         <Card className="rounded-2xl">
           <CardContent className="p-3 sm:p-4">
@@ -114,7 +114,7 @@ export function ProjectHeader({ project, circle, circleId, projectId }: ProjectH
                 style={{ width: `${Math.min(progress, 100)}%` }}
               />
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">{progress}% funded · Created {formatDate(project.createdAt)}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{progress}% funded \u00B7 Created {formatDate(project.createdAt)}</p>
           </CardContent>
         </Card>
       )}

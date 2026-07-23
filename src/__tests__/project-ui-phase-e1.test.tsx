@@ -1,11 +1,13 @@
 import { describe, it, expect, vi } from "vitest"
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/circles/c1/projects/p1/overview",
+}))
 vi.mock("next/link", () => ({ default: ({ children, ...props }: any) => <a {...props}>{children}</a> }))
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-// ─── Test 1: formatCurrency ────
-describe("E1: Shared Utilities", () => {
+describe("Shared Utilities", () => {
   it("Test 1: formatCurrency resolves correct symbol", async () => {
     const { formatCurrency } = await import("@/components/projects/types")
     expect(formatCurrency(500000, "ZAR")).toContain("R")
@@ -27,8 +29,7 @@ describe("E1: Shared Utilities", () => {
   })
 })
 
-// ─── Test 4: Status color maps ────
-describe("E1: Status Colors", () => {
+describe("Status Colors", () => {
   it("Test 4: PROJECT_STATUS_COLORS covers all statuses", async () => {
     const { PROJECT_STATUS_COLORS } = await import("@/components/projects/types")
     const statuses = ["DRAFT", "FUNDING_SETUP", "FUNDING_OPEN", "PARTIALLY_FUNDED", "FULLY_FUNDED", "ACTIVE", "REVENUE_GENERATING", "COMPLETED", "CLOSED", "SUSPENDED", "CANCELLED", "FAILED"]
@@ -53,8 +54,7 @@ describe("E1: Status Colors", () => {
   })
 })
 
-// ─── Test 7: Component exports ────
-describe("E1: Component Exports", () => {
+describe("Component Exports", () => {
   it("Test 7: ProjectHeader exports correctly", async () => {
     const mod = await import("@/components/projects/project-header")
     expect(typeof mod.ProjectHeader).toBe("function")
@@ -86,17 +86,21 @@ describe("E1: Component Exports", () => {
   })
 })
 
-// ─── Test 13: useProjectData hook ────
-describe("E1: useProjectData Hook", () => {
+describe("Hook Exports", () => {
   it("Test 13: useProjectData exports correctly", async () => {
     const mod = await import("@/components/projects/use-project-data")
     expect(typeof mod.useProjectData).toBe("function")
   })
+
+  it("Test 14: useProjectContext and ProjectProvider export correctly", async () => {
+    const mod = await import("@/components/projects/project-context")
+    expect(typeof mod.useProjectContext).toBe("function")
+    expect(typeof mod.ProjectProvider).toBe("function")
+  })
 })
 
-// ─── Test 14: Types export correctly ────
-describe("E1: Type Interfaces", () => {
-  it("Test 14: ProjectData type is exported", async () => {
+describe("Types Exports", () => {
+  it("Test 15: All type utilities are exported", async () => {
     const mod = await import("@/components/projects/types")
     expect(mod).toHaveProperty("formatCurrency")
     expect(mod).toHaveProperty("formatDate")
@@ -107,5 +111,72 @@ describe("E1: Type Interfaces", () => {
     expect(mod).toHaveProperty("CAPITAL_TX_STATUS_COLORS")
     expect(mod).toHaveProperty("CAPITAL_CLASSIFICATION_LABELS")
     expect(mod).toHaveProperty("EXPENSE_CATEGORY_COLORS")
+  })
+})
+
+describe("Shared State Components", () => {
+  it("Test 16: ProjectLoading exports correctly", async () => {
+    const mod = await import("@/components/projects/shared-states")
+    expect(typeof mod.ProjectLoading).toBe("function")
+    expect(typeof mod.ProjectError).toBe("function")
+    expect(typeof mod.ProjectEmpty).toBe("function")
+    expect(typeof mod.ProjectNotFound).toBe("function")
+    expect(typeof mod.TabSkeleton).toBe("function")
+  })
+})
+
+describe("Project Layout Component", () => {
+  it("Test 17: ProjectLayout exports correctly", async () => {
+    const mod = await import("@/components/projects/project-layout")
+    expect(typeof mod.ProjectLayout).toBe("function")
+  })
+})
+
+describe("Placeholder Tabs", () => {
+  it("Test 18: All placeholder tab components export correctly", async () => {
+    const mod = await import("@/components/projects/placeholder-tabs")
+    expect(typeof mod.ExpensesPage).toBe("function")
+    expect(typeof mod.AssetsPage).toBe("function")
+    expect(typeof mod.RevenuePage).toBe("function")
+    expect(typeof mod.ROIPage).toBe("function")
+    expect(typeof mod.OwnershipPage).toBe("function")
+    expect(typeof mod.DistributionsPage).toBe("function")
+    expect(typeof mod.StatementsPage).toBe("function")
+    expect(typeof mod.ReportsPage).toBe("function")
+    expect(typeof mod.TimelinePage).toBe("function")
+  })
+})
+
+describe("Route Structure", () => {
+  it("Test 19: Root page exists and redirects", async () => {
+    const fs = await import("fs")
+    const path = await import("path")
+    const rootPage = fs.readFileSync(
+      path.resolve("src/app/(dashboard)/circles/[circleId]/projects/[projectId]/page.tsx"),
+      "utf-8",
+    )
+    expect(rootPage).toContain("redirect")
+  })
+
+  it("Test 20: Layout file exists with provider", async () => {
+    const fs = await import("fs")
+    const path = await import("path")
+    const layout = fs.readFileSync(
+      path.resolve("src/app/(dashboard)/circles/[circleId]/projects/[projectId]/layout.tsx"),
+      "utf-8",
+    )
+    expect(layout).toContain("ProjectProvider")
+    expect(layout).toContain("ProjectLayout")
+  })
+
+  it("Test 21: All tab route directories exist", async () => {
+    const fs = await import("fs")
+    const path = await import("path")
+    const base = path.resolve("src/app/(dashboard)/circles/[circleId]/projects/[projectId]")
+    const tabs = ["overview", "funding", "contributions", "shortfall", "expenses", "assets", "revenue", "roi", "ownership", "distributions", "statements", "reports", "timeline"]
+    for (const tab of tabs) {
+      const pagePath = path.join(base, tab, "page.tsx")
+      expect(fs.existsSync(pagePath), `${tab}/page.tsx should exist`).toBe(true)
+    }
   })
 })
