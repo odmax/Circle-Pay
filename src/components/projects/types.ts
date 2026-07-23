@@ -58,6 +58,153 @@ export const CAPITAL_CLASSIFICATION_LABELS: Record<string, string> = {
   SPONSORSHIP: "Sponsorship",
 }
 
+export const EXPENSE_STATUS_COLORS: Record<string, string> = {
+  DRAFT: "border-slate-200 bg-slate-50 text-slate-600",
+  PENDING: "border-amber-200 bg-amber-50 text-amber-700",
+  APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  PAID: "border-blue-200 bg-blue-50 text-blue-700",
+  REJECTED: "border-red-200 bg-red-50 text-red-700",
+  CANCELLED: "border-slate-200 bg-slate-50 text-slate-500",
+  VOIDED: "border-red-200 bg-red-50 text-red-600",
+  CORRECTED: "border-purple-200 bg-purple-50 text-purple-700",
+}
+
+export const EXPENSE_CATEGORIES = [
+  "LEGAL", "LABOUR", "MATERIALS", "TRANSPORT", "ADMIN",
+  "MARKETING", "PROFESSIONAL_FEES", "EQUIPMENT", "RENT", "UTILITIES", "OTHER",
+]
+
+export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
+  LEGAL: "Legal",
+  LABOUR: "Labour",
+  MATERIALS: "Materials",
+  TRANSPORT: "Transport",
+  ADMIN: "Administration",
+  MARKETING: "Marketing",
+  PROFESSIONAL_FEES: "Professional Fees",
+  EQUIPMENT: "Equipment",
+  RENT: "Rent",
+  UTILITIES: "Utilities",
+  OTHER: "Other",
+}
+
+export const BUDGET_STATUS_COLORS: Record<string, string> = {
+  ACTIVE: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  NEAR_LIMIT: "border-amber-200 bg-amber-50 text-amber-700",
+  OVER_BUDGET: "border-red-200 bg-red-50 text-red-700",
+}
+
+export const OVER_BUDGET_POLICIES = [
+  { value: "WARN", label: "Warn", desc: "Show warning but allow" },
+  { value: "APPROVE", label: "Require Approval", desc: "Require approval for over-budget" },
+  { value: "BLOCK", label: "Block", desc: "Block over-budget expenses" },
+]
+
+export interface BudgetCategoryData {
+  id: string
+  projectId: string
+  category: string
+  description?: string | null
+  approvedBudget: string | number
+  committedCost: string | number
+  actualCost: string | number
+  remainingBudget: string | number
+  variance: string | number
+  status: string
+  overBudgetPolicy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface VendorData {
+  id: string
+  projectId: string
+  circleId: string
+  name: string
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  taxNumber?: string | null
+  paymentDetails?: string | null
+  totalSpend: string | number
+  expenseCount: number
+  isActive: boolean
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExpenseData {
+  id: string
+  projectId: string
+  circleId: string
+  createdById: string
+  approvedById?: string | null
+  paidById?: string | null
+  vendorId?: string | null
+  correctedFromId?: string | null
+  voidedById?: string | null
+  title: string
+  description?: string | null
+  category: string
+  amount: string | number
+  currency: string
+  status: string
+  paymentMethod?: string | null
+  expenseDate?: string | null
+  approvedAt?: string | null
+  paidAt?: string | null
+  rejectedAt?: string | null
+  rejectedReason?: string | null
+  voidedAt?: string | null
+  voidReason?: string | null
+  receiptUrl?: string | null
+  vendorName?: string | null
+  vendorContact?: string | null
+  reference?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  createdBy?: { id: string; name?: string | null; email?: string | null }
+  approvedBy?: { id: string; name?: string | null }
+  paidBy?: { id: string; name?: string | null }
+  voidedBy?: { id: string; name?: string | null }
+  vendor?: VendorData | null
+  project?: { id: string; name: string; circleId: string }
+}
+
+export interface ExpenseDashboardData {
+  expenses: ExpenseData[]
+  summary: {
+    raised: number
+    totalApproved: number
+    totalPaid: number
+    totalPending: number
+    totalDrafts: number
+    remainingBudget: number
+    spendPercentage: number
+    categoryBreakdown: Record<string, number>
+    budgetByCategory: Record<string, { budgeted: number; spent: number; variance: number }>
+  }
+  warnings: string[]
+}
+
+export interface BudgetDashboardData {
+  categories: BudgetCategoryData[]
+  summary: {
+    totalApprovedBudget: number
+    totalCommitted: number
+    totalSpent: number
+    totalRemaining: number
+    totalVariance: number
+    burnPercent: number
+    overBudgetCount: number
+    pendingApprovalCount: number
+  }
+  largestCategories: Array<{ category: string; approved: number; spent: number; percent: number }>
+  warnings: string[]
+}
+
 export const EXPENSE_CATEGORY_COLORS: Record<string, string> = {
   LEGAL: "bg-blue-100 text-blue-700",
   LABOUR: "bg-orange-100 text-orange-700",
@@ -65,6 +212,10 @@ export const EXPENSE_CATEGORY_COLORS: Record<string, string> = {
   TRANSPORT: "bg-purple-100 text-purple-700",
   ADMIN: "bg-slate-100 text-slate-700",
   MARKETING: "bg-pink-100 text-pink-700",
+  PROFESSIONAL_FEES: "bg-indigo-100 text-indigo-700",
+  EQUIPMENT: "bg-cyan-100 text-cyan-700",
+  RENT: "bg-teal-100 text-teal-700",
+  UTILITIES: "bg-lime-100 text-lime-700",
   OPERATIONS: "bg-emerald-100 text-emerald-700",
   OTHER: "bg-gray-100 text-gray-700",
 }

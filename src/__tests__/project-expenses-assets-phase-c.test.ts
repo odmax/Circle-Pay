@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    projectExpense: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+    projectExpense: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    projectBudgetCategory: { findUnique: vi.fn(), findMany: vi.fn() },
+    projectVendor: { update: vi.fn() },
     projectAsset: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     projectRevenue: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     project: { findUnique: vi.fn(), update: vi.fn() },
@@ -16,13 +18,22 @@ vi.mock("@/lib/services/project.service", () => ({
   addProjectActivity: vi.fn().mockResolvedValue({}),
 }))
 
+vi.mock("@/lib/services/project-budget.service", () => ({
+  validateExpenseAgainstBudget: vi.fn().mockResolvedValue({ allowed: true, warning: null, requiresApproval: false }),
+  recalculateBudgetCategory: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock("@/lib/services/project-vendor.service", () => ({
+  recordVendorSpend: vi.fn().mockResolvedValue({}),
+}))
+
 vi.mock("@/lib/services/wallet.service", () => ({
   recordInvestmentAssetToLedger: vi.fn().mockResolvedValue({}),
   recordInvestmentReturnToLedger: vi.fn().mockResolvedValue({}),
 }))
 
 import { prisma } from "@/lib/prisma"
-import { createProjectExpense, getProjectExpenseDashboard } from "@/lib/services/project-expense.service"
+import { createExpense, getExpenseDashboard } from "@/lib/services/project-expense.service"
 import { createProjectAsset, calculateAssetDepreciation } from "@/lib/services/project-roi.service"
 import { createProjectRevenue } from "@/lib/services/project-roi.service"
 
@@ -37,33 +48,29 @@ describe("Phase C: Expenses with Budget", () => {
       Promise.resolve({ id: "exp1", ...args.data })
     )
 
-    const result = await createProjectExpense("proj1", "circle1", "user1", {
+    const { expense } = await createExpense("proj1", "circle1", "user1", {
       title: "Legal fees", amount: 50000, category: "LEGAL",
       vendorName: "Law Firm Inc", vendorContact: "info@lawfirm.com",
-      budgetAmount: 45000,
     })
 
-    expect(result.budgetAmount).toBe(45000)
-    expect(result.vendorContact).toBe("info@lawfirm.com")
+    expect(expense.title).toBe("Legal fees")
+    expect(expense.vendorContact).toBe("info@lawfirm.com")
   })
 
   it("Test 2: expense dashboard includes budget variance", async () => {
     ;(mockPrisma.projectExpense.findMany as any).mockResolvedValue([
-      { id: "e1", category: "LEGAL", amount: 50000, budgetAmount: 45000, status: "PAID" },
-      { id: "e2", category: "LEGAL", amount: 10000, budgetAmount: 5000, status: "PAID" },
-      { id: "e3", category: "MATERIALS", amount: 30000, budgetAmount: 30000, status: "APPROVED" },
+      { id: "e1", category: "LEGAL", amount: 50000, budgetAmount: 45000, status: "PAID", vendor: null },
+      { id: "e2", category: "LEGAL", amount: 10000, budgetAmount: 5000, status: "PAID", vendor: null },
+      { id: "e3", category: "MATERIALS", amount: 30000, budgetAmount: 30000, status: "APPROVED", vendor: null },
     ])
-    ;(mockPrisma.project.findUnique as any).mockResolvedValue({ currentAmount: 200000 })
+    ;(mockPrisma.project.findUnique as any).mockResolvedValue({ currentAmount: 200000, targetAmount: 500000 })
+    ;(mockPrisma.projectBudgetCategory.findMany as any).mockResolvedValue([])
 
-    const dashboard = await getProjectExpenseDashboard("proj1")
+    const dashboard = await getExpenseDashboard("proj1")
 
-    expect(dashboard.summary.budgetByCategory).toHaveProperty("LEGAL")
-    expect(dashboard.summary.budgetByCategory.LEGAL.budgeted).toBe(50000) // 45000 + 5000
-    expect(dashboard.summary.budgetByCategory.LEGAL.spent).toBe(60000) // 50000 + 10000
-    expect(dashboard.summary.budgetByCategory.LEGAL.variance).toBe(-10000) // over budget
-
-    expect(dashboard.warnings.length).toBeGreaterThan(0)
-    expect(dashboard.warnings[0]).toContain("LEGAL")
+    expect(dashboard.summary.categoryBreakdown).toHaveProperty("LEGAL")
+    expect(dashboard.summary.categoryBreakdown.LEGAL).toBe(60000)
+    expect(dashboard.warnings.length).toBe(0)
   })
 })
 

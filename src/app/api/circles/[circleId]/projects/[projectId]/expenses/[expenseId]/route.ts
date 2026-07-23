@@ -1,34 +1,164 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { createProjectExpense, approveProjectExpense, markProjectExpensePaid, rejectProjectExpense, cancelProjectExpense, getProjectExpenseDashboard } from "@/lib/services/project-expense.service"
 import { requireProjectInCircle } from "@/lib/services/project.service"
 import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
+import {
+  createExpense,
+  updateExpense,
+  deleteExpense,
+  submitExpense,
+  approveExpense,
+  rejectExpense,
+  markExpensePaid,
+  voidExpense,
+  correctExpense,
+  duplicateExpense,
+  getExpenseById,
+} from "@/lib/services/project-expense.service"
 
-async function handle(req: Request, { params }: { params: Promise<{ circleId: string; projectId: string; expenseId?: string }> }, action: string) {
-  const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const { circleId, projectId, expenseId } = await params
-  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
-  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  await requireProjectInCircle(projectId, circleId)
-  try {
-    if (action === "get") return NextResponse.json(await getProjectExpenseDashboard(projectId))
-    if (action === "create") return NextResponse.json(await createProjectExpense(projectId, circleId, s.user.id, await req.json()), { status: 201 })
-    if (!expenseId) return NextResponse.json({ error: "Missing expenseId" }, { status: 400 })
-    const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.PROJECT_APPROVE })
-    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    if (action === "approve") return NextResponse.json(await approveProjectExpense(expenseId, s.user.id))
-    if (action === "paid") return NextResponse.json(await markProjectExpensePaid(expenseId, s.user.id))
-    if (action === "reject") { const { reason } = await req.json().catch(() => ({})); return NextResponse.json(await rejectProjectExpense(expenseId, s.user.id, reason)) }
-    if (action === "cancel") return NextResponse.json(await cancelProjectExpense(expenseId))
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 })
-  } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 403 }) }
+async function requireAuth(circleId: string) {
+  const s = await auth()
+  if (!s?.user?.id) throw new Error("Unauthorized")
+  const member = await prisma.circleMember.findUnique({
+    where: { circleId_userId: { circleId, userId: s.user.id } },
+  })
+  if (!member) throw new Error("Not found")
+  return s.user.id
 }
 
-export const GET = (req: Request, ctx: { params: Promise<{ circleId: string; projectId: string }> }) => handle(req, ctx as any, "get")
-export const POST = async (req: Request, ctx: { params: Promise<{ circleId: string; projectId: string; expenseId?: string }> }) => {
-  const url = new URL(req.url)
-  const action = url.pathname.endsWith("/approve") ? "approve" : url.pathname.endsWith("/paid") ? "paid" : url.pathname.endsWith("/reject") ? "reject" : url.pathname.endsWith("/cancel") ? "cancel" : "create"
-  return handle(req, ctx, action)
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ circleId: string; projectId: string; expenseId: string }> },
+) {
+  try {
+    const { circleId, projectId, expenseId } = await params
+    await requireAuth(circleId)
+    await requireProjectInCircle(projectId, circleId)
+    const expense = await getExpenseById(expenseId)
+    if (!expense) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json(expense)
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg === "Unauthorized") return NextResponse.json({ error: msg }, { status: 401 })
+    if (msg === "Not found") return NextResponse.json({ error: msg }, { status: 404 })
+    return NextResponse.json({ error: msg }, { status: 400 })
+  }
+}
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ circleId: string; projectId: string; expenseId: string }> },
+) {
+  try {
+    const { circleId, projectId, expenseId } = await params
+    const userId = await requireAuth(circleId)
+    await requireProjectInCircle(projectId, circleId)
+
+    const allowed = await hasCirclePermission({
+      userId,
+      circleId,
+      permission: CIRCLE_PERMISSIONS.PROJECT_EXPENSE_EDIT,
+    })
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+
+    const data = await req.json()
+    const expense = await updateExpense(expenseId, userId, data)
+    return NextResponse.json(expense)
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg === "Unauthorized") return NextResponse.json({ error: msg }, { status: 401 })
+    if (msg === "Not found") return NextResponse.json({ error: msg }, { status: 404 })
+    return NextResponse.json({ error: msg }, { status: 400 })
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ circleId: string; projectId: string; expenseId: string }> },
+) {
+  try {
+    const { circleId, projectId, expenseId } = await params
+    const userId = await requireAuth(circleId)
+    await requireProjectInCircle(projectId, circleId)
+
+    const allowed = await hasCirclePermission({
+      userId,
+      circleId,
+      permission: CIRCLE_PERMISSIONS.PROJECT_EXPENSE_DELETE,
+    })
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+
+    await deleteExpense(expenseId, userId)
+    return NextResponse.json({ success: true })
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg === "Unauthorized") return NextResponse.json({ error: msg }, { status: 401 })
+    if (msg === "Not found") return NextResponse.json({ error: msg }, { status: 404 })
+    return NextResponse.json({ error: msg }, { status: 400 })
+  }
+}
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ circleId: string; projectId: string; expenseId: string }> },
+) {
+  try {
+    const { circleId, projectId, expenseId } = await params
+    const userId = await requireAuth(circleId)
+    await requireProjectInCircle(projectId, circleId)
+
+    const url = new URL(req.url)
+    const segments = url.pathname.split("/")
+    const action = segments[segments.length - 1]
+
+    const approvePerms = await hasCirclePermission({
+      userId,
+      circleId,
+      permission: CIRCLE_PERMISSIONS.PROJECT_EXPENSE_APPROVE,
+    })
+
+    switch (action) {
+      case "submit":
+        return NextResponse.json(await submitExpense(expenseId, userId))
+      case "approve": {
+        if (!approvePerms) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        return NextResponse.json(await approveExpense(expenseId, userId))
+      }
+      case "reject": {
+        if (!approvePerms) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        const { reason } = await req.json().catch(() => ({}))
+        return NextResponse.json(await rejectExpense(expenseId, userId, reason))
+      }
+      case "paid": {
+        if (!approvePerms) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        return NextResponse.json(await markExpensePaid(expenseId, userId))
+      }
+      case "void": {
+        const voidAllowed = await hasCirclePermission({
+          userId,
+          circleId,
+          permission: CIRCLE_PERMISSIONS.PROJECT_EXPENSE_VOID,
+        })
+        if (!voidAllowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        const { reason: voidReason } = await req.json()
+        return NextResponse.json(await voidExpense(expenseId, userId, voidReason))
+      }
+      case "correct": {
+        if (!approvePerms) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        const correctionData = await req.json()
+        return NextResponse.json(await correctExpense(expenseId, userId, correctionData))
+      }
+      case "duplicate":
+        return NextResponse.json(await duplicateExpense(expenseId, userId))
+      default:
+        return NextResponse.json({ error: "Unknown action" }, { status: 400 })
+    }
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg === "Unauthorized") return NextResponse.json({ error: msg }, { status: 401 })
+    if (msg === "Not found") return NextResponse.json({ error: msg }, { status: 404 })
+    return NextResponse.json({ error: msg }, { status: 400 })
+  }
 }

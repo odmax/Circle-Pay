@@ -90,6 +90,7 @@ model User {
   projectExpensesCreated   ProjectExpense[]             @relation("ProjectExpenseCreator")
   projectExpensesApproved  ProjectExpense[]             @relation("ProjectExpenseApprover")
   projectExpensesPaid      ProjectExpense[]             @relation("ProjectExpensePayer")
+  projectExpensesVoided    ProjectExpense[]             @relation("ProjectExpenseVoidedBy")
   projectAssetsCreated     ProjectAsset[]               @relation("ProjectAssetCreator")
   projectRevenuesCreated   ProjectRevenue[]             @relation("ProjectRevenueCreator")
   distributionsCreated     ProjectDistribution[]        @relation("DistributionCreator")
@@ -274,6 +275,7 @@ model Circle {
   projects               Project[]
   projectExpenses        ProjectExpense[]
   projectAssets          ProjectAsset[]
+  projectVendors         ProjectVendor[]
    projectRevenues        ProjectRevenue[]
    distributions          ProjectDistribution[]
    financialStatements    ProjectFinancialStatement[]
@@ -884,6 +886,8 @@ model Project {
   fundingRounds        ProjectFundingRound[]
   projectContributions ProjectContribution[]
   expenses             ProjectExpense[]
+  budgetCategories     ProjectBudgetCategory[]
+  vendors              ProjectVendor[]
   assets               ProjectAsset[]
   revenues             ProjectRevenue[]
   distributions        ProjectDistribution[]
@@ -2295,6 +2299,8 @@ enum ProjectExpenseStatus {
   PAID
   REJECTED
   CANCELLED
+  VOIDED
+  CORRECTED
 }
 
 enum ProjectExpenseCategory {
@@ -2312,40 +2318,106 @@ enum ProjectExpenseCategory {
 }
 
 model ProjectExpense {
-  id              String                 @id @default(cuid())
-  projectId       String
-  circleId        String
-  createdById     String
-  approvedById    String?
-  paidById        String?
-  title           String
-  description     String?
-  category        ProjectExpenseCategory @default(OTHER)
-  budgetAmount    Decimal?               @db.Decimal(12, 2)  // what was budgeted for this category
-  amount          Decimal                @db.Decimal(12, 2)
-  currency        String                 @default("ZAR")
-  status          ProjectExpenseStatus   @default(DRAFT)
-  expenseDate     DateTime?
-  approvedAt      DateTime?
-  paidAt          DateTime?
-  rejectedAt      DateTime?
-  rejectionReason String?
-  receiptUrl      String?
-  vendorName      String?
-  vendorContact   String?                // vendor email/phone
-  reference       String?
-  notes           String?                // variance notes or additional context
-  metadata        Json?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  id                 String                 @id @default(cuid())
+  projectId          String
+  circleId           String
+  createdById        String
+  approvedById       String?
+  paidById           String?
+  vendorId           String?
+  correctedFromId    String?
+  voidedById         String?
+  approvalRequestId  String?
+  title              String
+  description        String?
+  category           ProjectExpenseCategory @default(OTHER)
+  budgetAmount       Decimal?               @db.Decimal(12, 2)
+  amount             Decimal                @db.Decimal(12, 2)
+  currency           String                 @default("ZAR")
+  status             ProjectExpenseStatus   @default(DRAFT)
+  paymentMethod      String?
+  expenseDate        DateTime?
+  approvedAt         DateTime?
+  paidAt             DateTime?
+  rejectedAt         DateTime?
+  rejectedReason     String?
+  voidedAt           DateTime?
+  voidReason         String?
+  receiptUrl         String?
+  vendorName         String?
+  vendorContact      String?
+  reference          String?
+  notes              String?
+  metadata           Json?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
-  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  circle     Circle  @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  createdBy  User    @relation("ProjectExpenseCreator", fields: [createdById], references: [id])
-  approvedBy User?   @relation("ProjectExpenseApprover", fields: [approvedById], references: [id])
-  paidBy     User?   @relation("ProjectExpensePayer", fields: [paidById], references: [id])
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  circle          Circle                @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy       User                  @relation("ProjectExpenseCreator", fields: [createdById], references: [id])
+  approvedBy      User?                 @relation("ProjectExpenseApprover", fields: [approvedById], references: [id])
+  paidBy          User?                 @relation("ProjectExpensePayer", fields: [paidById], references: [id])
+  vendor          ProjectVendor?        @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  correctedFrom   ProjectExpense?       @relation("ExpenseCorrection", fields: [correctedFromId], references: [id])
+  correctedBy     ProjectExpense[]      @relation("ExpenseCorrection")
+  voidedBy        User?                 @relation("ProjectExpenseVoidedBy", fields: [voidedById], references: [id])
 
   @@index([projectId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([category])
+}
+
+// ─── Project Budget Categories ────────────────────────────
+
+model ProjectBudgetCategory {
+  id                String   @id @default(cuid())
+  projectId         String
+  category          String
+  description       String?
+  approvedBudget    Decimal  @default(0) @db.Decimal(12, 2)
+  committedCost     Decimal  @default(0) @db.Decimal(12, 2)
+  actualCost        Decimal  @default(0) @db.Decimal(12, 2)
+  remainingBudget   Decimal  @default(0) @db.Decimal(12, 2)
+  variance          Decimal  @default(0) @db.Decimal(12, 2)
+  status            String   @default("ACTIVE")
+  overBudgetPolicy  String   @default("WARN")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, category])
+  @@index([projectId])
+}
+
+// ─── Project Vendors ──────────────────────────────────────
+
+model ProjectVendor {
+  id              String   @id @default(cuid())
+  projectId       String
+  circleId        String
+  name            String
+  email           String?
+  phone           String?
+  address         String?
+  taxNumber       String?
+  paymentDetails  String?
+  totalSpend      Decimal  @default(0) @db.Decimal(12, 2)
+  expenseCount    Int      @default(0)
+  isActive        Boolean  @default(true)
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  circle   Circle          @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  expenses ProjectExpense[]
+
+  @@unique([circleId, projectId, name])
+  @@index([projectId])
+  @@index([circleId])
 }
 
 // ─── Project Assets & Revenue ─────────────────────────────
