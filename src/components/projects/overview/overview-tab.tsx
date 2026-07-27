@@ -5,8 +5,8 @@ import { TrendingUp, TrendingDown, Users, Clock, DollarSign, CheckCircle2, Alert
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatCurrency, formatDate, PROJECT_STATUS_COLORS, CAPITAL_CLASSIFICATION_LABELS } from "../types"
-import type { ProjectData, CircleData, FundingRoundData, ActivityData, CapitalTransactionData } from "../types"
+import { formatCurrency, formatDate, PROJECT_STATUS_COLORS } from "../types"
+import type { ProjectData, CircleData, FundingRoundData, ActivityData } from "../types"
 
 interface OverviewTabProps {
   project: ProjectData
@@ -15,19 +15,35 @@ interface OverviewTabProps {
   projectId: string
 }
 
+interface OverviewSummary {
+  funding: { summary: Record<string, number>; rounds: FundingRoundData[] } | null
+  roiSummary: Record<string, number> | null
+  distributions: Array<{ id: string; totalProfit: number | string }>
+  ownership: { total: number; owners: Array<{ id: string; name: string; email: string; ownership: number }> }
+}
+
 export function OverviewTab({ project, circle, circleId, projectId }: OverviewTabProps) {
-  const [overviewData, setOverviewData] = useState<any>(null)
+  const [overviewData, setOverviewData] = useState<OverviewSummary | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/circles/${circleId}/projects/${projectId}/funding-overview`).then((r) => r.ok ? r.json() : null).catch(() => null),
-      fetch(`/api/circles/${circleId}/projects/${projectId}/roi`).then((r) => r.ok ? r.json() : null).catch(() => null),
-      fetch(`/api/circles/${circleId}/projects/${projectId}/distributions`).then((r) => r.ok ? r.json() : null).catch(() => null),
-      fetch(`/api/circles/${circleId}/projects/${projectId}/ownership`).then((r) => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([funding, roi, dist, ownership]) => {
-      setOverviewData({ funding, roi, dist, ownership })
-    }).finally(() => setLoading(false))
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch(
+          `/api/circles/${circleId}/projects/${projectId}/overview-summary`,
+        )
+        if (!cancelled && r.ok) {
+          const data = await r.json()
+          setOverviewData(data)
+        }
+      } catch {
+        // stay with null overview data
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
   }, [circleId, projectId])
 
   const symbol = circle?.currency || "ZAR"
@@ -38,22 +54,21 @@ export function OverviewTab({ project, circle, circleId, projectId }: OverviewTa
   if (loading) return <OverviewSkeleton />
 
   const funding = overviewData?.funding
-  const roi = overviewData?.roi?.summary || {}
+  const roiSummary = overviewData?.roiSummary
   const ownership = overviewData?.ownership || { total: 0, owners: [] }
-  const distributions = overviewData?.dist?.distributions || []
+  const distributions = overviewData?.distributions || []
   const recentActivity = project.activities?.slice(0, 8) || []
 
-  const totalExpenses = Number(roi.totalExpensesPaid || 0)
-  const totalRevenue = Number(roi.totalRevenueNet || 0)
-  const netProfit = Number(roi.netProfit || 0)
+  const totalExpenses = Number(roiSummary?.totalExpensesPaid || 0)
+  const totalRevenue = Number(roiSummary?.totalRevenueNet || 0)
+  const netProfit = Number(roiSummary?.netProfit || 0)
   const totalShortfall = Number(funding?.summary?.totalShortfall || 0)
   const participantCount = Number(funding?.summary?.participantCount || 0)
   const pendingApprovals = Number(funding?.summary?.pendingCount || 0)
-  const activeRounds = (funding?.rounds || []).filter((r: FundingRoundData) => r.status === "OPEN" || r.status === "DRAFT")
+  const activeRounds = funding?.rounds || []
 
   return (
     <div className="space-y-6">
-      {/* Key Metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <MetricCard icon={<TrendingUp className="size-4" />} label="Total Revenue" value={formatCurrency(totalRevenue, symbol)} color="text-emerald-600" />
         <MetricCard icon={<TrendingDown className="size-4" />} label="Total Expenses" value={formatCurrency(totalExpenses, symbol)} color="text-red-500" />
@@ -64,7 +79,7 @@ export function OverviewTab({ project, circle, circleId, projectId }: OverviewTa
           color={netProfit >= 0 ? "text-emerald-600" : "text-red-500"}
         />
         <MetricCard icon={<Users className="size-4" />} label="Participants" value={String(participantCount)} />
-        <MetricCard icon={<CheckCircle2 className="size-4" />} label="ROI" value={`${Number(roi.roi || 0)}%`} color={Number(roi.roi || 0) >= 0 ? "text-emerald-600" : "text-red-500"} />
+        <MetricCard icon={<CheckCircle2 className="size-4" />} label="ROI" value={`${Number(roiSummary?.roi || 0)}%`} color={Number(roiSummary?.roi || 0) >= 0 ? "text-emerald-600" : "text-red-500"} />
         {totalShortfall > 0 && (
           <MetricCard icon={<AlertTriangle className="size-4" />} label="Shortfall" value={formatCurrency(totalShortfall, symbol)} color="text-amber-600" />
         )}
@@ -74,9 +89,7 @@ export function OverviewTab({ project, circle, circleId, projectId }: OverviewTa
         <MetricCard icon={<DollarSign className="size-4" />} label="Distributed" value={formatCurrency(distributions.reduce((s: number, d: any) => s + Number(d.totalProfit || 0), 0), symbol)} />
       </div>
 
-      {/* Two-column layout */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Active Funding Rounds */}
         <Card className="rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -114,7 +127,6 @@ export function OverviewTab({ project, circle, circleId, projectId }: OverviewTa
           </CardContent>
         </Card>
 
-        {/* Ownership Summary */}
         <Card className="rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Ownership</CardTitle>
@@ -124,7 +136,7 @@ export function OverviewTab({ project, circle, circleId, projectId }: OverviewTa
               <p className="text-sm text-muted-foreground py-2">No ownership data</p>
             ) : (
               <div className="space-y-2">
-                {ownership.owners.slice(0, 5).map((owner: any) => (
+                {ownership.owners.map((owner: any) => (
                   <div key={owner.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="size-7 rounded-full bg-brand/10 flex items-center justify-center text-xs font-bold text-brand shrink-0">
@@ -140,16 +152,12 @@ export function OverviewTab({ project, circle, circleId, projectId }: OverviewTa
                     </div>
                   </div>
                 ))}
-                {ownership.owners.length > 5 && (
-                  <p className="text-xs text-muted-foreground">+{ownership.owners.length - 5} more</p>
-                )}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Activity */}
       <Card className="rounded-2xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
