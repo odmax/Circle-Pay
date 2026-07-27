@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+/mobile/node_modules
+/mobile/package-lock.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
