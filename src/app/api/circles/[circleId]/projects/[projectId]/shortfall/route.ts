@@ -9,8 +9,8 @@ import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 export async function GET(req: Request, { params }: { params: Promise<{ circleId: string; projectId: string }> }) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { circleId, projectId } = await params
-  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
-  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
+  if (!allowed) return NextResponse.json({ error: "Not found" }, { status: 404 })
   await requireProjectInCircle(projectId, circleId)
 
   const url = new URL(req.url)
@@ -22,9 +22,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ circleId
 export async function POST(req: Request, { params }: { params: Promise<{ circleId: string; projectId: string }> }) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { circleId, projectId } = await params
-  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
-  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
+  if (!allowed) return NextResponse.json({ error: "Not found" }, { status: 404 })
   await requireProjectInCircle(projectId, circleId)
+  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
 
   const url = new URL(req.url)
   const action = url.searchParams.get("action") || "cover"
@@ -33,6 +34,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ circleI
     const body = await req.json()
 
     if (action === "cover") {
+      if (!member) return NextResponse.json({ error: "Membership required for this action" }, { status: 400 })
       let participant = await prisma.projectParticipant.findFirst({ where: { projectId, userId: s.user.id } })
       if (!participant) {
         participant = await prisma.projectParticipant.create({ data: { projectId, userId: s.user.id, circleMemberId: member.id, type: "CIRCLE_MEMBER", status: "ACCEPTED", joinedAt: new Date() } })

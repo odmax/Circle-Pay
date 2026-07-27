@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { requireProjectInCircle } from "@/lib/services/project.service"
 import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
@@ -21,10 +20,8 @@ import {
 async function requireAuth(circleId: string) {
   const s = await auth()
   if (!s?.user?.id) throw new Error("Unauthorized")
-  const member = await prisma.circleMember.findUnique({
-    where: { circleId_userId: { circleId, userId: s.user.id } },
-  })
-  if (!member) throw new Error("Not found")
+  const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
+  if (!allowed) throw new Error("Not found")
   return s.user.id
 }
 

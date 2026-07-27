@@ -9,8 +9,8 @@ import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 export async function GET(_req: Request, { params }: { params: Promise<{ circleId: string; projectId: string }> }) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { circleId, projectId } = await params
-  const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
-  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
+  if (!allowed) return NextResponse.json({ error: "Not found" }, { status: 404 })
   await requireProjectInCircle(projectId, circleId)
   return NextResponse.json(await prisma.projectRevenue.findMany({ where: { projectId }, include: { asset: { select: { name: true } } }, orderBy: { createdAt: "desc" } }))
 }

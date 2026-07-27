@@ -44,10 +44,18 @@ export function ProjectLayout({
     )
   }
 
-  if (error || !project || !project.id || !circle) {
+  if (error) {
     return (
       <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden">
-        <ProjectError message={error || undefined} onRetry={refresh} />
+        <ProjectError message={error} onRetry={refresh} />
+      </div>
+    )
+  }
+
+  if (!project || !project.id || !circle) {
+    return (
+      <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden">
+        <ProjectNotFound />
       </div>
     )
   }

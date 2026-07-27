@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { requireProjectInCircle } from "@/lib/services/project.service"
 import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
@@ -13,10 +12,8 @@ export async function GET(
   const s = await auth()
   if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { circleId, projectId } = await params
-  const member = await prisma.circleMember.findUnique({
-    where: { circleId_userId: { circleId, userId: s.user.id } },
-  })
-  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
+  if (!allowed) return NextResponse.json({ error: "Not found" }, { status: 404 })
   await requireProjectInCircle(projectId, circleId)
   return NextResponse.json(await getExpenseDashboard(projectId))
 }
@@ -28,10 +25,8 @@ export async function POST(
   const s = await auth()
   if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { circleId, projectId } = await params
-  const member = await prisma.circleMember.findUnique({
-    where: { circleId_userId: { circleId, userId: s.user.id } },
-  })
-  if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const canAccess = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
+  if (!canAccess) return NextResponse.json({ error: "Not found" }, { status: 404 })
   await requireProjectInCircle(projectId, circleId)
 
   const allowed = await hasCirclePermission({
