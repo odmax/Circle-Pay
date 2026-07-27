@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
-import type { ProjectData, CircleData, FundingOverviewData } from "./types"
+import type { ProjectData, CircleData } from "./types"
 
 interface ProjectContextValue {
   project: ProjectData | null
@@ -42,10 +42,10 @@ export function ProjectProvider({
     try {
       setError(null)
       const [c, p] = await Promise.all([
-        fetch(`/api/circles/${circleId}`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`/api/circles/${circleId}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetch(`/api/circles/${circleId}/projects/${projectId}`).then((r) =>
           r.ok ? r.json() : null,
-        ),
+        ).catch(() => null),
       ])
       setCircle(c)
       setProject(p)

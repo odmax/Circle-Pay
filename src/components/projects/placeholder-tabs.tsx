@@ -1,8 +1,7 @@
-import { Receipt, PieChart, TrendingUp, BarChart3, PieChart as PieChartIcon, Waves, FileBarChart, FileText, Clock } from "lucide-react"
+import { PieChart, TrendingUp, BarChart3, PieChart as PieChartIcon, Waves, FileBarChart, FileText, Clock } from "lucide-react"
 import { ProjectEmpty } from "@/components/projects/shared-states"
 
 const PLACEHOLDER_CONFIG: Record<string, { title: string; description: string; icon: React.ComponentType<{ className?: string }> }> = {
-  expenses: { title: "Expenses", description: "Coming in E2", icon: Receipt },
   assets: { title: "Assets", description: "Coming in E2", icon: PieChart },
   revenue: { title: "Revenue", description: "Coming in E2", icon: TrendingUp },
   roi: { title: "ROI", description: "Coming in E2", icon: BarChart3 },
@@ -20,7 +19,6 @@ function makePlaceholder(tab: string) {
   }
 }
 
-export const ExpensesPage = makePlaceholder("expenses")
 export const AssetsPage = makePlaceholder("assets")
 export const RevenuePage = makePlaceholder("revenue")
 export const ROIPage = makePlaceholder("roi")

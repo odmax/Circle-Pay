@@ -135,7 +135,6 @@ describe("Project Layout Component", () => {
 describe("Placeholder Tabs", () => {
   it("Test 18: All placeholder tab components export correctly", async () => {
     const mod = await import("@/components/projects/placeholder-tabs")
-    expect(typeof mod.ExpensesPage).toBe("function")
     expect(typeof mod.AssetsPage).toBe("function")
     expect(typeof mod.RevenuePage).toBe("function")
     expect(typeof mod.ROIPage).toBe("function")

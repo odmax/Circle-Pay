@@ -4,7 +4,7 @@ import { FolderKanban, Wallet, FileText, Receipt, Coins, TrendingUp, PieChart, B
 import { ProjectHeader } from "./project-header"
 import { ProjectTabs } from "./project-tabs"
 import { useProjectContext } from "./project-context"
-import { ProjectLoading, ProjectError, ProjectNotFound } from "./shared-states"
+import { ProjectError, ProjectNotFound } from "./shared-states"
 
 const PROJECT_TABS = [
   { id: "overview", label: "Overview", icon: <FolderKanban className="size-3.5" />, href: "overview" },

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Upload, CheckCircle2, XCircle, FileText, Filter } from "lucide-react"
+import { Plus, Upload, CheckCircle2, FileText, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +26,6 @@ export function ContributionsTab({ circle, circleId, projectId }: ContributionsT
   const [loading, setLoading] = useState(true)
   const [showRecordDialog, setShowRecordDialog] = useState(false)
   const [showProofDialog, setShowProofDialog] = useState(false)
-  const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [selectedTx, setSelectedTx] = useState<CapitalTransactionData | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [filterClassification, setFilterClassification] = useState<string>("all")

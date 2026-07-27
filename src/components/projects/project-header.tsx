@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, MoreHorizontal, Edit, FolderOpen, Receipt, DollarSign, UserPlus, Waves, FileText, XCircle, Archive } from "lucide-react"
+import { ArrowLeft, MoreHorizontal, Edit, FolderOpen, Receipt, DollarSign, Waves, FileText, XCircle, Archive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
