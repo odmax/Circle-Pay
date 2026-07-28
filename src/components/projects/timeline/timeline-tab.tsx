@@ -66,7 +66,7 @@ export function TimelineTab({ circle, circleId, projectId }: TimelineTabProps) {
                 <div key={a.id} className="relative flex gap-3 pb-4 last:pb-0">
                   {i < activities.length - 1 && <div className="absolute left-[11px] top-8 bottom-0 w-px bg-border" />}
                   <div className={`size-[22px] rounded-full shrink-0 mt-0.5 flex items-center justify-center ${ACTIVITY_COLORS[a.type] || "bg-muted-foreground/30"}`}>
-                    {(() => { const Icon = ACTIVITY_ICONS[a.type] || Activity; return <Icon className="size-3 text-white" /> })()}
+                    <ActivityIcon type={a.type} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -84,6 +84,11 @@ export function TimelineTab({ circle, circleId, projectId }: TimelineTabProps) {
       )}
     </div>
   )
+}
+
+function ActivityIcon({ type }: { type: string }) {
+  const Icon = ACTIVITY_ICONS[type] || Activity
+  return <Icon className="size-3 text-white" />
 }
 
 function TimelineSkeleton() {

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
 import type { ProjectData, CircleData } from "./types"
 
 interface ProjectContextValue {
@@ -75,10 +75,12 @@ export function ProjectProvider({
 
   const currency = circle?.currency || "ZAR"
 
+  const value = useMemo(() => ({
+    project, circle, currency, loading, error, refresh, refreshProject, tabData, setTabData,
+  }), [project, circle, currency, loading, error, refresh, refreshProject, tabData, setTabData])
+
   return (
-    <ProjectContext.Provider
-      value={{ project, circle, currency, loading, error, refresh, refreshProject, tabData, setTabData }}
-    >
+    <ProjectContext.Provider value={value}>
       {children}
     </ProjectContext.Provider>
   )

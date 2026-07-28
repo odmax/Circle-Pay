@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Plus, Upload, CheckCircle2, FileText, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -33,11 +33,11 @@ export function ContributionsTab({ circle, circleId, projectId }: ContributionsT
 
   const symbol = circle?.currency || "ZAR"
 
+  const [proofReference, setProofReference] = useState("")
+
   const [newTx, setNewTx] = useState({ participantId: "", amount: "", classification: "REQUIRED_EQUITY", reference: "" })
 
-  useEffect(() => { fetchTransactions() }, [circleId, projectId])
-
-  async function fetchTransactions() {
+  const fetchTransactions = useCallback(async () => {
     try {
       const r = await fetch(`/api/circles/${circleId}/projects/${projectId}/capital`)
       if (r.ok) {
@@ -47,9 +47,11 @@ export function ContributionsTab({ circle, circleId, projectId }: ContributionsT
     } finally {
       setLoading(false)
     }
-  }
+  }, [circleId, projectId])
 
-  async function recordTransaction() {
+  useEffect(() => { fetchTransactions() }, [fetchTransactions])
+
+  const recordTransaction = useCallback(async () => {
     if (!newTx.amount) return
     setSubmitting(true)
     try {
@@ -73,9 +75,9 @@ export function ContributionsTab({ circle, circleId, projectId }: ContributionsT
     } finally {
       setSubmitting(false)
     }
-  }
+  }, [circleId, projectId, newTx.amount, newTx.classification, newTx.reference, newTx.participantId, fetchTransactions])
 
-  async function confirmTransaction(txId: string) {
+  const confirmTransaction = useCallback(async (txId: string) => {
     try {
       const r = await fetch(`/api/circles/${circleId}/projects/${projectId}/capital/${txId}/confirm`, { method: "POST" })
       if (!r.ok) throw new Error("Failed")
@@ -84,9 +86,9 @@ export function ContributionsTab({ circle, circleId, projectId }: ContributionsT
     } catch {
       toast.error("Failed to confirm")
     }
-  }
+  }, [circleId, projectId, fetchTransactions])
 
-  async function submitProof() {
+  const submitProof = useCallback(async () => {
     if (!selectedTx) return
     setSubmitting(true)
     try {
@@ -105,15 +107,13 @@ export function ContributionsTab({ circle, circleId, projectId }: ContributionsT
     } finally {
       setSubmitting(false)
     }
-  }
+  }, [circleId, projectId, selectedTx, proofReference, fetchTransactions])
 
-  const [proofReference, setProofReference] = useState("")
-
-  const filtered = transactions.filter((tx) => {
+  const filtered = useMemo(() => transactions.filter((tx) => {
     if (filterClassification !== "all" && tx.classification !== filterClassification) return false
     if (filterStatus !== "all" && tx.status !== filterStatus) return false
     return true
-  })
+  }), [transactions, filterClassification, filterStatus])
 
   if (loading) return <ContributionsSkeleton />
 

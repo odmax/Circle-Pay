@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { AlertTriangle, Shield, HandHelping, ArrowRightLeft, Gift, CheckCircle2, XCircle, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,9 +38,7 @@ export function ShortfallTab({ circle, circleId, projectId }: ShortfallTabProps)
 
   const symbol = circle?.currency || "ZAR"
 
-  useEffect(() => { fetchShortfalls() }, [circleId, projectId])
-
-  async function fetchShortfalls() {
+  const fetchShortfalls = useCallback(async () => {
     try {
       const r = await fetch(`/api/circles/${circleId}/projects/${projectId}/shortfall`)
       if (r.ok) {
@@ -51,9 +49,11 @@ export function ShortfallTab({ circle, circleId, projectId }: ShortfallTabProps)
     } finally {
       setLoading(false)
     }
-  }
+  }, [circleId, projectId])
 
-  async function submitCover() {
+  useEffect(() => { fetchShortfalls() }, [fetchShortfalls])
+
+  const submitCover = useCallback(async () => {
     if (!coverForm.amount) return
     setSubmitting(true)
     try {
@@ -77,9 +77,9 @@ export function ShortfallTab({ circle, circleId, projectId }: ShortfallTabProps)
     } finally {
       setSubmitting(false)
     }
-  }
+  }, [circleId, projectId, coverForm.amount, coverForm.type, coverForm.coveringParticipantId, coverForm.coveredParticipantId, fetchShortfalls])
 
-  async function approveCover(shortfallId: string) {
+  const approveCover = useCallback(async (shortfallId: string) => {
     try {
       const r = await fetch(`/api/circles/${circleId}/projects/${projectId}/shortfall/${shortfallId}/approve`, { method: "POST" })
       if (!r.ok) throw new Error("Failed")
@@ -88,7 +88,7 @@ export function ShortfallTab({ circle, circleId, projectId }: ShortfallTabProps)
     } catch {
       toast.error("Failed to approve")
     }
-  }
+  }, [circleId, projectId, fetchShortfalls])
 
   if (loading) return <ShortfallSkeleton />
 

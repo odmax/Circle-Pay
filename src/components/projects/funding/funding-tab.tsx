@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Plus, Power, PowerOff, CheckCircle2, FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,11 +30,7 @@ export function FundingTab({ circle, circleId, projectId }: FundingTabProps) {
 
   const symbol = circle?.currency || "ZAR"
 
-  useEffect(() => {
-    fetchRounds()
-  }, [circleId, projectId])
-
-  async function fetchRounds() {
+  const fetchRounds = useCallback(async () => {
     try {
       const r = await fetch(`/api/circles/${circleId}/projects/${projectId}/funding-rounds`)
       if (r.ok) {
@@ -45,9 +41,13 @@ export function FundingTab({ circle, circleId, projectId }: FundingTabProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [circleId, projectId])
 
-  async function createRound() {
+  useEffect(() => {
+    fetchRounds()
+  }, [fetchRounds])
+
+  const createRound = useCallback(async () => {
     if (!newRound.name || !newRound.targetAmount) return
     setSubmitting(true)
     try {
@@ -70,9 +70,9 @@ export function FundingTab({ circle, circleId, projectId }: FundingTabProps) {
     } finally {
       setSubmitting(false)
     }
-  }
+  }, [circleId, projectId, newRound.name, newRound.targetAmount, newRound.allocationMethod, fetchRounds])
 
-  async function transitionRound(roundId: string, action: string) {
+  const transitionRound = useCallback(async (roundId: string, action: string) => {
     try {
       const r = await fetch(`/api/circles/${circleId}/projects/${projectId}/funding-rounds/${roundId}/${action}`, { method: "POST" })
       if (!r.ok) throw new Error("Failed")
@@ -81,7 +81,7 @@ export function FundingTab({ circle, circleId, projectId }: FundingTabProps) {
     } catch {
       toast.error(`Failed to ${action} round`)
     }
-  }
+  }, [circleId, projectId, fetchRounds])
 
   if (loading) return <FundingSkeleton />
 
