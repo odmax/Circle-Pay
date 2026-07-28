@@ -9,13 +9,17 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ circleId: string; projectId: string }> },
 ) {
-  const s = await auth()
-  if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const { circleId, projectId } = await params
-  const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
-  if (!allowed) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  await requireProjectInCircle(projectId, circleId)
-  return NextResponse.json(await getExpenseDashboard(projectId))
+  try {
+    const s = await auth()
+    if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { circleId, projectId } = await params
+    const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
+    if (!allowed) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    await requireProjectInCircle(projectId, circleId)
+    return NextResponse.json(await getExpenseDashboard(projectId))
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
 }
 
 export async function POST(
