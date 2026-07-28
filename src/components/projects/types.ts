@@ -360,3 +360,89 @@ export interface FundingOverviewData {
     participantCount: number
   }
 }
+
+export interface AssetData {
+  id: string
+  name: string
+  description?: string | null
+  type: string
+  status: string
+  purchaseAmount: string | number | null
+  currentValue: string | number | null
+  saleValue: string | number | null
+  purchaseDate?: string | null
+  soldAt?: string | null
+  custodianId?: string | null
+  location?: string | null
+  depreciationMethod?: string | null
+  depreciationRate?: string | number | null
+  accumulatedDepreciation?: string | number
+  notes?: string | null
+  createdAt: string
+}
+
+export interface RevenueData {
+  id: string
+  type: string
+  grossAmount: string | number
+  directCosts: string | number
+  amount: string | number
+  currency: string
+  description?: string | null
+  reference?: string | null
+  revenueDate?: string | null
+  invoiceUrl?: string | null
+  proofUrl?: string | null
+  status: string
+  asset?: { name: string } | null
+  assetId?: string | null
+  createdAt: string
+}
+
+export interface ROIDashboardData {
+  summary: {
+    raised: number
+    totalExpensesPaid: number
+    totalExpensesApproved: number
+    totalAssetPurchase: number
+    totalCurrentAssetValue: number
+    totalSaleValue: number
+    totalRevenueGross: number
+    totalDirectCosts: number
+    totalRevenueNet: number
+    grossProfit: number
+    netProfit: number
+    roi: number
+    breakEvenMonths: number
+    totalDepreciation: number
+  }
+  assets: AssetData[]
+  revenues: RevenueData[]
+}
+
+export const ASSET_TYPE_LABELS: Record<string, string> = {
+  PROPERTY: "Property", VEHICLE: "Vehicle", EQUIPMENT: "Equipment",
+  STOCK: "Stock", CRYPTO: "Crypto", BUSINESS: "Business",
+  LAND: "Land", OTHER: "Other",
+}
+
+export const ASSET_STATUS_COLORS: Record<string, string> = {
+  PLANNED: "bg-blue-100 text-blue-700",
+  PURCHASED: "bg-emerald-100 text-emerald-700",
+  ACTIVE: "bg-brand/10 text-brand",
+  SOLD: "bg-amber-100 text-amber-700",
+  DISPOSED: "bg-red-100 text-red-700",
+}
+
+export const REVENUE_TYPE_LABELS: Record<string, string> = {
+  SALE: "Sale", RENTAL_INCOME: "Rental Income", DIVIDEND: "Dividend",
+  INTEREST: "Interest", SERVICE_INCOME: "Service Income",
+  REFUND: "Refund", OTHER: "Other",
+}
+
+export const REVENUE_STATUS_COLORS: Record<string, string> = {
+  DRAFT: "bg-gray-100 text-gray-600",
+  PENDING: "bg-amber-100 text-amber-700",
+  CONFIRMED: "bg-emerald-100 text-emerald-700",
+  REJECTED: "bg-red-100 text-red-700",
+}
