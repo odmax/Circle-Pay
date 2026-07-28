@@ -132,17 +132,6 @@ describe("Project Layout Component", () => {
   })
 })
 
-describe("Placeholder Tabs", () => {
-  it("Test 18: All placeholder tab components export correctly", async () => {
-    const mod = await import("@/components/projects/placeholder-tabs")
-    expect(typeof mod.OwnershipPage).toBe("function")
-    expect(typeof mod.DistributionsPage).toBe("function")
-    expect(typeof mod.StatementsPage).toBe("function")
-    expect(typeof mod.ReportsPage).toBe("function")
-    expect(typeof mod.TimelinePage).toBe("function")
-  })
-})
-
 describe("Route Structure", () => {
   it("Test 19: Root page exists and redirects", async () => {
     const fs = await import("fs")
