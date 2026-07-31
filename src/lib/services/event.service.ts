@@ -22,16 +22,34 @@ export async function getCircleEvents(circleId: string) {
   })
 }
 
-export async function createCircleEvent(circleId: string, userId: string, data: { title: string; description?: string; type?: string; startAt: string; endAt?: string; location?: string; isOnline?: boolean; meetingLink?: string; agenda?: string }) {
+export async function createCircleEvent(circleId: string, userId: string, data: {
+  title: string; description?: string; type?: string; startAt: string;
+  endAt?: string; location?: string; isOnline?: boolean; meetingLink?: string;
+  agenda?: string; amount?: number; reminderDate?: string; status?: string
+}) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EVENT_MANAGE })
-  return prisma.circleEvent.create({
+  const event = await prisma.circleEvent.create({
     data: {
       circleId, createdById: userId, title: data.title, description: data.description,
       type: (data.type || "GENERAL") as CircleEventType, startAt: new Date(data.startAt),
       endAt: data.endAt ? new Date(data.endAt) : null, location: data.location,
       isOnline: data.isOnline || false, meetingLink: data.meetingLink, agenda: data.agenda,
+      amount: data.amount, reminderDate: data.reminderDate ? new Date(data.reminderDate) : null,
+      status: (data.status === "PUBLISHED") ? "PUBLISHED" : "DRAFT",
     },
   })
+
+  if (data.status === "PUBLISHED") {
+    const { notifyCircleMembers } = await import("@/lib/services/notification.service")
+    notifyCircleMembers(circleId, userId, {
+      type: "EVENT_REMINDER" as any,
+      title: `New Event: ${data.title}`,
+      message: `${data.description || "A new event has been scheduled"}`,
+      link: `/circles/${circleId}/events`,
+    }).catch(() => {})
+  }
+
+  return event
 }
 
 export async function rsvpToEvent(circleId: string, eventId: string, userId: string, status: string) {
@@ -46,4 +64,14 @@ export async function rsvpToEvent(circleId: string, eventId: string, userId: str
 export async function cancelEvent(circleId: string, eventId: string, userId: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EVENT_MANAGE })
   return prisma.circleEvent.update({ where: { id: eventId }, data: { status: "CANCELLED" } })
+}
+
+export async function getEventById(circleId: string, eventId: string) {
+  return prisma.circleEvent.findUnique({
+    where: { id: eventId, circleId, deletedAt: null },
+    include: {
+      createdBy: { select: { id: true, name: true, image: true } },
+      _count: { select: { rsvps: true } },
+    },
+  })
 }

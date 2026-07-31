@@ -1368,6 +1368,8 @@ enum CircleEventType {
 }
 
 enum CircleEventStatus {
+  DRAFT
+  PUBLISHED
   UPCOMING
   COMPLETED
   CANCELLED
@@ -1393,8 +1395,10 @@ model CircleEvent {
   meetingLink String?
   agenda      String?
   notes       String?
-  status      CircleEventStatus @default(UPCOMING)
-  deletedAt   DateTime?
+  status        CircleEventStatus   @default(DRAFT)
+  amount        Decimal?             @db.Decimal(12, 2)
+  reminderDate  DateTime?
+  deletedAt     DateTime?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 

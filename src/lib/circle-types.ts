@@ -146,7 +146,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "targetReturn", label: "Target Return %", type: "number", placeholder: "15" },
     ],
     defaultSettings: { riskLevel: "medium" },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.goals, tabs.members, tabs.activity, tabs.reports, tabs.insights],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.events, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.goals, tabs.members, tabs.activity, tabs.reports, tabs.insights],
   },
   CUSTOM: {
     label: "Custom",

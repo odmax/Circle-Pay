@@ -22,6 +22,7 @@ import { TypeSpecificHero } from "@/components/circles/type-specific-hero"
 import { CircleWidgetRenderer } from "@/components/circles/widgets/circle-widget-renderer"
 import { PendingApprovalsWidget } from "@/components/approvals/pending-approvals-widget"
 import { CircleOnboardingChecklist } from "@/components/circles/circle-onboarding-checklist"
+import { CreateEventForm } from "@/components/events/create-event-form"
 import { WidgetGridSkeleton, CardSkeleton, ListSkeleton } from "@/components/shared/skeletons"
 import { CURRENCIES } from "@/lib/constants"
 import { getCircleTypeConfig } from "@/lib/circle-types"
@@ -88,15 +89,18 @@ export default async function CircleOverviewPage({
           </div>
         </div>
         {canManage && circle && (
-          <Button
-            render={<Link href={`/circles/${circle.id}/manage`} />}
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-          >
-            <Settings className="mr-2 size-4" />
-            Manage
-          </Button>
+          <>
+            <CreateEventForm circleId={circle.id} />
+            <Button
+              render={<Link href={`/circles/${circle.id}/manage`} />}
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+            >
+              <Settings className="mr-2 size-4" />
+              Manage
+            </Button>
+          </>
         )}
       </div>
 
@@ -480,7 +484,7 @@ export default async function CircleOverviewPage({
           </Card>
 
           {/* Upcoming Events */}
-          {dashboard.upcomingEvents.length > 0 && (
+          {dashboard.upcomingEvents.length > 0 ? (
             <Card className="rounded-2xl border-border/40">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">Upcoming Events</CardTitle>
@@ -509,7 +513,19 @@ export default async function CircleOverviewPage({
                 </div>
               </CardContent>
             </Card>
-          )}
+          ) : circle && canManage ? (
+            <Card className="rounded-2xl border-border/40">
+              <CardHeader>
+                <CardTitle className="text-base">Events</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+                <Calendar className="size-10 text-muted-foreground/50 mb-3" />
+                <p className="font-medium text-sm">No events scheduled yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Create your first event to keep members informed</p>
+                <div className="mt-4"><CreateEventForm circleId={circle.id} /></div>
+              </CardContent>
+            </Card>
+          ) : null}
 
           {/* Recent Activity / Feed Posts */}
           <Card className="rounded-2xl border-border/40">
