@@ -28,6 +28,9 @@ export const addContributionSchema = z.object({
   status: z.enum(["PAID", "PENDING", "PENDING_REVIEW", "CANCELLED"]),
   paymentDate: z.string().min(1, "Payment date is required"),
   note: z.string().max(300).optional().or(z.literal("")),
+  contributionMonth: z.string().min(1, "Contribution month is required"),
+  paymentMethod: z.string().min(1, "Payment method is required"),
+  proofReference: z.string().max(200).optional().or(z.literal("")),
 })
 
 export const updateContributionSchema = z.object({

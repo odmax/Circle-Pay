@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2 } from "lucide-react"
+import { Loader2, Upload, FileText, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,6 +27,16 @@ import {
 } from "@/lib/validations/contributions"
 import { toast } from "sonner"
 
+const PAYMENT_METHODS = [
+  { value: "BANK_TRANSFER", label: "Bank Transfer" },
+  { value: "EFT", label: "EFT" },
+  { value: "CASH", label: "Cash" },
+  { value: "MOBILE_MONEY", label: "Mobile Money" },
+  { value: "CHEQUE", label: "Cheque" },
+  { value: "CARD", label: "Card" },
+  { value: "OTHER", label: "Other" },
+]
+
 export function AddContributionForm({
   circleId,
   members,
@@ -40,26 +50,47 @@ export function AddContributionForm({
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [proofError, setProofError] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
     setValue,
-    watch,
     reset,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(addContributionSchema),
     defaultValues: {
-      status: "PAID" as const,
+      status: "PENDING_REVIEW" as const,
       paymentDate: new Date().toISOString().split("T")[0],
+      paymentMethod: "BANK_TRANSFER",
     },
   })
 
-  const selectedStatus = watch("status")
+  function validateProof(file: File | null): string | null {
+    if (!file) return "Proof of payment is required"
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"]
+    if (!allowed.includes(file.type)) return "Proof must be JPG, PNG, WebP, HEIC, or PDF"
+    if (file.size > 5 * 1024 * 1024) return "Proof must be 5MB or smaller"
+    return null
+  }
 
   async function onSubmit(data: Record<string, unknown>) {
-    const payload: Record<string, unknown> = { ...data }
+    const err = validateProof(proofFile)
+    if (err) {
+      setProofError(err)
+      return
+    }
+    setProofError(null)
+
+    const payload: Record<string, unknown> = {
+      ...data,
+      status: "PENDING_REVIEW",
+      contributionMonth: data.contributionMonth,
+      paymentMethod: data.paymentMethod,
+      proofReference: data.proofReference || "",
+    }
     if (!payload.planId) delete payload.planId
     try {
       const res = await fetch(
@@ -71,12 +102,47 @@ export function AddContributionForm({
         }
       )
       if (!res.ok) {
-        const err = await res.json()
-        toast.error(err.error || "Failed to add contribution")
+        const errBody = await res.json()
+        toast.error(errBody.error || "Failed to add contribution")
         return
       }
-      toast.success("Contribution recorded!")
+      const contribution = await res.json()
+
+      if (proofFile) {
+        const formData = new FormData()
+        formData.append("file", proofFile)
+        formData.append("contributionMonth", (data.contributionMonth as string) || "")
+        formData.append("paymentMethod", (data.paymentMethod as string) || "")
+        if (data.proofReference) formData.append("proofReference", data.proofReference as string)
+
+        const upRes = await fetch(
+          `/api/circles/${circleId}/contributions/${contribution.id}?action=upload-proof`,
+          { method: "POST", body: formData }
+        )
+        if (!upRes.ok) {
+          const upErr = await upRes.json()
+          toast.error(`Contribution created but proof upload failed: ${upErr.error || "Unknown error"}`)
+          return
+        }
+
+        const vRes = await fetch(
+          `/api/circles/${circleId}/contributions/${contribution.id}?action=verify`,
+          { method: "POST" }
+        )
+        if (vRes.ok) {
+          const v = await vRes.json()
+          if (v.status === "VERIFIED") toast.success("Contribution recorded and auto-verified!")
+          else if (v.status === "NEEDS_REVIEW") toast.warning("Contribution recorded — verification needs review")
+          else toast.error(`Contribution recorded — verification rejected: ${v.reason || "No reason"}`)
+        } else {
+          toast.success("Contribution recorded! Proof uploaded for verification.")
+        }
+      } else {
+        toast.success("Contribution recorded!")
+      }
+
       reset()
+      setProofFile(null)
       setOpen(false)
       router.refresh()
     } catch {
@@ -93,7 +159,7 @@ export function AddContributionForm({
       >
         Record Payment
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Record Contribution</DialogTitle>
         </DialogHeader>
@@ -161,37 +227,111 @@ export function AddContributionForm({
             </div>
 
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>Payment Method</Label>
               <Select
-                value={selectedStatus}
-                onValueChange={(v) => {
-                  if (v) setValue("status", v as "PAID" | "PENDING" | "CANCELLED")
-                }}
+                onValueChange={(v) => { if (v) setValue("paymentMethod", v as string) }}
               >
                 <SelectTrigger className="rounded-xl">
-                  <SelectValue />
+                  <SelectValue placeholder="Select method" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PAID">Paid</SelectItem>
-                  <SelectItem value="PENDING">Pending</SelectItem>
-                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  {PAYMENT_METHODS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {errors.paymentMethod && (
+                <p className="text-xs text-destructive">
+                  {errors.paymentMethod.message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Contribution Month</Label>
+              <Input
+                type="month"
+                className="rounded-xl"
+                {...register("contributionMonth")}
+              />
+              {errors.contributionMonth && (
+                <p className="text-xs text-destructive">
+                  {errors.contributionMonth.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="contrib-date">Payment Date</Label>
+              <Input
+                id="contrib-date"
+                type="date"
+                className="rounded-xl"
+                {...register("paymentDate")}
+              />
+              {errors.paymentDate && (
+                <p className="text-xs text-destructive">
+                  {errors.paymentDate.message}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="contrib-date">Payment Date</Label>
+            <Label htmlFor="contrib-ref">Reference / Transaction ID (optional)</Label>
             <Input
-              id="contrib-date"
-              type="date"
+              id="contrib-ref"
+              placeholder="EFT reference number"
               className="rounded-xl"
-              {...register("paymentDate")}
+              {...register("proofReference")}
             />
-            {errors.paymentDate && (
-              <p className="text-xs text-destructive">
-                {errors.paymentDate.message}
-              </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="font-medium">
+              Proof of Payment <span className="text-destructive">*</span>
+            </Label>
+            <label
+              htmlFor="proof-upload"
+              className="flex items-center justify-center gap-2 border-2 border-dashed rounded-xl px-4 py-6 cursor-pointer hover:bg-muted/40 transition-colors"
+            >
+              {proofFile ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="size-5 text-emerald-600" />
+                  <FileText className="size-4 text-brand" />
+                  <span className="font-medium text-foreground">{proofFile.name}</span>
+                  <span className="text-muted-foreground">
+                    ({(proofFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1 text-center">
+                  <Upload className="size-6 text-muted-foreground" />
+                  <span className="text-sm font-medium">Click to upload proof</span>
+                  <span className="text-xs text-muted-foreground">
+                    Bank receipt, EFT confirmation, or transaction statement
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">JPG, PNG, WebP, HEIC, PDF — max 5MB</span>
+                </div>
+              )}
+              <input
+                id="proof-upload"
+                type="file"
+                className="hidden"
+                accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null
+                  setProofFile(f)
+                  setProofError(validateProof(f))
+                }}
+              />
+            </label>
+            {proofError && (
+              <p className="text-xs text-destructive">{proofError}</p>
             )}
           </div>
 
@@ -220,9 +360,12 @@ export function AddContributionForm({
               className="rounded-xl bg-brand hover:bg-brand-600"
             >
               {isSubmitting ? (
-                <Loader2 className="size-4 animate-spin" />
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Submitting & verifying...
+                </>
               ) : (
-                "Save Payment"
+                "Save & Verify"
               )}
             </Button>
           </div>

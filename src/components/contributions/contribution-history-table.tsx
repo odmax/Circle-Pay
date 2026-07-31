@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { ContributionStatusBadge } from "./contribution-status-badge"
 import { EditContributionDialog } from "./edit-contribution-dialog"
+import { ProofSubmission } from "./proof-submission"
 import { toast } from "sonner"
 
 interface ContributionRow {
@@ -30,6 +31,16 @@ interface ContributionRow {
   user: { id: string; name: string | null; email: string; image: string | null }
   plan: { id: string; name: string; amount: number } | null
   createdBy: { id: string; name: string | null }
+  proofUrl?: string | null
+  proofReference?: string | null
+  paymentMethod?: string | null
+  contributionMonth?: string | null
+  verificationStatus?: string | null
+  confidenceScore?: number | null
+  extractedAmount?: number | string | null
+  extractedDate?: string | null
+  extractedReference?: string | null
+  verificationReason?: string | null
 }
 
 export function ContributionHistoryTable({
@@ -134,6 +145,7 @@ export function ContributionHistoryTable({
               <th className="px-3 pb-3">Plan</th>
               <th className="px-3 pb-3">Date</th>
               <th className="px-3 pb-3">Status</th>
+              <th className="px-3 pb-3 hidden md:table-cell">Proof</th>
               <th className="px-3 pb-3 hidden sm:table-cell">Note</th>
               {canManage && <th className="px-3 pb-3 text-right">Actions</th>}
             </tr>
@@ -181,6 +193,30 @@ export function ContributionHistoryTable({
                   </td>
                   <td className="px-3 py-3">
                     <ContributionStatusBadge status={c.status} />
+                  </td>
+                  <td className="px-3 py-3 hidden md:table-cell">
+                    {isDeleted ? (
+                      <span className="text-xs text-muted-foreground">{"\u2014"}</span>
+                    ) : (
+                      <ProofSubmission
+                        circleId={circleId}
+                        contributionId={c.id}
+                        contribution={{
+                          proofUrl: c.proofUrl,
+                          proofReference: c.proofReference,
+                          paymentMethod: c.paymentMethod,
+                          contributionMonth: c.contributionMonth,
+                          verificationStatus: c.verificationStatus,
+                          confidenceScore: c.confidenceScore,
+                          extractedAmount: c.extractedAmount,
+                          extractedDate: c.extractedDate,
+                          extractedReference: c.extractedReference,
+                          verificationReason: c.verificationReason,
+                        }}
+                        canManage={canManage}
+                        currencySymbol={currencySymbol}
+                      />
+                    )}
                   </td>
                   <td className="px-3 py-3 text-muted-foreground hidden sm:table-cell max-w-[120px] truncate">
                     {c.note || "\u2014"}

@@ -7,7 +7,7 @@ import crypto from "crypto"
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "proofs")
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"]
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"]
 
 export function validateProofFile(file: { size: number; type: string; name?: string }) {
   if (file.size > MAX_SIZE) throw new Error(`File too large. Maximum size is 5MB.`)

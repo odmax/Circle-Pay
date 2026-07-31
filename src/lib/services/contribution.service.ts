@@ -175,6 +175,9 @@ export async function addContribution(
     status: string
     paymentDate: string
     note?: string | null
+    contributionMonth?: string | null
+    paymentMethod?: string | null
+    proofReference?: string | null
   }
 ) {
   await requireCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_SUBMIT_OWN })
@@ -217,6 +220,9 @@ export async function addContribution(
         paymentDate: new Date(data.paymentDate),
         note: data.note || null,
         createdById: actorUserId,
+        contributionMonth: data.contributionMonth || null,
+        paymentMethod: data.paymentMethod || null,
+        proofReference: data.proofReference || null,
       },
       include: {
         user: { select: { id: true, name: true, email: true, image: true } },
@@ -282,6 +288,9 @@ export async function addContribution(
       paymentDate: new Date(data.paymentDate),
       note: data.note || null,
       createdById: actorUserId,
+      contributionMonth: data.contributionMonth || null,
+      paymentMethod: data.paymentMethod || null,
+      proofReference: data.proofReference || null,
     },
     include: {
       user: { select: { id: true, name: true, email: true, image: true } },

@@ -24,6 +24,8 @@ import { CreateContributionPlanForm } from "@/components/contributions/create-co
 import { ContributionPlanCard } from "@/components/contributions/contribution-plan-card"
 import { ContributionHistoryTable } from "@/components/contributions/contribution-history-table"
 import { MemberContributionSummary } from "@/components/contributions/member-contribution-summary"
+import { ProofSubmission } from "@/components/contributions/proof-submission"
+import { VerificationBadge } from "@/components/contributions/contribution-status-badge"
 import { CURRENCIES } from "@/lib/constants"
 
 export default async function ContributionsPage({
