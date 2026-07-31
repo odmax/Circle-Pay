@@ -270,6 +270,14 @@ export async function addContribution(
       })
       .catch(console.error)
 
+    // Cancel auto-generated scheduled records for the same member + period
+    if (data.contributionMonth) {
+      prisma.contribution.updateMany({
+        where: { circleId, userId: data.userId, periodLabel: data.contributionMonth, status: { in: ["UPCOMING", "DUE"] } },
+        data: { status: "CANCELLED" },
+      }).catch(console.error)
+    }
+
     return {
       ...contribution,
       amount: Number(contribution.amount),
@@ -312,6 +320,14 @@ export async function addContribution(
 
   // Auto system post
   createSystemPost(circleId, { type: "CONTRIBUTION", content: `${contributor} contributed ${data.amount}` }).catch(console.error)
+
+  // Cancel auto-generated scheduled records for the same member + period
+  if (data.contributionMonth) {
+    prisma.contribution.updateMany({
+      where: { circleId, userId: data.userId, periodLabel: data.contributionMonth, status: { in: ["UPCOMING", "DUE"] } },
+      data: { status: "CANCELLED" },
+    }).catch(console.error)
+  }
 
   return {
     ...contribution,
@@ -943,7 +959,12 @@ async function replaceReceiptForContribution(
 export async function getContributionSummary(circleId: string, userId: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL })
 
-  const [totalPaid, totalPending, plans, memberSummaries] = await Promise.all([
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const [totalPaid, totalPending, totalDue, totalOverdue, totalUpcoming, dueToday, monthPaid, plans, schedules, memberSummaries] = await Promise.all([
     prisma.contribution.aggregate({
       where: { circleId, status: "PAID" },
       _sum: { amount: true },
@@ -952,9 +973,34 @@ export async function getContributionSummary(circleId: string, userId: string) {
       where: { circleId, status: "PENDING" },
       _sum: { amount: true },
     }),
+    prisma.contribution.aggregate({
+      where: { circleId, status: "DUE" },
+      _sum: { amount: true },
+    }),
+    prisma.contribution.aggregate({
+      where: { circleId, status: "OVERDUE" },
+      _sum: { amount: true },
+    }),
+    prisma.contribution.aggregate({
+      where: { circleId, status: "UPCOMING" },
+      _sum: { amount: true },
+    }),
+    prisma.contribution.aggregate({
+      where: { circleId, status: "DUE", dueDate: { gte: todayStart, lte: todayEnd } },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.contribution.aggregate({
+      where: { circleId, status: "PAID", paymentDate: { gte: monthStart } },
+      _sum: { amount: true },
+    }),
     prisma.contributionPlan.findMany({
       where: { circleId, isActive: true },
       select: { amount: true, frequency: true },
+    }),
+    prisma.contributionSchedule.findMany({
+      where: { circleId, isActive: true, deletedAt: null },
+      select: { amount: true },
     }),
     prisma.circleMember.findMany({
       where: { circleId },
@@ -966,8 +1012,27 @@ export async function getContributionSummary(circleId: string, userId: string) {
   ])
 
   const totalExpected = plans.reduce((sum, p) => sum + Number(p.amount), 0)
+  const scheduledExpected = schedules.reduce((sum, s) => sum + Number(s.amount), 0)
   const paid = Number(totalPaid._sum.amount ?? 0)
   const pending = Number(totalPending._sum.amount ?? 0)
+  const due = Number(totalDue._sum.amount ?? 0)
+  const overdue = Number(totalOverdue._sum.amount ?? 0)
+  const upcoming = Number(totalUpcoming._sum.amount ?? 0)
+  const dueTodaySum = Number(dueToday._sum.amount ?? 0)
+  const dueTodayCount = dueToday._count
+
+  const collectionGoal = paid + pending + due + overdue
+  const collectionProgress = collectionGoal > 0 ? Math.round((paid / collectionGoal) * 100) : 0
+
+  const expectedThisMonth = scheduledExpected > 0 ? scheduledExpected : totalExpected
+  const monthPaidSum = Number(monthPaid._sum.amount ?? 0)
+  const collectionRate = expectedThisMonth > 0 ? Math.round((monthPaidSum / expectedThisMonth) * 100) : 0
+
+  const membersOutstanding = await prisma.contribution.groupBy({
+    by: ["userId"],
+    where: { circleId, status: { in: ["DUE", "OVERDUE"] }, deletedAt: null },
+    _count: true,
+  })
 
   const memberIds = memberSummaries.map((m) => m.userId)
   const [paidByUser, pendingByUser] = await Promise.all([
@@ -992,7 +1057,15 @@ export async function getContributionSummary(circleId: string, userId: string) {
     totalPending: pending,
     totalExpected,
     outstanding: totalExpected - paid,
-    overdue: pending, // pending = overdue for now
+    due,
+    dueToday: dueTodaySum,
+    dueTodayCount,
+    overdue,
+    upcoming,
+    collectionProgress,
+    collectionRate,
+    expectedThisMonth,
+    membersOutstanding: membersOutstanding.length,
     memberCount: memberSummaries.length,
     members: membersWithStats,
   }

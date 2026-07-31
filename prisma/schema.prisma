@@ -32,7 +32,8 @@ model User {
   circleMembers            CircleMember[]
   contributions            Contribution[]               @relation("ContributionPayer")
   contributionsRecorded    Contribution[]               @relation("ContributionRecorder")
-  contributionPlansCreated ContributionPlan[]           @relation("ContributionPlanCreator")
+  contributionPlansCreated ContributionPlan[] @relation("ContributionPlanCreator")
+  contributionSchedulesCreated ContributionSchedule[] @relation("ContributionScheduleCreator")
   expensesPaid             Expense[]                    @relation("ExpensePayer")
   expensesCreated          Expense[]                    @relation("ExpenseCreator")
   expenseSplits            ExpenseSplit[]
@@ -236,6 +237,7 @@ model Circle {
   members                CircleMember[]
   contributions          Contribution[]
   contributionPlans      ContributionPlan[]
+  contributionSchedules  ContributionSchedule[]
   goals                  Goal[]
   goalAllocations        GoalAllocation[]
   expenses               Expense[]
@@ -339,21 +341,34 @@ model Contribution {
   rejectedById          String?
   rejectedAt            DateTime?
   rejectionReason       String?
+  scheduleId            String?
+  dueDate               DateTime?
+  periodLabel           String?
+  gracePeriodDays       Int                @default(0)
+  overdueAt             DateTime?
+  lateFeeApplied        Boolean            @default(false)
+  lateFeeAmount         Decimal?           @db.Decimal(12, 2)
+  acknowledgedAt        DateTime?
   deletedAt           DateTime?
   statusBeforeDeletion ContributionStatus?
   createdAt           DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
-  circle          Circle            @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  user            User              @relation("ContributionPayer", fields: [userId], references: [id])
-  plan            ContributionPlan? @relation(fields: [planId], references: [id])
-  createdBy       User              @relation("ContributionRecorder", fields: [createdById], references: [id])
-  approvalRequest ApprovalRequest?  @relation(fields: [approvalRequestId], references: [id])
+  circle          Circle                @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user            User                  @relation("ContributionPayer", fields: [userId], references: [id])
+  plan            ContributionPlan?     @relation(fields: [planId], references: [id])
+  schedule        ContributionSchedule? @relation(fields: [scheduleId], references: [id])
+  createdBy       User                  @relation("ContributionRecorder", fields: [createdById], references: [id])
+  approvalRequest ApprovalRequest?      @relation(fields: [approvalRequestId], references: [id])
   goalAllocations GoalAllocation[]
+  reminders       ContributionReminder[]
 
   @@index([circleId])
   @@index([userId])
   @@index([planId])
+  @@index([scheduleId])
+  @@index([dueDate])
+  @@index([status])
   @@index([createdAt])
 }
 
@@ -369,6 +384,8 @@ enum ContributionStatus {
   PENDING
   PENDING_REVIEW
   PROOF_SUBMITTED
+  UPCOMING
+  DUE
   CONFIRMED
   REJECTED
   OVERDUE
@@ -380,6 +397,54 @@ enum VerificationStatus {
   VERIFIED
   NEEDS_REVIEW
   REJECTED
+}
+
+enum ContributionScheduleFrequency {
+  WEEKLY
+  FORTNIGHTLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+  CUSTOM
+}
+
+model ContributionSchedule {
+  id              String                     @id @default(cuid())
+  circleId        String
+  name            String                     @default("Contribution Schedule")
+  amount          Decimal                    @db.Decimal(12, 2)
+  frequency       ContributionScheduleFrequency @default(MONTHLY)
+  firstDueDate    DateTime
+  dueDay          Int?
+  gracePeriodDays Int                        @default(0)
+  lateFee         Decimal?                   @db.Decimal(12, 2)
+  autoGenerate    Boolean                    @default(true)
+  isActive        Boolean                    @default(true)
+  lastGeneratedAt DateTime?
+  nextDueDate     DateTime?
+  deletedAt       DateTime?
+  createdById     String
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  circle        Circle         @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy     User           @relation("ContributionScheduleCreator", fields: [createdById], references: [id])
+  contributions Contribution[]
+
+  @@index([circleId])
+  @@index([isActive])
+}
+
+model ContributionReminder {
+  id             String       @id @default(cuid())
+  contributionId String
+  stage          String
+  sentAt         DateTime     @default(now())
+
+  contribution Contribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+
+  @@unique([contributionId, stage])
+  @@index([contributionId])
 }
 
 enum ApprovalType {

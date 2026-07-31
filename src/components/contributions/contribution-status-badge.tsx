@@ -9,6 +9,8 @@ const statusConfig: Record<
   PENDING: { label: "Pending", color: "bg-amber-50 text-amber-700 border-amber-200" },
   PENDING_REVIEW: { label: "Pending Review", color: "bg-blue-50 text-blue-700 border-blue-200" },
   PROOF_SUBMITTED: { label: "Proof Submitted", color: "bg-purple-50 text-purple-700 border-purple-200" },
+  UPCOMING: { label: "Upcoming", color: "bg-slate-50 text-slate-600 border-slate-200" },
+  DUE: { label: "Due", color: "bg-orange-50 text-orange-700 border-orange-200" },
   CONFIRMED: { label: "Confirmed", color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
   REJECTED: { label: "Rejected", color: "bg-red-50 text-red-700 border-red-200" },
   OVERDUE: { label: "Overdue", color: "bg-red-50 text-red-700 border-red-200" },

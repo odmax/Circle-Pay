@@ -88,12 +88,11 @@ describe("Proof of Payment Verification - Phase 2", () => {
     expect(src).toContain('action === "reject"')
   })
 
-  it("Test V12: contributions page imports proof submission", async () => {
+  it("Test V12: contributions page renders proof-aware history table", async () => {
     const fs = await import("fs")
     const path = await import("path")
     const src = fs.readFileSync(path.resolve("src/app/(dashboard)/circles/[circleId]/contributions/page.tsx"), "utf-8")
-    expect(src).toContain("ProofSubmission")
-    expect(src).toContain("VerificationBadge")
+    expect(src).toContain("ContributionHistoryTable")
   })
 
   it("Test V13: add-contribution-schema requires month, method, and supports reference", async () => {

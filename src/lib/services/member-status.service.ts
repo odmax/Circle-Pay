@@ -31,6 +31,53 @@ export async function getMemberCircleStatus(circleId: string, userId: string) {
   const plan = circle.contributionPlans[0]
   const expectedMonthly = plan ? Number(plan.amount) : 0
 
+  // Scheduled contributions for this member
+  const myScheduled = contributions.filter((c) => c.scheduleId)
+  const nextContribution = myScheduled
+    .filter((c) => c.status === "UPCOMING" || c.status === "DUE")
+    .sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime())[0] ?? null
+
+  let nextDue = null
+  if (nextContribution && nextContribution.dueDate) {
+    const due = new Date(nextContribution.dueDate)
+    const daysRemaining = Math.ceil((due.getTime() - Date.now()) / 86400000)
+    nextDue = {
+      id: nextContribution.id,
+      amount: Number(nextContribution.amount),
+      periodLabel: nextContribution.periodLabel,
+      dueDate: due.toISOString(),
+      daysRemaining,
+      status: nextContribution.status,
+      verificationStatus: nextContribution.verificationStatus,
+    }
+  }
+
+  const outstandingBalance = myScheduled
+    .filter((c) => c.status === "DUE" || c.status === "OVERDUE")
+    .reduce((sum, c) => sum + Number(c.amount) + (c.lateFeeAmount ? Number(c.lateFeeAmount) : 0), 0)
+
+  const overdueScheduled = myScheduled
+    .filter((c) => c.status === "OVERDUE")
+    .map((c) => ({
+      id: c.id,
+      amount: Number(c.amount),
+      periodLabel: c.periodLabel,
+      dueDate: c.dueDate,
+      daysOverdue: c.dueDate ? Math.max(0, Math.ceil((Date.now() - new Date(c.dueDate).getTime()) / 86400000)) : 0,
+      lateFee: c.lateFeeAmount ? Number(c.lateFeeAmount) : null,
+    }))
+
+  // Payment history with verification status
+  const paymentHistory = contributions.slice(0, 10).map((c) => ({
+    id: c.id,
+    amount: Number(c.amount),
+    status: c.status,
+    verificationStatus: c.verificationStatus,
+    date: c.paymentDate,
+    periodLabel: c.periodLabel,
+    scheduleId: !!c.scheduleId,
+  }))
+
   // Investment ownership
   let ownership = 0
   if (circle.type === "INVESTMENT") {
@@ -54,6 +101,7 @@ export async function getMemberCircleStatus(circleId: string, userId: string) {
   if (overdueCount > 0) warnings.push(`${overdueCount} overdue payment${overdueCount > 1 ? "s" : ""}`)
   if (pendingPayments.length > 0 && pendingPayments.every((p) => p.dueDate && new Date(p.dueDate) < new Date(Date.now() + 3 * 86400000))) warnings.push("Dues due soon")
   if (expectedMonthly > 0 && monthlyPaid === 0) warnings.push("No contribution this month")
+  if (nextDue && nextDue.daysRemaining >= 0 && nextDue.daysRemaining <= 3) warnings.push(`Contribution due in ${nextDue.daysRemaining} day${nextDue.daysRemaining === 1 ? "" : "s"}`)
 
   const nextActions: { label: string; href: string }[] = []
   if (pendingPayments.length > 0) nextActions.push({ label: "Submit Payment Proof", href: `/circles/${circleId}/payments` })
@@ -62,9 +110,10 @@ export async function getMemberCircleStatus(circleId: string, userId: string) {
 
   return {
     member: { role: member.role, joinedAt: member.joinedAt },
-    circle: { name: circle.name, type: circle.type, memberCount: circle._count.members },
+    circle: { name: circle.name, type: circle.type, memberCount: circle._count.members, currency: circle.currency },
     payments: { pending: pendingPayments.length, awaiting: awaitingProof.length, overdue: overdueCount, unpaid: pendingPayments.map((p) => ({ id: p.id, type: p.type, amount: Number(p.amount), dueDate: p.dueDate, status: p.status })) },
     contributions: { total: allPaid, thisMonth: monthlyPaid, expectedMonthly, count: contributions.length },
+    schedule: { nextDue, outstandingBalance, overdue: overdueScheduled, history: paymentHistory },
     expenses: { myShare: expenseTotal, items: myExpenses.slice(0, 5) },
     balances: { owedByMe, owedToMe, net: owedToMe - owedByMe },
     goals: { myAllocations: goalAllocations },
