@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma"
-import type { AIInsightType, AIInsightSeverity } from "@/generated/prisma"
+import type { AIInsightStatus, AIInsightType, AIInsightSeverity } from "@/generated/prisma"
+import { runFinancialAnalysis } from "@/lib/services/finance-insight.service"
+import { createAuditLog } from "@/lib/services/audit.service"
+import { notifyCircleMembers } from "@/lib/services/notification.service"
 
 export async function getCircleInsights(circleId: string, userId: string) {
   const member = await prisma.circleMember.findUnique({
@@ -15,8 +18,44 @@ export async function getCircleInsights(circleId: string, userId: string) {
   return insights
 }
 
+export async function getCircleInsightsWithStatus(circleId: string, userId: string, status?: AIInsightStatus) {
+  const member = await prisma.circleMember.findUnique({
+    where: { circleId_userId: { circleId, userId } },
+  })
+  if (!member) throw new Error("Not a member")
+
+  const where: { circleId: string; status?: AIInsightStatus } = { circleId }
+  if (status) where.status = status
+
+  const insights = await prisma.aIInsight.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  })
+  return insights
+}
+
 export async function markInsightRead(userId: string, insightId: string) {
-  return prisma.aIInsight.update({ where: { id: insightId }, data: { isRead: true } })
+  return prisma.aIInsight.update({ where: { id: insightId }, data: { isRead: true, status: "READ" } })
+}
+
+export async function markInsightArchived(userId: string, insightId: string) {
+  return prisma.aIInsight.update({ where: { id: insightId }, data: { status: "ARCHIVED" } })
+}
+
+export async function markInsightResolved(userId: string, insightId: string) {
+  return prisma.aIInsight.update({
+    where: { id: insightId },
+    data: { status: "RESOLVED", resolvedAt: new Date() },
+  })
+}
+
+export async function regenerateInsights(circleId: string, actorId: string) {
+  const existing = await prisma.aIInsight.findMany({ where: { circleId } })
+  for (const ins of existing) {
+    await prisma.aIInsight.delete({ where: { id: ins.id } })
+  }
+  return runFinancialAnalysis(circleId, actorId)
 }
 
 export async function generateBasicInsights(circleId: string) {

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import type { NotificationType } from "@/generated/prisma"
 
-const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, polls: true, support: true, broadcasts: true, system: true }
+const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, polls: true, support: true, broadcasts: true, system: true, ai: true }
 
 const TYPE_TO_PREF: Record<string, string> = {
   CONTRIBUTION_MADE: "contributions", CONTRIBUTION_PLAN_CREATED: "contributions", CONTRIBUTION_REMINDER: "contributions",
@@ -21,6 +21,8 @@ const TYPE_TO_PREF: Record<string, string> = {
   APPROVAL_WORKFLOW_COMPLETED: "system",
   PROJECT_CREATED: "system",
   FEED_POST_CREATED: "system",
+  AI_INSIGHT: "ai",
+  FINANCIAL_RISK: "ai",
 }
 
 async function isBlocked(userId: string, type: string): Promise<boolean> {

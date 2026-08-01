@@ -21,6 +21,10 @@ import { getAutomationLogs, getCircleWidgets } from "@/lib/services/circle-templ
 import { TypeSpecificHero } from "@/components/circles/type-specific-hero"
 import { CircleWidgetRenderer } from "@/components/circles/widgets/circle-widget-renderer"
 import { PendingApprovalsWidget } from "@/components/approvals/pending-approvals-widget"
+import { AiInsightsWidget } from "@/components/ai/ai-insights-widget"
+import { hasFeature } from "@/lib/services/feature-gate.service"
+import { getOrComputeHealth, generatePredictions } from "@/lib/services/finance-health.service"
+import { getCircleInsightsWithStatus } from "@/lib/services/ai-insight.service"
 import { CircleOnboardingChecklist } from "@/components/circles/circle-onboarding-checklist"
 import { CreateEventForm } from "@/components/events/create-event-form"
 import { WidgetGridSkeleton, CardSkeleton, ListSkeleton } from "@/components/shared/skeletons"
@@ -43,18 +47,25 @@ export default async function CircleOverviewPage({
 
   const { circleId } = await params
 
-  let circle: any, dashboard: any, widgets: any, automationLogs: any, pageError: string | null = null
-  try {
-    ;[dashboard, widgets, automationLogs, circle] = await Promise.all([
-      getCircleDashboard(circleId, session.user.id),
-      getCircleWidgets(circleId),
-      getAutomationLogs(circleId),
-      getCircleById(circleId, session.user.id),
-    ])
-  } catch (e) {
-    pageError = (e as Error).message
-    console.error("CircleOverview error:", e)
-  }
+   let circle: any, dashboard: any, widgets: any, automationLogs: any, pageError: string | null = null
+   let aiHealth: any = null, aiInsights: any[] = []
+   try {
+     ;[dashboard, widgets, automationLogs, circle] = await Promise.all([
+       getCircleDashboard(circleId, session.user.id),
+       getCircleWidgets(circleId),
+       getAutomationLogs(circleId),
+       getCircleById(circleId, session.user.id),
+     ])
+     if (await hasFeature(session.user.id, "AI_ASSISTANT")) {
+       ;[aiHealth, aiInsights] = await Promise.all([
+         getOrComputeHealth(circleId),
+         getCircleInsightsWithStatus(circleId, session.user.id),
+       ])
+     }
+   } catch (e) {
+     pageError = (e as Error).message
+     console.error("CircleOverview error:", e)
+   }
 
   const currency = circle ? CURRENCIES.find((c) => c.code === circle.currency) : null
   const symbol = currency?.symbol ?? circle?.currency ?? "R"
@@ -526,6 +537,28 @@ export default async function CircleOverviewPage({
               </CardContent>
             </Card>
           ) : null}
+
+          {/* AI Insights Widget */}
+          {aiHealth && (
+            <AiInsightsWidget
+              circleId={circleId}
+              circleName={circle.name}
+              currency={circle.currency}
+              initialHealth={{ score: aiHealth.score, rating: aiHealth.rating, factors: aiHealth.factors }}
+              initialInsights={aiInsights.map((i: any) => ({
+                id: i.id,
+                type: i.type,
+                title: i.title,
+                content: i.content,
+                severity: i.severity,
+                category: i.category,
+                status: i.status,
+                reason: i.reason,
+                recommendedAction: i.recommendedAction,
+                createdAt: i.createdAt,
+              }))}
+            />
+          )}
 
           {/* Recent Activity / Feed Posts */}
           <Card className="rounded-2xl border-border/40">

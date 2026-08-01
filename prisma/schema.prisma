@@ -268,6 +268,7 @@ model Circle {
   polls                  CirclePoll[]
   verification           CircleVerification?
   reputation             CircleReputation?
+  healthScore            CircleHealthScore?
   inviteEvents           CircleInviteEvent[]
   investmentAssets       InvestmentAsset[]
   investmentReturns      InvestmentReturn[]
@@ -699,6 +700,8 @@ enum NotificationType {
   APPROVAL_WORKFLOW_COMPLETED
   PROJECT_CREATED
   FEED_POST_CREATED
+  AI_INSIGHT
+  FINANCIAL_RISK
 }
 
 model Notification {
@@ -1020,6 +1023,18 @@ enum AIInsightType {
   MEMBER_RISK
   SAVINGS_OPPORTUNITY
   GENERAL
+  MISSED_PAYMENT_RISK
+  CONTRIBUTION_TREND
+  SPENDING_ANOMALY
+  BUDGET_OVERRUN
+  REVENUE_DECLINE
+  OUTSTANDING_APPROVAL
+  HIGH_RISK_PROJECT
+  LOW_CASH_FLOW
+  DUPLICATE_PROOF
+  INACTIVE_MEMBER
+  PREDICTION
+  OPPORTUNITY
 }
 
 enum AIInsightSeverity {
@@ -1029,21 +1044,55 @@ enum AIInsightSeverity {
   CRITICAL
 }
 
+enum AIInsightStatus {
+  ACTIVE
+  READ
+  ARCHIVED
+  RESOLVED
+}
+
+enum AIInsightCategory {
+  RISK
+  OPPORTUNITY
+  PREDICTION
+  GENERAL
+}
+
 model AIInsight {
-  id        String            @id @default(cuid())
-  circleId  String
-  type      AIInsightType
-  title     String
-  content   String
-  severity  AIInsightSeverity @default(INFO)
-  metadata  Json?
-  isRead    Boolean           @default(false)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id                String            @id @default(cuid())
+  circleId          String
+  type              AIInsightType
+  title             String
+  content           String
+  severity          AIInsightSeverity @default(INFO)
+  category          AIInsightCategory @default(GENERAL)
+  status            AIInsightStatus   @default(ACTIVE)
+  reason            String?
+  recommendedAction String?
+  metadata          Json?
+  isRead            Boolean           @default(false)
+  resolvedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   circle Circle @relation("AIInsightCircle", fields: [circleId], references: [id], onDelete: Cascade)
 
   @@index([circleId])
+  @@index([circleId, status])
+  @@index([circleId, severity])
+}
+
+model CircleHealthScore {
+  id          String    @id @default(cuid())
+  circleId    String    @unique
+  score       Int
+  rating      String
+  factors     Json
+  predictions Json?
+  computedAt  DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
 }
 
 // ─── Template Automation ─────────────────────────────────
