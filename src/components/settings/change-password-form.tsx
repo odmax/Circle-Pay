@@ -4,8 +4,8 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from "sonner"
 
@@ -61,15 +61,15 @@ export function ChangePasswordForm({ hasPassword }: { hasPassword: boolean }) {
         <form onSubmit={handleSave} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="cp-current">Current Password</Label>
-            <Input id="cp-current" name="currentPassword" type="password" className="rounded-xl" required />
+            <PasswordInput id="cp-current" name="currentPassword" className="rounded-xl" required />
           </div>
           <div className="space-y-2">
             <Label htmlFor="cp-new">New Password</Label>
-            <Input id="cp-new" name="newPassword" type="password" placeholder="Min. 8 chars, upper + lower + number" className="rounded-xl" required />
+            <PasswordInput id="cp-new" name="newPassword" placeholder="Min. 8 chars, upper + lower + number" className="rounded-xl" required />
           </div>
           <div className="space-y-2">
             <Label htmlFor="cp-confirm">Confirm Password</Label>
-            <Input id="cp-confirm" name="confirmPassword" type="password" className="rounded-xl" required />
+            <PasswordInput id="cp-confirm" name="confirmPassword" className="rounded-xl" required />
           </div>
           <Button type="submit" disabled={saving} className="rounded-xl bg-brand hover:bg-brand-600">
             {saving ? <Loader2 className="size-4 animate-spin" /> : "Change Password"}

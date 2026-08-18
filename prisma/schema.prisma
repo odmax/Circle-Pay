@@ -80,6 +80,7 @@ model User {
   eventRSVPs               CircleEventRSVP[]            @relation("RSVPUser")
   pollsCreated             CirclePoll[]                 @relation("PollCreator")
   pollVotes                CirclePollVote[]             @relation("PollVoter")
+  passwordResetTokens      PasswordResetToken[]
   verificationsReviewed    CircleVerification[]         @relation("VerificationReviewer")
   completedWorkflowSteps   CircleWorkflowStep[]         @relation("WorkflowStepCompleter")
   paymentIntents           CirclePaymentIntent[]        @relation("PaymentIntentUser")
@@ -178,6 +179,20 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
 }
 
 // ─── Core Models ───────────────────────────────────────────

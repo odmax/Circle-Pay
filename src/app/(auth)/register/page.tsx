@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { PasswordInput } from "@/components/ui/password-input"
 import { registerSchema, type RegisterInput } from "@/lib/validations/auth"
 import { registerUser } from "@/lib/actions/auth"
 import { toast } from "sonner"
@@ -133,9 +134,8 @@ export default function RegisterPage() {
 
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               placeholder="Min. 8 chars, upper + lower + number"
               className="rounded-xl"
               {...register("password")}
@@ -149,9 +149,8 @@ export default function RegisterPage() {
 
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirm Password</Label>
-            <Input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               placeholder="Repeat your password"
               className="rounded-xl"
               {...register("confirmPassword")}
