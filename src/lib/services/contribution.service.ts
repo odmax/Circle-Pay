@@ -954,6 +954,125 @@ async function replaceReceiptForContribution(
   })
 }
 
+// ─── Member Self-Service ────────────────────────────────
+
+export async function getMemberOwnContributions(
+  circleId: string,
+  userId: string,
+  filters?: { planId?: string; status?: string }
+) {
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_OWN })
+
+  const where: Record<string, string> = { userId }
+  if (filters?.planId) where.planId = filters.planId
+  if (filters?.status) where.status = filters.status
+
+  const contributions = await prisma.contribution.findMany({
+    where: { ...where, circleId, deletedAt: null },
+    include: {
+      user: { select: { id: true, name: true, email: true, image: true } },
+      plan: { select: { id: true, name: true, amount: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+    orderBy: { paymentDate: "desc" },
+  })
+
+  return contributions.map((c) => ({
+    ...c,
+    amount: Number(c.amount),
+    plan: c.plan ? { ...c.plan, amount: Number(c.plan.amount) } : null,
+  }))
+}
+
+export async function getMemberOwnContributionStats(
+  circleId: string,
+  userId: string
+) {
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_OWN })
+
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const [totalPaid, totalPending, totalDue, totalOverdue, monthPaid, plans] = await Promise.all([
+    prisma.contribution.aggregate({
+      where: { circleId, userId, status: "PAID" },
+      _sum: { amount: true },
+    }),
+    prisma.contribution.aggregate({
+      where: { circleId, userId, status: "PENDING" },
+      _sum: { amount: true },
+    }),
+    prisma.contribution.aggregate({
+      where: { circleId, userId, status: "DUE" },
+      _sum: { amount: true },
+    }),
+    prisma.contribution.aggregate({
+      where: { circleId, userId, status: "OVERDUE" },
+      _sum: { amount: true },
+    }),
+    prisma.contribution.aggregate({
+      where: { circleId, userId, status: "PAID", paymentDate: { gte: monthStart } },
+      _sum: { amount: true },
+    }),
+    prisma.contributionPlan.findMany({
+      where: { circleId, isActive: true },
+      select: { amount: true },
+    }),
+  ])
+
+  const paid = Number(totalPaid._sum.amount ?? 0)
+  const pending = Number(totalPending._sum.amount ?? 0)
+  const due = Number(totalDue._sum.amount ?? 0)
+  const overdue = Number(totalOverdue._sum.amount ?? 0)
+  const monthPaidSum = Number(monthPaid._sum.amount ?? 0)
+
+  const totalExpected = plans.reduce((sum, p) => sum + Number(p.amount), 0)
+
+  return {
+    totalPaid: paid,
+    totalPending: pending,
+    totalExpected,
+    outstanding: totalExpected - paid,
+    due,
+    overdue,
+    monthPaid: monthPaidSum,
+  }
+}
+
+export async function getMemberContributionsForAdmin(
+  circleId: string,
+  viewerUserId: string,
+  targetUserId: string,
+  filters?: { planId?: string; status?: string }
+) {
+  await requireCirclePermission({ userId: viewerUserId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL })
+
+  const member = await prisma.circleMember.findUnique({
+    where: { circleId_userId: { circleId, userId: targetUserId } },
+  })
+  if (!member) throw new Error("User is not a member of this circle")
+
+  const where: Record<string, string> = { userId: targetUserId }
+  if (filters?.planId) where.planId = filters.planId
+  if (filters?.status) where.status = filters.status
+
+  const contributions = await prisma.contribution.findMany({
+    where: { ...where, circleId, deletedAt: null },
+    include: {
+      user: { select: { id: true, name: true, email: true, image: true } },
+      plan: { select: { id: true, name: true, amount: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+    orderBy: { paymentDate: "desc" },
+  })
+
+  return contributions.map((c) => ({
+    ...c,
+    amount: Number(c.amount),
+    plan: c.plan ? { ...c.plan, amount: Number(c.plan.amount) } : null,
+  }))
+}
+
 // ─── Summary ─────────────────────────────────────────────
 
 export async function getContributionSummary(circleId: string, userId: string) {

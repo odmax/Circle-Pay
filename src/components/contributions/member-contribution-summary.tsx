@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { RoleBadge } from "@/components/circles/role-badge"
 import type { MemberRole } from "@/generated/prisma"
@@ -13,9 +14,11 @@ interface MemberStat {
 export function MemberContributionSummary({
   members,
   currencySymbol,
+  circleId,
 }: {
   members: MemberStat[]
   currencySymbol: string
+  circleId: string
 }) {
   if (members.length === 0) return null
 
@@ -34,9 +37,10 @@ export function MemberContributionSummary({
         const total = m.totalPaid + m.totalPending
 
         return (
-          <div
+          <Link
             key={m.userId}
-            className="flex items-center gap-3 rounded-xl border border-border/40 bg-card p-3"
+            href={`/circles/${circleId}/contributions/member/${m.userId}`}
+            className="flex items-center gap-3 rounded-xl border border-border/40 bg-card p-3 transition-colors hover:bg-muted/40"
           >
             <Avatar className="size-9">
               <AvatarImage src="" />
@@ -72,7 +76,7 @@ export function MemberContributionSummary({
               </div>
               <div className="text-[10px] text-muted-foreground">total</div>
             </div>
-          </div>
+          </Link>
         )
       })}
     </div>
