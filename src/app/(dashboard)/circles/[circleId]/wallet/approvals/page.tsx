@@ -10,6 +10,8 @@ import { getCircleById } from "@/lib/services/circle.service"
 import { listWalletApprovalRequests } from "@/lib/services/wallet.service"
 import { CURRENCIES } from "@/lib/constants"
 import { WalletApprovalActions } from "@/components/wallet/wallet-approval-actions"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function WalletApprovalsPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
@@ -20,7 +22,7 @@ export default async function WalletApprovalsPage({ params }: { params: Promise<
 
   const ccy = CURRENCIES.find((c) => c.code === circle.currency)
   const symbol = ccy?.symbol ?? circle.currency
-  const canManage = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canApprove = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_APPROVE })
 
   return (
     <div className="space-y-6">
@@ -46,7 +48,7 @@ export default async function WalletApprovalsPage({ params }: { params: Promise<
                   <p className="text-xs text-muted-foreground">{r.walletTx.description}</p>
                   <p className="text-xs">{r.approvals.length} of {r.requiredCount} approvals {approverNames ? `(${approverNames})` : ""}</p>
                 </div>
-                {r.status === "PENDING" && canManage && (
+                {r.status === "PENDING" && canApprove && (
                   <WalletApprovalActions circleId={circleId} requestId={r.id} />
                 )}
               </div>

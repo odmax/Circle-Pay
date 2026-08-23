@@ -78,7 +78,8 @@ export async function createSettlement(
   // Members can only create settlements they are part of
   const memberPerms = await getCircleMemberPermissions({ userId, circleId })
   if (!memberPerms) throw new Error("Not a member of this circle")
-  if (memberPerms.role === "MEMBER" && userId !== data.debtorId && userId !== data.creditorId) {
+  const hasManagePerm = memberPerms.permissions.includes(CIRCLE_PERMISSIONS.SETTLEMENT_CONFIRM)
+  if (!hasManagePerm && userId !== data.debtorId && userId !== data.creditorId) {
     throw new Error("You must be the debtor or creditor to create a settlement")
   }
 

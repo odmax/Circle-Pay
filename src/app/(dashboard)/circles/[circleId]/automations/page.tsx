@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { auth } from "@/lib/auth"
 import { getCircleById } from "@/lib/services/circle.service"
 import { ensureDefaultAutomations, getCircleAutomations } from "@/lib/services/automation.service"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function AutomationsPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
@@ -15,7 +17,7 @@ export default async function AutomationsPage({ params }: { params: Promise<{ ci
   try { circle = await getCircleById(circleId, session.user.id) } catch { notFound() }
   await ensureDefaultAutomations(circleId)
   const automations = await getCircleAutomations(circleId)
-  const isAdmin = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canManageAutomations = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.AUTOMATION_MANAGE })
 
   return (
     <div className="space-y-6">
@@ -44,7 +46,7 @@ export default async function AutomationsPage({ params }: { params: Promise<{ ci
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {isAdmin && (
+                  {canManageAutomations && (
                     <>
                       <form action={async () => { "use server"; const { prisma } = await import("@/lib/prisma"); await prisma.circleAutomationRule.update({ where: { id: rule.id }, data: { isEnabled: !rule.isEnabled } }) }}>
                         <Button type="submit" variant="ghost" size="sm" className="h-8 text-xs rounded-xl">{rule.isEnabled ? <PowerOff className="size-3 text-red-500" /> : <Power className="size-3 text-emerald-500" />}</Button>

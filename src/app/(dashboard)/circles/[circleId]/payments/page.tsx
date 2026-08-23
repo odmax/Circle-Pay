@@ -9,6 +9,8 @@ import { auth } from "@/lib/auth"
 import { getCircleById } from "@/lib/services/circle.service"
 import { getCirclePaymentIntents, getUserPaymentIntents } from "@/lib/services/circle-payment.service"
 import { CURRENCIES } from "@/lib/constants"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function PaymentsPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
@@ -33,7 +35,7 @@ export default async function PaymentsPage({ params }: { params: Promise<{ circl
       <Card className="rounded-2xl border-amber-200 bg-amber-50/20"><CardContent className="flex items-start gap-3 p-4"><AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" /><div><p className="font-medium text-amber-800">Could not load payments</p><p className="text-xs text-amber-700 mt-1">{pageError || "Missing data"}</p></div></CardContent></Card>
     </div>)
   }
-  const isAdmin = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canViewAllPayments = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL })
   const symbol = CURRENCIES.find((c) => c.code === circle.currency)?.symbol || circle.currency
 
   const statusBadge = (s: string) => ({ PENDING: "border-slate-200 bg-slate-50 text-slate-600", PROOF_SUBMITTED: "border-amber-200 bg-amber-50 text-amber-700", CONFIRMED: "border-emerald-200 bg-emerald-50 text-emerald-700", REJECTED: "border-red-200 bg-red-50 text-red-700", OVERDUE: "border-red-200 bg-red-50 text-red-700", CANCELLED: "border-slate-200 bg-slate-50 text-slate-400" }[s] || "")
@@ -45,7 +47,7 @@ export default async function PaymentsPage({ params }: { params: Promise<{ circl
           <Button render={<Link href={`/circles/${circleId}`} />} variant="outline" size="icon" className="rounded-xl"><ArrowLeft className="size-4" /></Button>
           <div><h1 className="text-2xl font-bold tracking-tight">Payments</h1><p className="text-muted-foreground">{circle.name} — Tracked payments and dues</p></div>
         </div>
-        {isAdmin && (
+        {canViewAllPayments && (
           <form action={async (fd) => {
             "use server"
             try {
@@ -103,8 +105,7 @@ export default async function PaymentsPage({ params }: { params: Promise<{ circl
         )}
       </CardContent></Card>
 
-      {/* All Payments (admin only) */}
-      {isAdmin && (
+      {canViewAllPayments && (
         <Card className="rounded-2xl"><CardHeader><CardTitle className="text-base">All Member Payments ({allPayments.length})</CardTitle></CardHeader><CardContent className="p-0">
           {allPayments.length === 0 ? <p className="p-4 text-sm text-muted-foreground text-center">No payments</p> : (
             <table className="w-full text-sm"><thead><tr className="border-b text-left text-xs font-medium text-muted-foreground"><th className="p-3 pl-4">Member</th><th className="p-3">Type</th><th className="p-3">Amount</th><th className="p-3">Status</th><th className="p-3">Due</th><th className="p-3 pr-4">Action</th></tr></thead>

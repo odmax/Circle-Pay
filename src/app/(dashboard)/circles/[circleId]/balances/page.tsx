@@ -11,6 +11,8 @@ import { BalanceList } from "@/components/balances/balance-list"
 import { SettlementForm } from "@/components/balances/settlement-form"
 import { SettlementHistory } from "@/components/balances/settlement-history"
 import { CURRENCIES } from "@/lib/constants"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function BalancesPage({
   params,
@@ -41,7 +43,7 @@ export default async function BalancesPage({
     id: m.user.id,
     name: m.user.name || m.user.email,
   }))
-  const canManage = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canConfirmSettlement = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.SETTLEMENT_CONFIRM })
 
   return (
     <div className="space-y-6">
@@ -92,7 +94,7 @@ export default async function BalancesPage({
               circleId={circleId}
               currencySymbol={symbol}
               currentUserId={session.user.id}
-              canManage={canManage}
+              canManage={canConfirmSettlement}
             />
           </div>
         </div>
@@ -118,7 +120,7 @@ export default async function BalancesPage({
                   circleId={circleId}
                   currencySymbol={symbol}
                   currentUserId={session.user.id}
-                  canManage={canManage}
+                  canManage={canConfirmSettlement}
                 />
               </CardContent>
             </Card>

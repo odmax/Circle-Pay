@@ -9,13 +9,15 @@ import { getCircleById } from "@/lib/services/circle.service"
 import { getProjectsForCircle } from "@/lib/services/project.service"
 import { StatCard } from "@/components/ui/app/cards"
 import { CURRENCIES } from "@/lib/constants"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function ProjectsPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
   const { circleId } = await params
   let circle, projects
   try { [circle, projects] = await Promise.all([getCircleById(circleId, session.user.id), getProjectsForCircle(circleId)]) } catch { notFound() }
-  const isAdmin = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canCreateProject = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.PROJECT_CREATE })
   const symbol = CURRENCIES.find((c) => c.code === circle.currency)?.symbol || "R"
   const active = projects.filter((p: any) => p.status !== "COMPLETED" && p.status !== "ARCHIVED").length
   const completed = projects.filter((p: any) => p.status === "COMPLETED").length
@@ -26,7 +28,7 @@ export default async function ProjectsPage({ params }: { params: Promise<{ circl
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold tracking-tight">Projects</h1><p className="text-muted-foreground">{circle.name} — Manage every initiative inside this circle</p></div>
-        {isAdmin && (
+        {canCreateProject && (
           <Button render={<Link href={`/circles/${circleId}/projects/new`} />} className="rounded-xl bg-brand hover:bg-brand-600"><Plus className="size-4 mr-1" /> New Project</Button>
         )}
       </div>
@@ -43,7 +45,7 @@ export default async function ProjectsPage({ params }: { params: Promise<{ circl
           <FolderKanban className="size-12 text-muted-foreground/30 mb-4" />
           <h3 className="text-lg font-semibold">No projects yet</h3>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">Projects help your circle organise investments, fundraising, purchases and other initiatives.</p>
-          {isAdmin && <Button render={<Link href={`/circles/${circleId}/projects/new`} />} className="mt-4 rounded-xl bg-brand hover:bg-brand-600"><Plus className="size-4 mr-1" /> Create First Project</Button>}
+          {canCreateProject && <Button render={<Link href={`/circles/${circleId}/projects/new`} />} className="mt-4 rounded-xl bg-brand hover:bg-brand-600"><Plus className="size-4 mr-1" /> Create First Project</Button>}
         </CardContent></Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

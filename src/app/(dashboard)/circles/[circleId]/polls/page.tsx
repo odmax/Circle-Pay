@@ -11,6 +11,8 @@ import { hasFeature, getCurrentPlanSlug } from "@/lib/services/feature-gate.serv
 import { UpgradeCTA } from "@/components/owner/upgrade-cta"
 import { CreatePollForm } from "@/components/polls/create-poll-form"
 import { PollVoteButton } from "@/components/polls/poll-vote-button"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function PollsPage({ params }: { params: Promise<{ circleId: string }> }) {
   const session = await auth(); if (!session?.user?.id) redirect("/login")
@@ -23,7 +25,7 @@ export default async function PollsPage({ params }: { params: Promise<{ circleId
 
   const open = polls.filter((p) => p.status === "OPEN")
   const closed = polls.filter((p) => p.status !== "OPEN")
-  const canManage = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canManage = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.POLL_MANAGE })
 
   return (
     <div className="space-y-6">

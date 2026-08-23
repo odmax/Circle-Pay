@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { auth } from "@/lib/auth"
 import { getCircleMembers, getCircleById } from "@/lib/services/circle.service"
 import { MembersList, InviteSection } from "@/components/circles/members-list"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function CircleMembersPage({
   params,
@@ -26,7 +28,9 @@ export default async function CircleMembersPage({
     notFound()
   }
 
-  const canInvite = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canInvite = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.MEMBER_INVITE })
+  const canManageRoles = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.MEMBER_ROLE_UPDATE })
+  const canRemoveMembers = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.MEMBER_REMOVE })
 
   return (
     <div className="space-y-6">
@@ -53,7 +57,8 @@ export default async function CircleMembersPage({
           <MembersList
             members={members}
             circleId={circleId}
-            userRole={circle.userRole}
+            canManageRoles={canManageRoles}
+            canRemoveMembers={canRemoveMembers}
           />
         </div>
         <div>

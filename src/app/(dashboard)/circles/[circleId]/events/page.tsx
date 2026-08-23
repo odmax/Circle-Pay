@@ -8,10 +8,11 @@ import { auth } from "@/lib/auth"
 import { getCircleById } from "@/lib/services/circle.service"
 import { getCircleEvents } from "@/lib/services/event.service"
 import { hasFeature, getCurrentPlanSlug } from "@/lib/services/feature-gate.service"
-import { isPrimaryOwnerUser } from "@/lib/owner-email"
 import { UpgradeCTA } from "@/components/owner/upgrade-cta"
 import { EventRSVPActions } from "@/components/events/event-rsvp-actions"
 import { CreateEventForm } from "@/components/events/create-event-form"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 const typeLabels: Record<string, string> = { MEETING: "Meeting", CONTRIBUTION_DAY: "Contribution Day", PAYOUT_DAY: "Payout Day", FUNDRAISER: "Fundraiser", TRIP: "Trip", CEREMONY: "Ceremony", GENERAL: "Event" }
 
@@ -31,12 +32,11 @@ export default async function EventsPage({ params }: { params: Promise<{ circleI
     </div>)
   }
 
-  const isOwner = await isPrimaryOwnerUser(session.user.id)
-  if (!isOwner && !await hasFeature(session.user.id, "EVENTS")) return <UpgradeCTA planName={await getCurrentPlanSlug(session.user.id)} />
+  if (!await hasFeature(session.user.id, "EVENTS")) return <UpgradeCTA planName={await getCurrentPlanSlug(session.user.id)} />
 
   const upcoming = events.filter((e) => e.status === "UPCOMING")
   const past = events.filter((e) => e.status !== "UPCOMING")
-  const canManage = isOwner || circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canManage = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.EVENT_MANAGE })
 
   return (
     <div className="space-y-6">

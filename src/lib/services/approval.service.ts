@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma"
-import type { ApprovalType, ApprovalStatus, ApprovalDecision } from "@/generated/prisma"
+import type { ApprovalType, ApprovalStatus, ApprovalDecision, MemberRole } from "@/generated/prisma"
 import { requireCirclePermission, hasCirclePermission, getCircleMemberPermissions } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
+import { getRoleDefaultPermissions } from "@/lib/permissions/circle-role-permissions"
 import { createAuditLog } from "@/lib/services/audit.service"
 import { createNotification, notifyCircleMembers } from "@/lib/services/notification.service"
 import { initialiseApprovalWorkflow } from "@/lib/services/approval-workflow-engine.service"
@@ -114,15 +115,12 @@ export async function getCircleReviewers(circleId: string): Promise<string[]> {
   const reviewerIds: string[] = []
 
   for (const member of members) {
-    if (member.role === "OWNER" || member.role === "ADMIN" || member.role === "TREASURER") {
-      reviewerIds.push(member.userId)
-      continue
-    }
-
-    const hasReviewPerm = member.permissions.some(
+    const defaultPerms = getRoleDefaultPermissions(member.role as MemberRole)
+    const hasDefaultReviewPerm = defaultPerms.includes(CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW)
+    const hasExplicitReviewPerm = member.permissions.some(
       (p) => p.permission === CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW && p.granted
     )
-    if (hasReviewPerm) {
+    if (hasDefaultReviewPerm || hasExplicitReviewPerm) {
       reviewerIds.push(member.userId)
     }
   }
@@ -403,8 +401,8 @@ export async function cancelRequest(data: {
   const isRequester = request.requestedById === data.userId
   if (!isRequester) {
     const memberPerms = await getCircleMemberPermissions({ userId: data.userId, circleId: request.circleId })
-    const isOwner = memberPerms?.role === "OWNER"
-    if (!isOwner) throw new Error("Only the requester or circle owner can cancel")
+    const canCancel = memberPerms?.permissions.includes(CIRCLE_PERMISSIONS.APPROVAL_REVIEW_ANY) ?? false
+    if (!canCancel) throw new Error("Only the requester or a circle administrator can cancel")
   }
 
   const oldStatus = request.status

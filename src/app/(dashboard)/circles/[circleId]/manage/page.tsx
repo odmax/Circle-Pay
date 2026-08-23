@@ -7,6 +7,8 @@ import { auth } from "@/lib/auth"
 import { getCircleById } from "@/lib/services/circle.service"
 import { getApprovalConfig } from "@/lib/services/approval.service"
 import { ManageCircleForm } from "@/components/circles/manage-circle-form"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function ManageCirclePage({
   params,
@@ -21,7 +23,7 @@ export default async function ManageCirclePage({
   let circle
   try { circle = await getCircleById(circleId, session.user.id) } catch { notFound() }
 
-  const canManage = circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canManage = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.SETTINGS_MANAGE })
   if (!canManage) redirect(`/circles/${circleId}`)
 
   let approvalConfig

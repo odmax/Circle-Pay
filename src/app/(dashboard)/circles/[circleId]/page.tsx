@@ -30,6 +30,8 @@ import { CreateEventForm } from "@/components/events/create-event-form"
 import { WidgetGridSkeleton, CardSkeleton, ListSkeleton } from "@/components/shared/skeletons"
 import { CURRENCIES } from "@/lib/constants"
 import { getCircleTypeConfig } from "@/lib/circle-types"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import type { MemberRole } from "@/generated/prisma"
 
 const tabIconMap: Record<string, React.ElementType> = {
@@ -69,8 +71,11 @@ export default async function CircleOverviewPage({
 
   const currency = circle ? CURRENCIES.find((c) => c.code === circle.currency) : null
   const symbol = currency?.symbol ?? circle?.currency ?? "R"
-  const canManage = circle
-    ? circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canManageSettings = circle
+    ? await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.SETTINGS_MANAGE })
+    : false
+  const canCreateEvent = circle
+    ? await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.EVENT_MANAGE })
     : false
   const ds = dashboard?.circleStats
 
@@ -99,9 +104,9 @@ export default async function CircleOverviewPage({
             )}
           </div>
         </div>
-        {canManage && circle && (
+        {canManageSettings && circle && (
           <>
-            <CreateEventForm circleId={circle.id} />
+            {canCreateEvent && <CreateEventForm circleId={circle.id} />}
             <Button
               render={<Link href={`/circles/${circle.id}/manage`} />}
               variant="outline"
@@ -524,7 +529,7 @@ export default async function CircleOverviewPage({
                 </div>
               </CardContent>
             </Card>
-          ) : circle && canManage ? (
+          ) : circle && canCreateEvent ? (
             <Card className="rounded-2xl border-border/40">
               <CardHeader>
                 <CardTitle className="text-base">Events</CardTitle>

@@ -33,17 +33,18 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { RoleBadge } from "./role-badge"
 import { addMemberSchema, type AddMemberInput } from "@/lib/validations/circles"
 import type { CircleMemberWithUser } from "@/types"
-import type { MemberRole } from "@/generated/prisma"
 import { toast } from "sonner"
 
 export function MembersList({
   members,
   circleId,
-  userRole,
+  canManageRoles,
+  canRemoveMembers,
 }: {
   members: CircleMemberWithUser[]
   circleId: string
-  userRole: MemberRole | null
+  canManageRoles: boolean
+  canRemoveMembers: boolean
 }) {
   const router = useRouter()
   const [removingId, setRemovingId] = useState<string | null>(null)
@@ -99,8 +100,8 @@ export function MembersList({
     }
   }
 
-  const canManage = userRole === "OWNER" || userRole === "ADMIN"
-  const isOwner = userRole === "OWNER"
+  const canManage = canManageRoles
+  const isOwner = canRemoveMembers
 
   return (
     <div className="space-y-2">

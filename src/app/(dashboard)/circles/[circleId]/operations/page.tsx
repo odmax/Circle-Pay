@@ -11,7 +11,8 @@ import { getCircleTypeEngine } from "@/lib/services/circle-type-engine.service"
 import { ensureCircleWorkflow } from "@/lib/services/workflow.service"
 import { StatCard } from "@/components/ui/app/cards"
 import { prisma } from "@/lib/prisma"
-import { isPrimaryOwnerUser } from "@/lib/owner-email"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 const TYPE_META: Record<string, { icon: React.ComponentType<{ className?: string }>; title: string; desc: string }> = {
   STOKVEL: { icon: PiggyBank, title: "Stokvel Operations", desc: "Monthly collections, payout rotation, and member compliance tracking." },
@@ -49,8 +50,7 @@ export default async function OperationsPage({ params }: { params: Promise<{ cir
   const meta = TYPE_META[circle.type] || TYPE_META.CUSTOM
   const Icon = meta.icon
   const steps = await prisma.circleWorkflowStep.findMany({ where: { workflowId: wfData.id }, orderBy: { sortOrder: "asc" } })
-  const isOwner = await isPrimaryOwnerUser(session.user.id)
-  const isAdmin = isOwner || circle.userRole === "OWNER" || circle.userRole === "ADMIN"
+  const canManageWorkflow = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.SETTINGS_MANAGE })
   const completed = steps.filter((s) => s.status === "COMPLETED" || s.status === "SKIPPED").length
   const progress = steps.length > 0 ? Math.round((completed / steps.length) * 100) : 0
 
@@ -78,7 +78,7 @@ export default async function OperationsPage({ params }: { params: Promise<{ cir
                     <p className={`text-sm font-medium ${step.status === "TODO" ? "text-muted-foreground" : ""}`}>{step.title}</p>
                     <p className="text-xs text-muted-foreground">{step.description}</p>
                   </div>
-                  {isAdmin && step.status === "IN_PROGRESS" && (
+                  {canManageWorkflow && step.status === "IN_PROGRESS" && (
                     <div className="flex gap-1 shrink-0">
                       <form action={async () => { "use server"; await prisma.circleWorkflowStep.update({ where: { id: step.id }, data: { status: "SKIPPED" } }); const next = await prisma.circleWorkflowStep.findFirst({ where: { workflowId: wfData.id, sortOrder: step.sortOrder + 1 }, orderBy: { sortOrder: "asc" } }); if (next) { await prisma.circleWorkflowStep.update({ where: { id: next.id }, data: { status: "IN_PROGRESS" } }); await prisma.circleWorkflow.update({ where: { id: wfData.id }, data: { currentStep: next.key } }) } }}>
                         <Button type="submit" size="sm" variant="ghost" className="h-7 text-xs rounded-lg"><SkipForward className="size-3 mr-1" /> Skip</Button>
@@ -92,7 +92,7 @@ export default async function OperationsPage({ params }: { params: Promise<{ cir
               )
             })}
           </div>
-          {isAdmin && wfData.status === "COMPLETED" && (
+          {canManageWorkflow && wfData.status === "COMPLETED" && (
             <form action={async () => { for (const s of steps) { await prisma.circleWorkflowStep.update({ where: { id: s.id }, data: { status: s.sortOrder === 0 ? "IN_PROGRESS" : "TODO", completedAt: null, completedById: null } }) }; await prisma.circleWorkflow.update({ where: { id: wfData.id }, data: { status: "ACTIVE", currentStep: "step_1" } }) }}>
               <Button type="submit" size="sm" variant="outline" className="rounded-xl mt-2"><RefreshCw className="size-3 mr-1" /> Start Next Cycle</Button>
             </form>

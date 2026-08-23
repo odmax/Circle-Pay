@@ -51,14 +51,14 @@ interface ReceiptDetailProps {
   receipt: ReceiptData
   currencySymbol: string
   circleId: string
-  userRole: string
+  canAdjust: boolean
 }
 
 export function ReceiptDetail({
   receipt,
   currencySymbol,
   circleId,
-  userRole,
+  canAdjust: canAdjustProp,
 }: ReceiptDetailProps) {
   const router = useRouter()
   const [voiding, setVoiding] = useState(false)
@@ -139,8 +139,7 @@ export function ReceiptDetail({
   }
 
   const canAdjust =
-    receipt.status === "ACTIVE" &&
-    (userRole === "OWNER" || userRole === "ADMIN" || userRole === "TREASURER")
+    receipt.status === "ACTIVE" && canAdjustProp
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">

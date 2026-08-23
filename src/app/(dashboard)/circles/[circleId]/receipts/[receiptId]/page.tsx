@@ -7,6 +7,8 @@ import { getCircleById } from "@/lib/services/circle.service"
 import { getReceiptById } from "@/lib/services/receipt.service"
 import { ReceiptDetail } from "@/components/receipts/receipt-detail"
 import { CURRENCIES } from "@/lib/constants"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function ReceiptDetailPage({
   params,
@@ -33,6 +35,7 @@ export default async function ReceiptDetailPage({
   const symbol =
     CURRENCIES.find((c) => c.code === circle.currency)?.symbol ??
     circle.currency
+  const canAdjust = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.LEDGER_ADJUST })
 
   return (
     <div className="space-y-6">
@@ -55,7 +58,7 @@ export default async function ReceiptDetailPage({
         receipt={receipt as never}
         currencySymbol={symbol}
         circleId={circleId}
-        userRole={circle.userRole as string}
+        canAdjust={canAdjust}
       />
     </div>
   )
