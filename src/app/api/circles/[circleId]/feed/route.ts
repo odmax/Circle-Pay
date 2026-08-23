@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getCircleFeed, createPost } from "@/lib/services/feed.service"
+import { requireCircleAccess } from "@/lib/api/auth"
 
 export async function GET(req: Request, { params }: { params: Promise<{ circleId: string }> }) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
     const { circleId } = await params
+    const access = await requireCircleAccess(circleId)
+    if ("error" in access) return access.error
     const url = new URL(req.url)
     const limit = parseInt(url.searchParams.get("limit") || "20")
     const cursor = url.searchParams.get("cursor") || undefined

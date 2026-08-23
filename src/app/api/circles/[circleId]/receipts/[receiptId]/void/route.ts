@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import { voidReceipt } from "@/lib/services/receipt.service"
+import { prisma } from "@/lib/prisma"
 
 export async function POST(
   req: NextRequest,
@@ -15,6 +16,11 @@ export async function POST(
 
   try {
     const { circleId, receiptId } = await params
+
+    const receipt = await prisma.financialReceipt.findUnique({ where: { id: receiptId }, select: { circleId: true } })
+    if (!receipt || receipt.circleId !== circleId) {
+      return NextResponse.json({ error: "Receipt not found in this circle" }, { status: 404 })
+    }
 
     const canAdjust = await hasCirclePermission({
       userId: session.user.id,
@@ -32,9 +38,9 @@ export async function POST(
       return NextResponse.json({ error: "Reason is required" }, { status: 400 })
     }
 
-    const receipt = await voidReceipt(receiptId, session.user.id, reason.trim())
+    const updated = await voidReceipt(receiptId, session.user.id, reason.trim())
 
-    return NextResponse.json(receipt)
+    return NextResponse.json(updated)
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to void receipt"
     const status = msg.includes("not found") ? 404 : msg.includes("Only active") ? 400 : 500

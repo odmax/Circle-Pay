@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { cancelEvent } from "@/lib/services/event.service"
 import { requireCirclePermission } from "@/lib/permissions/circle-permissions"
+import { requireCircleAccess } from "@/lib/api/auth"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import type { CircleEventType } from "@/generated/prisma"
 
@@ -17,6 +18,9 @@ export async function GET(
 
     const { hasFeature } = await import("@/lib/services/feature-gate.service")
     if (!await hasFeature(s.user.id, "EVENTS")) return NextResponse.json({ error: "Events are not available on your plan" }, { status: 403 })
+
+    const access = await requireCircleAccess(circleId)
+    if ("error" in access) return access.error
 
     const event = await prisma.circleEvent.findUnique({
       where: { id: eventId, circleId, deletedAt: null },

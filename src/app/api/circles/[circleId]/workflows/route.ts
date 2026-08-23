@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getWorkflows, createWorkflow } from "@/lib/services/approval-workflow.service"
+import { requireCircleAccess } from "@/lib/api/auth"
 
 export async function GET(
   request: NextRequest,
@@ -12,6 +13,9 @@ export async function GET(
   }
 
   const { circleId } = await params
+  const access = await requireCircleAccess(circleId)
+  if ("error" in access) return access.error
+
   const { searchParams } = new URL(request.url)
   const type = searchParams.get("type") as any
   const status = searchParams.get("status") as any

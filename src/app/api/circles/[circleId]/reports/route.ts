@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 async function csvResponse(headers: string[], rows: string[][], filename: string) {
   const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(","))].join("\n")
@@ -12,8 +14,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ circleId
   const { hasFeature } = await import("@/lib/services/feature-gate.service")
   if (!await hasFeature(s.user.id, "REPORTS")) return NextResponse.json({ error: "Reports require a paid plan" }, { status: 403 })
   const { circleId } = await params
-  const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
-  if (!m) return NextResponse.json({ error: "Not a member" }, { status: 403 })
+  const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.REPORT_VIEW })
+  if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const type = new URL(req.url).searchParams.get("type")
 

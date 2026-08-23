@@ -14,8 +14,8 @@ async function handle(req: Request, { params }: { params: Promise<{ circleId: st
 
   // View all payment intents (admin-level)
   if (action === "all") {
-    const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: s.user.id } } })
-    if (!member) return NextResponse.json({ error: "Not a member" }, { status: 403 })
+    const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_APPROVE })
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     return NextResponse.json(await getCirclePaymentIntents(circleId))
   }
 

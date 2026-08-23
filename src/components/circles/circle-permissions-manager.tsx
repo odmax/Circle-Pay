@@ -10,6 +10,8 @@ import {
   X,
   Undo2,
   Settings,
+  History,
+  ChevronLeft,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -71,6 +73,7 @@ const PERMISSION_GROUPS: { label: string; permissions: CirclePermission[] }[] = 
       CIRCLE_PERMISSIONS.MEMBER_REMOVE,
       CIRCLE_PERMISSIONS.MEMBER_ROLE_UPDATE,
       CIRCLE_PERMISSIONS.MEMBER_PERMISSION_MANAGE,
+      CIRCLE_PERMISSIONS.MEMBER_AUDIT_VIEW,
     ],
   },
   {
@@ -156,6 +159,310 @@ const PERMISSION_GROUPS: { label: string; permissions: CirclePermission[] }[] = 
     ],
   },
 ]
+
+type AuditEntry = {
+  id: string
+  action: string
+  affectedUserId: string | null
+  reason: string | null
+  oldValues: Record<string, unknown> | null
+  newValues: Record<string, unknown> | null
+  createdAt: string
+  actor: { id: string; name: string | null; email: string; image: string | null } | null
+  affectedUser: { id: string; name: string | null; email: string; image: string | null } | null
+}
+
+type AuditResponse = {
+  entries: AuditEntry[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  CIRCLE_MEMBER_ROLE_CHANGED: "Role Changed",
+  CIRCLE_MEMBER_PERMISSION_GRANTED: "Permission Granted",
+  CIRCLE_MEMBER_PERMISSION_DENIED: "Permission Denied",
+  CIRCLE_MEMBER_PERMISSION_OVERRIDE_REMOVED: "Override Removed",
+  CIRCLE_MEMBER_REMOVED: "Member Removed",
+  CIRCLE_OWNERSHIP_TRANSFERRED: "Ownership Transferred",
+}
+
+function formatAuditAction(action: string): string {
+  return AUDIT_ACTION_LABELS[action] || action.replace(/_/g, " ").toLowerCase()
+}
+
+function AuditHistorySection({
+  circleId,
+  members,
+}: {
+  circleId: string
+  members: SerializedMember[]
+}) {
+  const router = useRouter()
+  const [entries, setEntries] = useState<AuditEntry[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  const [filterMember, setFilterMember] = useState<string>("all")
+  const [filterActor, setFilterActor] = useState<string>("all")
+  const [filterAction, setFilterAction] = useState<string>("all")
+
+  const fetchAuditHistory = useCallback(
+    async (p: number, affUserId?: string, actUserId?: string, action?: string) => {
+      setLoading(true)
+      try {
+        const url = new URL(`/api/circles/${circleId}/permissions/audit`, window.location.origin)
+        url.searchParams.set("page", String(p))
+        url.searchParams.set("pageSize", "20")
+        if (affUserId && affUserId !== "all") url.searchParams.set("affectedUserId", affUserId)
+        if (actUserId && actUserId !== "all") url.searchParams.set("actorUserId", actUserId)
+        if (action && action !== "all") url.searchParams.set("action", action)
+
+        const res = await fetch(url.toString())
+        if (!res.ok) return
+        const data: AuditResponse = await res.json()
+        setEntries(data.entries)
+        setTotal(data.total)
+        setPage(data.page)
+        setTotalPages(data.totalPages)
+        setLoaded(true)
+      } catch {
+        toast.error("Failed to load audit history")
+      } finally {
+        setLoading(false)
+      }
+    },
+    [circleId]
+  )
+
+  function handleLoad() {
+    fetchAuditHistory(1, filterMember, filterActor, filterAction)
+  }
+
+  function handleFilterChange(type: "member" | "actor" | "action", value: string | null) {
+    const v = value || "all"
+    if (type === "member") setFilterMember(v)
+    if (type === "actor") setFilterActor(v)
+    if (type === "action") setFilterAction(v)
+  }
+
+  function handlePageChange(newPage: number) {
+    fetchAuditHistory(newPage, filterMember, filterActor, filterAction)
+  }
+
+  function formatTimestamp(iso: string): string {
+    const d = new Date(iso)
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  return (
+    <Card className="rounded-2xl border-border/40">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <History className="size-4 text-brand" />
+          <CardTitle className="text-base">Permission History</CardTitle>
+        </div>
+        <CardDescription>
+          Audit trail for role changes, permission grants, denials, and overrides.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap items-end gap-3 mb-4">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Member</label>
+            <Select value={filterMember} onValueChange={(v) => handleFilterChange("member", v)}>
+              <SelectTrigger className="h-8 w-40 text-xs rounded-lg">
+                <span>{filterMember === "all" ? "All members" : members.find(m => m.user.id === filterMember)?.user.name || "Unknown"}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All members</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.user.id} value={m.user.id}>
+                    {m.user.name || m.user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Actor</label>
+            <Select value={filterActor} onValueChange={(v) => handleFilterChange("actor", v)}>
+              <SelectTrigger className="h-8 w-40 text-xs rounded-lg">
+                <span>{filterActor === "all" ? "All actors" : members.find(m => m.user.id === filterActor)?.user.name || "Unknown"}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All actors</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.user.id} value={m.user.id}>
+                    {m.user.name || m.user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Action</label>
+            <Select value={filterAction} onValueChange={(v) => handleFilterChange("action", v)}>
+              <SelectTrigger className="h-8 w-44 text-xs rounded-lg">
+                <span>{filterAction === "all" ? "All actions" : formatAuditAction(filterAction)}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All actions</SelectItem>
+                {Object.entries(AUDIT_ACTION_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={handleLoad}
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="size-3 animate-spin mr-1" /> : <History className="size-3 mr-1" />}
+            Load History
+          </Button>
+        </div>
+
+        {!loaded && !loading && (
+          <p className="text-xs text-muted-foreground py-4 text-center">
+            Click &ldquo;Load History&rdquo; to view the permission audit trail.
+          </p>
+        )}
+
+        {loading && !loaded && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {loaded && entries.length === 0 && (
+          <p className="text-xs text-muted-foreground py-4 text-center">
+            No permission changes found for the selected filters.
+          </p>
+        )}
+
+        {loaded && entries.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              {total} event{total !== 1 ? "s" : ""} found
+            </p>
+
+            <div className="space-y-1.5">
+              {entries.map((entry) => {
+                const oldVals = entry.oldValues as Record<string, unknown> | null
+                const newVals = entry.newValues as Record<string, unknown> | null
+
+                let detail = ""
+                if (entry.action === "CIRCLE_MEMBER_ROLE_CHANGED") {
+                  detail = `${oldVals?.role || "?"} → ${newVals?.role || "?"}`
+                } else if (entry.action === "CIRCLE_MEMBER_PERMISSION_GRANTED" || entry.action === "CIRCLE_MEMBER_PERMISSION_DENIED") {
+                  detail = newVals?.permission as string || ""
+                } else if (entry.action === "CIRCLE_MEMBER_PERMISSION_OVERRIDE_REMOVED") {
+                  detail = oldVals?.permission as string || ""
+                } else if (entry.action === "CIRCLE_MEMBER_REMOVED") {
+                  detail = `Was ${oldVals?.role || "member"}`
+                }
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="flex items-start gap-3 rounded-lg border border-border/40 p-2.5 text-xs"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge
+                          variant="secondary"
+                          className={`text-[10px] px-1.5 py-0 h-4 ${
+                            entry.action.includes("GRANTED")
+                              ? "bg-emerald-100 text-emerald-700"
+                              : entry.action.includes("DENIED") || entry.action.includes("REMOVED")
+                                ? "bg-red-100 text-red-700"
+                                : entry.action.includes("CHANGED")
+                                  ? "bg-blue-100 text-blue-700"
+                                  : ""
+                          }`}
+                        >
+                          {formatAuditAction(entry.action)}
+                        </Badge>
+                        {detail && (
+                          <span className="text-muted-foreground font-mono">{detail}</span>
+                        )}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-muted-foreground">
+                        <span>
+                          By{" "}
+                          <span className="font-medium text-foreground">
+                            {entry.actor?.name || entry.actor?.email || "Unknown"}
+                          </span>
+                        </span>
+                        {entry.affectedUser && (
+                          <span>
+                            →{" "}
+                            <span className="font-medium text-foreground">
+                              {entry.affectedUser.name || entry.affectedUser.email}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-muted-foreground whitespace-nowrap">
+                      {formatTimestamp(entry.createdAt)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg"
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page <= 1 || loading}
+                >
+                  <ChevronLeft className="size-3 mr-1" /> Previous
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg"
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page >= totalPages || loading}
+                >
+                  Next <ChevronRight className="size-3 ml-1" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 function formatPermissionName(perm: string): string {
   return perm
@@ -539,6 +846,10 @@ export function CirclePermissionsManager({
           </div>
         </CardContent>
       </Card>
+
+      {can(CIRCLE_PERMISSIONS.MEMBER_AUDIT_VIEW) && (
+        <AuditHistorySection circleId={circleId} members={members} />
+      )}
     </div>
   )
 }

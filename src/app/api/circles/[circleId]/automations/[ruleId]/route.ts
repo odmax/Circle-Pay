@@ -23,9 +23,14 @@ async function handle(req: Request, { params }: { params: Promise<{ circleId: st
     if (action === "get") return NextResponse.json(await getCircleAutomations(circleId))
     if (action === "toggle" && ruleId) {
       const rule = await prisma.circleAutomationRule.findUnique({ where: { id: ruleId } })
-      return NextResponse.json(await updateAutomationRule(ruleId, { isEnabled: !rule?.isEnabled }))
+      if (!rule || rule.circleId !== circleId) return NextResponse.json({ error: "Rule not found in this circle" }, { status: 404 })
+      return NextResponse.json(await updateAutomationRule(ruleId, { isEnabled: !rule.isEnabled }))
     }
-    if (action === "run" && ruleId) return NextResponse.json(await runAutomationRule(ruleId))
+    if (action === "run" && ruleId) {
+      const rule = await prisma.circleAutomationRule.findUnique({ where: { id: ruleId }, select: { circleId: true } })
+      if (!rule || rule.circleId !== circleId) return NextResponse.json({ error: "Rule not found in this circle" }, { status: 404 })
+      return NextResponse.json(await runAutomationRule(ruleId))
+    }
     return NextResponse.json({ error: "Unknown action" }, { status: 400 })
   } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 403 }) }
 }

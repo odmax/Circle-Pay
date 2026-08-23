@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import type { MemberRole } from "@/generated/prisma"
 import type { CirclePermission } from "@/lib/permissions/circlePermissions"
 import { getCircleMemberPermissions } from "@/lib/permissions/circle-permissions"
+import { getRoleDefaultPermissions } from "@/lib/permissions/circle-role-permissions"
 import {
   preventOwnerDemotion,
   preventOwnerRemoval,
@@ -10,7 +11,7 @@ import {
   validateGrantablePermissions,
   getOwnerCount,
 } from "@/lib/permissions/ownership-protection"
-import { createAuditLog } from "@/lib/services/audit.service"
+import { logPermissionAuditEvent } from "@/lib/services/permission-audit.service"
 
 export async function getMemberPermissionSummary(
   circleId: string,
@@ -90,6 +91,9 @@ export async function updateMemberRole({
   const oldRole = member.role
   if (oldRole === role) return member
 
+  const previousPermissions = getRoleDefaultPermissions(oldRole)
+  const newPermissions = getRoleDefaultPermissions(role)
+
   const updated = await prisma.circleMember.update({
     where: { id: membershipId },
     data: { role },
@@ -98,14 +102,15 @@ export async function updateMemberRole({
     },
   })
 
-  createAuditLog({
-    userId: actorUserId,
+  logPermissionAuditEvent({
     circleId,
+    actorUserId,
+    affectedUserId: member.userId,
     action: "CIRCLE_MEMBER_ROLE_CHANGED",
     entityType: "CircleMember",
     entityId: membershipId,
-    oldValues: { role: oldRole },
-    newValues: { role },
+    oldValues: { role: oldRole, permissions: previousPermissions },
+    newValues: { role, permissions: newPermissions },
   }).catch(console.error)
 
   return updated
@@ -172,9 +177,10 @@ export async function setMemberPermissionOverride({
     },
   })
 
-  createAuditLog({
-    userId: actorUserId,
+  logPermissionAuditEvent({
     circleId,
+    actorUserId,
+    affectedUserId: member.userId,
     action: granted
       ? "CIRCLE_MEMBER_PERMISSION_GRANTED"
       : "CIRCLE_MEMBER_PERMISSION_DENIED",
@@ -227,9 +233,10 @@ export async function removeMemberPermissionOverride({
       where: { id: existing.id },
     })
 
-    createAuditLog({
-      userId: actorUserId,
+    logPermissionAuditEvent({
       circleId,
+      actorUserId,
+      affectedUserId: member.userId,
       action: "CIRCLE_MEMBER_PERMISSION_OVERRIDE_REMOVED",
       entityType: "CircleMemberPermission",
       entityId: existing.id,
@@ -273,13 +280,14 @@ export async function removeMember({
 
   await prisma.circleMember.delete({ where: { id: membershipId } })
 
-  createAuditLog({
-    userId: actorUserId,
+  logPermissionAuditEvent({
     circleId,
+    actorUserId,
+    affectedUserId: member.userId,
     action: "CIRCLE_MEMBER_REMOVED",
     entityType: "CircleMember",
     entityId: membershipId,
-    oldValues: { role: oldRole, userId: member.userId },
+    oldValues: { role: oldRole },
     newValues: null,
   }).catch(console.error)
 

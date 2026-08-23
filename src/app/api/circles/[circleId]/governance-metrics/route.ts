@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export async function GET(
   _req: NextRequest,
@@ -14,10 +16,8 @@ export async function GET(
   const { circleId } = await params
 
   try {
-    const member = await prisma.circleMember.findUnique({
-      where: { circleId_userId: { circleId, userId: session.user.id } },
-    })
-    if (!member) {
+    const allowed = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.CIRCLE_VIEW })
+    if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

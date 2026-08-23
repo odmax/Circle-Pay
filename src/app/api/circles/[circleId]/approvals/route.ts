@@ -10,6 +10,8 @@ import { apiSuccess, apiCreated, apiError, mapServiceError } from "@/lib/api/err
 import { requireCircleAccess } from "@/lib/api/auth"
 import type { ApprovalType, ApprovalStatus } from "@/generated/prisma"
 
+const VALID_SCOPES = new Set(["mine", "delegated", "all", "requestedByMe", "overdue", "escalated", "completed"])
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ circleId: string }> }
@@ -23,7 +25,8 @@ export async function GET(
     const { circleId } = await params
 
     const { searchParams } = req.nextUrl
-    const scope = (searchParams.get("scope") ?? "all") as
+    const rawScope = searchParams.get("scope") ?? "all"
+    const scope = rawScope as
       | "mine"
       | "delegated"
       | "all"
@@ -31,6 +34,14 @@ export async function GET(
       | "overdue"
       | "escalated"
       | "completed"
+
+    if (!VALID_SCOPES.has(rawScope)) {
+      return apiError("VALIDATION_ERROR", "Invalid scope parameter")
+    }
+
+    const authResult = await requireCircleAccess(circleId)
+    if ("error" in authResult) return authResult.error
+
     const type = searchParams.get("type") as ApprovalType | null
     const status = searchParams.get("status") as ApprovalStatus | null
     const workflowId = searchParams.get("workflowId") ?? undefined
@@ -432,85 +443,7 @@ export async function GET(
       })
     }
 
-    const where: Record<string, unknown> = { circleId }
-
-    if (type) where.type = type
-    if (status) where.status = status
-    if (workflowId) {
-      where.workflowSnapshot = { path: ["workflowId"], equals: workflowId }
-    }
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-      ]
-    }
-
-    if (status && status !== "PENDING") {
-      const [requests, total] = await Promise.all([
-        prisma.approvalRequest.findMany({
-          where: where as any,
-          include: {
-            requestedBy: { select: { id: true, name: true, email: true, image: true } },
-            decisions: {
-              include: {
-                reviewer: { select: { id: true, name: true, email: true, image: true } },
-              },
-              orderBy: { createdAt: "desc" },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-          take: pageSize,
-          skip,
-        }),
-        prisma.approvalRequest.count({ where: where as any }),
-      ])
-
-      return apiSuccess({
-        requests: requests.map((r) => ({
-          ...r,
-          amount: r.amount ? Number(r.amount) : null,
-          isExpired: r.expiresAt ? now > r.expiresAt : false,
-          approvalsNeeded: Math.max(0, r.minimumApprovals - r.currentApprovals),
-        })),
-        total,
-        page,
-        pageSize,
-        hasMore: skip + pageSize < total,
-      })
-    }
-
-    const [requests, total] = await Promise.all([
-      prisma.approvalRequest.findMany({
-        where: { ...where, status: "PENDING" } as any,
-        include: {
-          requestedBy: { select: { id: true, name: true, email: true, image: true } },
-          decisions: {
-            include: {
-              reviewer: { select: { id: true, name: true, email: true, image: true } },
-            },
-            orderBy: { createdAt: "desc" },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        take: pageSize,
-        skip,
-      }),
-      prisma.approvalRequest.count({ where: { ...where, status: "PENDING" } as any }),
-    ])
-
-    return apiSuccess({
-      requests: requests.map((r) => ({
-        ...r,
-        amount: r.amount ? Number(r.amount) : null,
-        isExpired: r.expiresAt ? now > r.expiresAt : false,
-        approvalsNeeded: Math.max(0, r.minimumApprovals - r.currentApprovals),
-      })),
-      total,
-      page,
-      pageSize,
-      hasMore: skip + pageSize < total,
-    })
+    return apiError("VALIDATION_ERROR", "Invalid scope")
   } catch (error) {
     return mapServiceError(error)
   }

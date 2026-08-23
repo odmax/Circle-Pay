@@ -3,18 +3,22 @@ import { prisma } from "@/lib/prisma"
 export async function createAuditLog(data: {
   userId?: string | null
   circleId?: string | null
+  affectedUserId?: string | null
   action: string
   entityType: string
   entityId?: string | null
+  reason?: string | null
   oldValues?: Record<string, unknown> | null
   newValues?: Record<string, unknown> | null
 }) {
   const createData: Record<string, unknown> = {
     userId: data.userId || null,
     circleId: data.circleId || null,
+    affectedUserId: data.affectedUserId || null,
     action: data.action,
     entityType: data.entityType,
     entityId: data.entityId || null,
+    reason: data.reason || null,
     }
     if (data.oldValues) (createData as Record<string, unknown>).oldValues = data.oldValues
     if (data.newValues) (createData as Record<string, unknown>).newValues = data.newValues

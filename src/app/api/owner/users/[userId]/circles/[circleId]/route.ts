@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
+const VALID_ROLES = ["OWNER", "ADMIN", "MODERATOR", "MEMBER"] as const
+
 async function checkAdmin() { const s = await auth(); if (!s?.user?.id) throw new Error("Unauthorized"); const a = await prisma.internalAdmin.findUnique({ where: { userId: s.user.id } }); if (!a?.isActive) throw new Error("Forbidden") }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ userId: string; circleId: string }> }) {
@@ -24,13 +26,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
   const { userId, circleId } = await params
   try {
     const { role } = await req.json()
+    if (!VALID_ROLES.includes(role)) return NextResponse.json({ error: "Invalid role" }, { status: 400 })
     const member = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
     if (!member) return NextResponse.json({ error: "Not a member" }, { status: 404 })
     if (member.role === "OWNER" && role !== "OWNER") {
       const owners = await prisma.circleMember.count({ where: { circleId, role: "OWNER" } })
       if (owners <= 1) return NextResponse.json({ error: "Cannot demote last owner" }, { status: 400 })
     }
-    const updated = await prisma.circleMember.update({ where: { id: member.id }, data: { role: role as any } })
+    const updated = await prisma.circleMember.update({ where: { id: member.id }, data: { role } })
     return NextResponse.json(updated)
   } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 400 }) }
 }

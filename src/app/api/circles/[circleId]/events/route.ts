@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getCircleEvents, createCircleEvent } from "@/lib/services/event.service"
+import { requireCircleAccess } from "@/lib/api/auth"
 
 export async function GET(_req: Request, { params }: { params: Promise<{ circleId: string }> }) {
   const s = await auth(); if (!s?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { hasFeature } = await import("@/lib/services/feature-gate.service")
   if (!await hasFeature(s.user.id, "EVENTS")) return NextResponse.json({ error: "Events are not available on your plan" }, { status: 403 })
-  try { return NextResponse.json(await getCircleEvents((await params).circleId)) }
+  const { circleId } = await params
+  const access = await requireCircleAccess(circleId)
+  if ("error" in access) return access.error
+  try { return NextResponse.json(await getCircleEvents(circleId)) }
   catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 403 }) }
 }
 

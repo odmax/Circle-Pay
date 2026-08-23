@@ -53,6 +53,7 @@ model User {
   paymentTransactions      PaymentTransaction[]
   internalAdmin            InternalAdmin?
   auditLogs                AuditLog[]
+  auditLogsAffected        AuditLog[]               @relation("AuditLogAffectedUser")
   joinRequests             JoinRequest[]                @relation("JoinRequestUser")
   joinRequestsReviewed     JoinRequest[]                @relation("JoinRequestReviewer")
   wallets                  Wallet[]                     @relation("WalletUser")
@@ -919,23 +920,28 @@ model InternalAdmin {
 // ─── Audit Logs ──────────────────────────────────────────
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  circleId   String?
-  action     String
-  entityType String
-  entityId   String?
-  oldValues  Json?
-  newValues  Json?
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String?
+  circleId       String?
+  affectedUserId String?
+  action         String
+  entityType     String
+  entityId       String?
+  reason         String?
+  oldValues      Json?
+  newValues      Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
 
-  user   User?   @relation(fields: [userId], references: [id])
-  circle Circle? @relation("AuditLogCircle", fields: [circleId], references: [id])
+  user          User?   @relation(fields: [userId], references: [id])
+  affectedUser  User?   @relation("AuditLogAffectedUser", fields: [affectedUserId], references: [id])
+  circle        Circle? @relation("AuditLogCircle", fields: [circleId], references: [id])
 
   @@index([circleId])
   @@index([userId])
+  @@index([affectedUserId])
+  @@index([action])
   @@index([createdAt])
 }
 
