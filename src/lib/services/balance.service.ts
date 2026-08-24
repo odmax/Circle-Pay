@@ -123,7 +123,7 @@ export async function createSettlement(
     title: `Settlement: ${debtorName} → ${creditorName}`,
     message: `${debtorName} settled ${data.amount} with ${creditorName}`,
     link: `/circles/${circleId}/balances`,
-  })
+  }).catch(() => {})
 
   return { ...settlement, amount: Number(settlement.amount) }
 }
@@ -141,15 +141,15 @@ export async function confirmSettlement(circleId: string, settlementId: string, 
   if (!canConfirm) throw new Error("You are not authorized to confirm this settlement")
 
   const updated = await prisma.settlement.update({
-    where: { id: settlementId },
+    where: { id: settlementId, status: "PENDING" },
     data: {
       status: "CONFIRMED",
       confirmedById: userId,
       confirmedAt: new Date(),
     },
-  })
+  }).catch(() => { throw new Error("Settlement was already confirmed or rejected") })
 
-  // Reduce the balance
+  // Reduce the balance atomically
   const balance = await prisma.balance.findUnique({
     where: {
       circleId_debtorId_creditorId: {
@@ -191,9 +191,9 @@ export async function confirmSettlement(circleId: string, settlementId: string, 
     title: "Settlement confirmed",
     message: `Settlement of ${Number(settlement.amount)} has been confirmed`,
     link: `/circles/${circleId}/balances`,
-  })
+  }).catch(() => {})
 
-  recordSettlementToLedger(circleId, settlementId, Number(settlement.amount), userId).catch(console.error)
+  recordSettlementToLedger(circleId, settlementId, Number(settlement.amount), userId).catch(() => {})
 
   return { ...updated, amount: Number(updated.amount) }
 }
@@ -210,16 +210,16 @@ export async function rejectSettlement(circleId: string, settlementId: string, u
   if (!canReject) throw new Error("You are not authorized to reject this settlement")
 
   const updated = await prisma.settlement.update({
-    where: { id: settlementId },
+    where: { id: settlementId, status: "PENDING" },
     data: { status: "REJECTED" },
-  })
+  }).catch(() => { throw new Error("Settlement was already confirmed or rejected") })
 
   notifyCircleMembers(circleId, userId, {
     type: "SETTLEMENT_REJECTED",
     title: "Settlement rejected",
     message: `Settlement of ${Number(settlement.amount)} was rejected`,
     link: `/circles/${circleId}/balances`,
-  })
+  }).catch(() => {})
 
   return { ...updated, amount: Number(updated.amount) }
 }

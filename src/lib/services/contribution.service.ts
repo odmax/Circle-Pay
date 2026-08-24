@@ -65,7 +65,7 @@ export async function createContributionPlan(
     title: `New plan: ${data.name}`,
     message: `A contribution plan "${data.name}" was created — ${data.frequency} at ${data.amount}`,
     link: `/circles/${circleId}/contributions`,
-  })
+  }).catch(() => {})
 
   markCircleStale(circleId).catch(console.error)
 
@@ -313,7 +313,7 @@ export async function addContribution(
     title: `${contributor} contributed`,
     message: `${contributor} recorded a contribution of ${data.amount}`,
     link: `/circles/${circleId}/contributions`,
-  })
+  }).catch(() => {})
 
   // Record to wallet ledger (fire-and-forget)
   recordContributionToLedger(circleId, contribution.id, data.amount, actorUserId).catch(console.error)
@@ -755,7 +755,11 @@ export async function confirmContribution(
 
   const updated = await prisma.contribution.update({
     where: { id: contributionId },
-    data: { status: "CONFIRMED" },
+    data: {
+      status: "CONFIRMED",
+      verifiedById: reviewerId,
+      verifiedAt: new Date(),
+    } as any,
     include: {
       user: { select: { id: true, name: true, email: true, image: true } },
       plan: { select: { id: true, name: true, amount: true } },
@@ -861,7 +865,12 @@ export async function rejectContribution(
 
   const updated = await prisma.contribution.update({
     where: { id: contributionId },
-    data: { status: "REJECTED" },
+    data: {
+      status: "REJECTED",
+      rejectedById: reviewerId,
+      rejectedAt: new Date(),
+      rejectionReason: reason ?? null,
+    } as any,
     include: {
       user: { select: { id: true, name: true, email: true, image: true } },
       plan: { select: { id: true, name: true, amount: true } },

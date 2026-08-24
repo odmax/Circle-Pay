@@ -146,8 +146,8 @@ describe("Proof of Payment Verification - Phase 2", () => {
     expect(src).toContain("createAuditLog")
     expect(src).toContain("PROOF_UPLOADED")
     expect(src).toContain("PROOF_VERIFICATION_COMPLETED")
-    expect(src).toContain("CONTRIBUTION_APPROVED")
-    expect(src).toContain("CONTRIBUTION_REJECTED")
+    expect(src).toContain("confirmContribution")
+    expect(src).toContain("rejectContribution")
     expect(src).toContain("createNotification")
   })
 

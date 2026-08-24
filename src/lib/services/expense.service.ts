@@ -125,7 +125,7 @@ export async function createExpense(
     title: `New expense: ${data.title}`,
     message: `${expense.paidBy?.name || "Someone"} paid ${data.amount} for "${data.title}"`,
     link: `/circles/${circleId}/expenses`,
-  })
+  }).catch(() => {})
 
   // Record to wallet ledger (fire-and-forget)
   recordExpenseToLedger(circleId, expense.id, data.amount, userId).catch(console.error)

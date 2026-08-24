@@ -46,7 +46,7 @@ interface CreateNotifParams {
 export async function createNotification(data: CreateNotifParams) {
   if (await isBlocked(data.userId, data.type)) return null
   const notif = await prisma.notification.create({ data: { userId: data.userId, circleId: data.circleId || null, type: data.type, title: data.title, message: data.message, link: data.link || null } })
-  if (notif) { import("@/lib/services/push-notification.service").then((m) => m.sendPushForNotification(notif.id).catch(() => {})) }
+  if (notif) { import("@/lib/services/push-notification.service").then((m) => m.sendPushForNotification(notif.id).catch(() => {})).catch(() => {}) }
   return notif
 }
 

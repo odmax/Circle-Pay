@@ -54,6 +54,8 @@ export async function createCircleEvent(circleId: string, userId: string, data: 
 
 export async function rsvpToEvent(circleId: string, eventId: string, userId: string, status: string) {
   await validateMember(circleId, userId)
+  const event = await prisma.circleEvent.findUnique({ where: { id: eventId } })
+  if (!event || event.circleId !== circleId) throw new Error("Event not found")
   return prisma.circleEventRSVP.upsert({
     where: { eventId_userId: { eventId, userId } },
     create: { eventId, userId, status: status as CircleEventRSVPStatus },
@@ -63,6 +65,8 @@ export async function rsvpToEvent(circleId: string, eventId: string, userId: str
 
 export async function cancelEvent(circleId: string, eventId: string, userId: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.EVENT_MANAGE })
+  const event = await prisma.circleEvent.findUnique({ where: { id: eventId } })
+  if (!event || event.circleId !== circleId) throw new Error("Event not found")
   return prisma.circleEvent.update({ where: { id: eventId }, data: { status: "CANCELLED" } })
 }
 

@@ -221,7 +221,7 @@ export async function addMember(
     title: `${name} joined`,
     message: `${name} joined ${circle?.name || "the circle"}`,
     link: `/circles/${circleId}/members`,
-  })
+  }).catch(() => {})
 
   createSystemPost(circleId, { type: "SYSTEM", content: `${name} joined ${circle?.name || "the circle"} 🎉` }).catch(console.error)
 

@@ -54,7 +54,7 @@ export async function createGoal(
     title: `New goal: ${goal.name}`,
     message: `A savings goal "${goal.name}" was created with a target of ${data.targetAmount}`,
     link: `/circles/${circleId}/goals`,
-  })
+  }).catch(() => {})
 
   return { ...goal, targetAmount: Number(goal.targetAmount), currentAmount: Number(goal.currentAmount) }
 }
@@ -172,14 +172,14 @@ export async function allocateToGoal(
       title: `Goal completed: ${goal.name}`,
       message: `${goal.name} has reached its target! ${newCurrent} of ${goal.targetAmount}`,
       link: `/circles/${circleId}/goals`,
-    })
+    }).catch(() => {})
   } else {
     notifyCircleMembers(circleId, actorUserId, {
       type: "GOAL_ALLOCATION_ADDED",
       title: `${allocName} allocated to ${goal.name}`,
       message: `${allocName} allocated ${data.amount} to "${goal.name}"`,
       link: `/circles/${circleId}/goals`,
-    })
+    }).catch(() => {})
   }
 
   return {

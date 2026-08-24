@@ -15,7 +15,6 @@ export async function getCirclePolls(circleId: string) {
       createdBy: { select: { id: true, name: true } },
       options: { include: { _count: { select: { votes: true } } }, orderBy: { sortOrder: "asc" } },
       _count: { select: { votes: true } },
-      votes: { select: { userId: true, optionId: true } },
     },
     orderBy: { createdAt: "desc" },
   })
@@ -37,7 +36,8 @@ export async function createPoll(circleId: string, userId: string, data: { title
 export async function votePoll(circleId: string, pollId: string, userId: string, optionId: string) {
   await validateMember(circleId, userId)
   const poll = await prisma.circlePoll.findUnique({ where: { id: pollId } })
-  if (!poll || poll.status !== "OPEN") throw new Error("Poll is not open")
+  if (!poll || poll.circleId !== circleId) throw new Error("Poll not found")
+  if (poll.status !== "OPEN") throw new Error("Poll is not open")
 
   return prisma.circlePollVote.upsert({
     where: { pollId_userId: { pollId, userId } },
@@ -48,5 +48,7 @@ export async function votePoll(circleId: string, pollId: string, userId: string,
 
 export async function closePoll(circleId: string, pollId: string, userId: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.POLL_MANAGE })
+  const poll = await prisma.circlePoll.findUnique({ where: { id: pollId } })
+  if (!poll || poll.circleId !== circleId) throw new Error("Poll not found")
   return prisma.circlePoll.update({ where: { id: pollId }, data: { status: "CLOSED" } })
 }

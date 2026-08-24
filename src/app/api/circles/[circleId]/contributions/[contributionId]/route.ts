@@ -50,6 +50,10 @@ export async function POST(
       })
       if (!existing) return NextResponse.json({ error: "Contribution not found" }, { status: 404 })
 
+      const isOwner = existing.userId === session.user.id
+      const canReview = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
+      if (!isOwner && !canReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+
       const upload = await uploadProofImage(buffer, file.name, session.user.id)
 
       await prisma.contribution.update({
@@ -85,6 +89,9 @@ export async function POST(
     }
 
     if (action === "verify") {
+      const canReview = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
+      if (!canReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+
       const contribution = await prisma.contribution.findFirst({
         where: { id: contributionId, circleId },
       })
@@ -152,32 +159,12 @@ export async function POST(
       await prisma.contribution.update({
         where: { id: contributionId, circleId },
         data: {
-          status: "CONFIRMED",
           verifiedById: session.user.id,
           verifiedAt: new Date(),
         } as any,
       })
 
-      try { await confirmContribution(circleId, contributionId, session.user.id) }
-      catch { /* contribution may already be confirmed */ }
-
-      createAuditLog({
-        userId: session.user.id,
-        circleId,
-        action: "CONTRIBUTION_APPROVED",
-        entityType: "Contribution",
-        entityId: contributionId,
-        newValues: { verifiedById: session.user.id, verifiedAt: new Date().toISOString() },
-      }).catch(() => {})
-
-      createNotification({
-        userId: target.userId,
-        circleId,
-        type: "CONTRIBUTION_MADE",
-        title: "Contribution approved",
-        message: "Your contribution has been approved",
-        link: `/circles/${circleId}/contributions`,
-      }).catch(() => {})
+      await confirmContribution(circleId, contributionId, session.user.id)
 
       return NextResponse.json({ success: true })
     }
@@ -194,36 +181,7 @@ export async function POST(
       const body = await req.json().catch(() => ({}))
       const reason = body.reason || "Rejected by admin"
 
-      await prisma.contribution.update({
-        where: { id: contributionId, circleId },
-        data: {
-          status: "REJECTED",
-          rejectedById: session.user.id,
-          rejectedAt: new Date(),
-          rejectionReason: reason,
-        } as any,
-      })
-
-      try { await rejectContribution(circleId, contributionId, session.user.id, reason) }
-      catch { /* already rejected */ }
-
-      createAuditLog({
-        userId: session.user.id,
-        circleId,
-        action: "CONTRIBUTION_REJECTED",
-        entityType: "Contribution",
-        entityId: contributionId,
-        newValues: { rejectedById: session.user.id, rejectedAt: new Date().toISOString(), rejectionReason: reason },
-      }).catch(() => {})
-
-      createNotification({
-        userId: target.userId,
-        circleId,
-        type: "APPROVAL_ESCALATED",
-        title: "Contribution rejected",
-        message: reason,
-        link: `/circles/${circleId}/contributions`,
-      }).catch(() => {})
+      await rejectContribution(circleId, contributionId, session.user.id, reason)
 
       return NextResponse.json({ success: true })
     }
@@ -231,6 +189,9 @@ export async function POST(
     return NextResponse.json({ error: "Unknown action" }, { status: 400 })
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed"
+    if (msg.includes("Not a member") || msg.includes("Insufficient permissions") || msg === "Forbidden") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

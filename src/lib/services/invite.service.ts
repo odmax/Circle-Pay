@@ -45,13 +45,13 @@ export async function joinCircleByInviteCode(code: string, userId: string, answe
     const existingRequest = await prisma.joinRequest.findUnique({ where: { circleId_userId: { circleId: circle.id, userId } } })
     if (existingRequest) return { status: "request_pending", message: "Your join request is pending approval" }
     await prisma.joinRequest.create({ data: { circleId: circle.id, userId, answers: answers || null as any } })
-    trackEvent(circle.id, upperCode, "REQUESTED", userId)
+    void trackEvent(circle.id, upperCode, "REQUESTED", userId)
     await createAuditLog({ userId, circleId: circle.id, action: "INVITE_CODE_REQUESTED", entityType: "JoinRequest", entityId: circle.id })
     return { status: "request_sent", message: "Join request submitted" }
   }
 
   await prisma.circleMember.create({ data: { circleId: circle.id, userId, role: "MEMBER" } })
-  trackEvent(circle.id, upperCode, "JOINED", userId)
+  void trackEvent(circle.id, upperCode, "JOINED", userId)
   await createAuditLog({ userId, circleId: circle.id, action: "INVITE_CODE_JOINED", entityType: "CircleMember", entityId: circle.id })
   return { status: "joined", message: "Successfully joined" }
 }
@@ -59,7 +59,7 @@ export async function joinCircleByInviteCode(code: string, userId: string, answe
 export async function regenerateInviteCode(circleId: string, userId: string) {
   const code = await generateUniqueInviteCode()
   await prisma.circle.update({ where: { id: circleId }, data: { inviteCode: code } })
-  trackEvent(circleId, code, "REGENERATED", userId)
+  void trackEvent(circleId, code, "REGENERATED", userId)
   await createAuditLog({ userId, circleId, action: "INVITE_CODE_REGENERATED", entityType: "Circle", entityId: circleId })
   return { inviteCode: code }
 }
@@ -67,7 +67,7 @@ export async function regenerateInviteCode(circleId: string, userId: string) {
 export async function disableInviteCode(circleId: string, userId: string) {
   await prisma.circle.update({ where: { id: circleId }, data: { inviteCodeEnabled: false } })
   const c = await prisma.circle.findUnique({ where: { id: circleId }, select: { inviteCode: true } })
-  trackEvent(circleId, c?.inviteCode || "", "DISABLED", userId)
+  void trackEvent(circleId, c?.inviteCode || "", "DISABLED", userId)
   await createAuditLog({ userId, circleId, action: "INVITE_CODE_DISABLED", entityType: "Circle", entityId: circleId })
   return { ok: true }
 }
@@ -75,7 +75,7 @@ export async function disableInviteCode(circleId: string, userId: string) {
 export async function enableInviteCode(circleId: string, userId: string) {
   await prisma.circle.update({ where: { id: circleId }, data: { inviteCodeEnabled: true } })
   const c = await prisma.circle.findUnique({ where: { id: circleId }, select: { inviteCode: true } })
-  trackEvent(circleId, c?.inviteCode || "", "ENABLED", userId)
+  void trackEvent(circleId, c?.inviteCode || "", "ENABLED", userId)
   await createAuditLog({ userId, circleId, action: "INVITE_CODE_ENABLED", entityType: "Circle", entityId: circleId })
   return { ok: true }
 }
@@ -87,17 +87,17 @@ export async function setInviteCodeExpiry(circleId: string, userId: string, expi
 
 export async function trackInviteCopied(code: string, userId?: string) {
   const c = await prisma.circle.findUnique({ where: { inviteCode: code.toUpperCase().trim() }, select: { id: true } })
-  if (c) trackEvent(c.id, code.toUpperCase().trim(), "COPIED", userId)
+  if (c) void trackEvent(c.id, code.toUpperCase().trim(), "COPIED", userId)
 }
 
 export async function trackInviteShared(code: string, userId?: string) {
   const c = await prisma.circle.findUnique({ where: { inviteCode: code.toUpperCase().trim() }, select: { id: true } })
-  if (c) trackEvent(c.id, code.toUpperCase().trim(), "SHARED", userId)
+  if (c) void trackEvent(c.id, code.toUpperCase().trim(), "SHARED", userId)
 }
 
 export async function trackInviteViewed(code: string, userId?: string) {
   const c = await prisma.circle.findUnique({ where: { inviteCode: code.toUpperCase().trim() }, select: { id: true } })
-  if (c) trackEvent(c.id, code.toUpperCase().trim(), "VIEWED", userId)
+  if (c) void trackEvent(c.id, code.toUpperCase().trim(), "VIEWED", userId)
 }
 
 export async function getInviteAnalytics(circleId: string) {
