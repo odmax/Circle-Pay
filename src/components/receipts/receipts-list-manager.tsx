@@ -27,6 +27,7 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ReceiptStatusBadge } from "@/components/receipts/receipt-status-badge"
 
 type ReceiptRow = {
@@ -313,8 +314,17 @@ export function ReceiptsListManager({
       <Card className="rounded-2xl border-border/40">
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              Loading receipts...
+            <div className="space-y-0">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 border-b p-3">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+              ))}
             </div>
           ) : receipts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
