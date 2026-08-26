@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ReceiptStatusBadge } from "@/components/receipts/receipt-status-badge"
 
 type UserReceipt = {
@@ -25,9 +27,10 @@ type UserReceipt = {
 
 interface UserReceiptsListProps {
   receipts: UserReceipt[]
+  loading?: boolean
 }
 
-export function UserReceiptsList({ receipts }: UserReceiptsListProps) {
+export function UserReceiptsList({ receipts, loading }: UserReceiptsListProps) {
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [filterCircle, setFilterCircle] = useState("all")
@@ -64,6 +67,27 @@ export function UserReceiptsList({ receipts }: UserReceiptsListProps) {
     }
   }
 
+  if (loading) {
+    return (
+      <Card className="rounded-2xl border-border/40">
+        <CardContent className="p-0">
+          <div className="space-y-0">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 border-b p-3">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -76,28 +100,30 @@ export function UserReceiptsList({ receipts }: UserReceiptsListProps) {
             className="h-8 rounded-xl pl-8 text-sm"
           />
         </div>
-        <select
-          value={filterCircle}
-          onChange={(e) => setFilterCircle(e.target.value)}
-          className="h-8 rounded-xl border border-input bg-transparent px-2.5 text-sm"
-        >
-          <option value="all">All Circles</option>
-          {circles.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="h-8 rounded-xl border border-input bg-transparent px-2.5 text-sm"
-        >
-          <option value="all">All Status</option>
-          <option value="ACTIVE">Active</option>
-          <option value="VOIDED">Voided</option>
-          <option value="REPLACED">Replaced</option>
-        </select>
+        <Select value={filterCircle} onValueChange={(val) => { if (val !== null) setFilterCircle(val) }}>
+          <SelectTrigger size="sm" className="rounded-xl w-40">
+            <SelectValue placeholder="All Circles" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Circles</SelectItem>
+            {circles.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={(val) => { if (val !== null) setFilterStatus(val) }}>
+          <SelectTrigger size="sm" className="rounded-xl w-36">
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="ACTIVE">Active</SelectItem>
+            <SelectItem value="VOIDED">Voided</SelectItem>
+            <SelectItem value="REPLACED">Replaced</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Card className="rounded-2xl border-border/40">

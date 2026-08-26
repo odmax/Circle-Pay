@@ -1,15 +1,18 @@
 import { redirect } from "next/navigation"
-import { Receipt } from "lucide-react"
 import { auth } from "@/lib/auth"
 import { getUserReceipts } from "@/lib/services/receipt.service"
 import { UserReceiptsList } from "@/components/receipts/user-receipts-list"
-import { CURRENCIES } from "@/lib/constants"
 
 export default async function PersonalReceiptsPage() {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
 
-  const receipts = await getUserReceipts(session.user.id)
+  let receipts: Awaited<ReturnType<typeof getUserReceipts>> = []
+  try {
+    receipts = await getUserReceipts(session.user.id)
+  } catch {
+    receipts = []
+  }
 
   return (
     <div className="space-y-6">

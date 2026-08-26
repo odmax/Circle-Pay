@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Save, Loader2, Bell, PiggyBank, ShoppingBag, Target, Wallet, Calendar, BarChart3, MessageCircle, Megaphone, Settings } from "lucide-react"
+import { Save, Loader2, PiggyBank, ShoppingBag, Target, Wallet, Calendar, BarChart3, MessageCircle, Megaphone, Settings, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
@@ -11,12 +11,14 @@ const CATEGORIES = [
   { key: "contributions", label: "Contributions", desc: "Payment plans, contributions, reminders", icon: PiggyBank },
   { key: "expenses", label: "Expenses", desc: "New expenses, splits, settlements", icon: ShoppingBag },
   { key: "goals", label: "Goals", desc: "Goal creation, allocations, completions", icon: Target },
-  { key: "wallet", label: "Wallet", desc: "Wallet transactions, approvals", icon: Wallet },
-  { key: "events", label: "Events", desc: "Event creation, reminders, RSVPs", icon: Calendar },
-  { key: "polls", label: "Polls", desc: "New polls, votes, results", icon: BarChart3 },
-  { key: "support", label: "Support", desc: "Ticket updates, replies", icon: MessageCircle },
-  { key: "broadcasts", label: "Broadcasts", desc: "Platform announcements", icon: Megaphone },
-  { key: "system", label: "System", desc: "Security, billing, account updates", icon: Settings },
+  { key: "wallet", label: "Settlements", desc: "Settlement requests, confirmations, rejections", icon: Wallet },
+  { key: "events", label: "Events", desc: "Event creation, reminders", icon: Calendar },
+  { key: "approvals", label: "Approvals", desc: "Workflow stages, assignments, escalations", icon: BarChart3 },
+  { key: "members", label: "Members", desc: "New member joins, invitations", icon: MessageCircle },
+  { key: "receipts", label: "Receipts", desc: "Receipt issued, voided, replaced", icon: Megaphone },
+  { key: "projects", label: "Projects", desc: "Project creation and updates", icon: Settings },
+  { key: "risks", label: "Risk Alerts", desc: "Financial risk notifications", icon: Sparkles },
+  { key: "ai", label: "AI Insights", desc: "AI-powered financial insights", icon: Sparkles },
 ]
 
 export default function NotificationPreferencesPage() {

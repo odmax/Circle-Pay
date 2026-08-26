@@ -28,8 +28,6 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { ReceiptStatusBadge } from "@/components/receipts/receipt-status-badge"
-import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
-import { useCirclePermissions } from "@/hooks/use-circle-permissions"
 
 type ReceiptRow = {
   id: string
@@ -57,6 +55,7 @@ interface ReceiptsListManagerProps {
   stats: Stats
   currencySymbol: string
   userRole: string
+  canAdjust?: boolean
 }
 
 const RECEIPT_TYPES = [
@@ -88,6 +87,7 @@ export function ReceiptsListManager({
   stats,
   currencySymbol,
   userRole,
+  canAdjust = false,
 }: ReceiptsListManagerProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -100,9 +100,6 @@ export function ReceiptsListManager({
   const [type, setType] = useState(searchParams.get("type") ?? "all")
   const [offset, setOffset] = useState(0)
   const [actingId, setActingId] = useState<string | null>(null)
-
-  const perms = useCirclePermissions([] as never)
-  const canAdjust = true
 
   const fetchReceipts = useCallback(
     async (newOffset: number) => {

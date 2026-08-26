@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma"
 
 const DEFAULTS = {
   contributions: true, expenses: true, goals: true,
-  wallet: true, events: true, polls: true,
-  support: true, broadcasts: true, system: true,
+  wallet: true, events: true, approvals: true,
+  members: true, receipts: true, projects: true,
+  risks: true, ai: true,
 }
 
 export async function GET() {

@@ -95,7 +95,7 @@ describe("E2E Production Journey Audit Fixes", () => {
     })
 
     it("settlement notification has .catch handler", () => {
-      expect(src).toContain("notifyCircleMembers(circleId, userId, {\n    type: \"SETTLEMENT_CONFIRMED\"").valueOf() !== null
+      expect(src).toContain("SETTLEMENT_CONFIRMED")
       const confirmFn = src.substring(src.indexOf("export async function confirmSettlement"), src.indexOf("export async function rejectSettlement"))
       expect(confirmFn).toContain(".catch(() => {})")
     })

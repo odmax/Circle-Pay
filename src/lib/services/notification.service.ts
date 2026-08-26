@@ -1,28 +1,22 @@
 import { prisma } from "@/lib/prisma"
 import type { NotificationType } from "@/generated/prisma"
 
-const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, polls: true, support: true, broadcasts: true, system: true, ai: true }
+const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true }
 
 const TYPE_TO_PREF: Record<string, string> = {
   CONTRIBUTION_MADE: "contributions", CONTRIBUTION_PLAN_CREATED: "contributions", CONTRIBUTION_REMINDER: "contributions",
+  NEW_MEMBER_JOINED: "members",
   EXPENSE_ADDED: "expenses",
   GOAL_CREATED: "goals", GOAL_ALLOCATION_ADDED: "goals", GOAL_COMPLETED: "goals",
   SETTLEMENT_REQUESTED: "wallet", SETTLEMENT_CONFIRMED: "wallet", SETTLEMENT_REJECTED: "wallet",
-  WALLET_TRANSACTION: "wallet", WALLET_APPROVAL: "wallet",
-  EVENT_REMINDER: "events", EVENT_RSVP: "events",
-  POLL_CREATED: "polls", POLL_CLOSED: "polls",
-  SUPPORT_REPLY: "support", SUPPORT_NEW: "support",
-  BROADCAST: "broadcasts",
-  SYSTEM: "system", SECURITY: "system", BILLING: "system",
-  NEW_MEMBER_JOINED: "contributions", INVITATION_RECEIVED: "contributions", INVITATION_ACCEPTED: "contributions",
-  RECEIPT_ISSUED: "system", RECEIPT_VOIDED: "system", RECEIPT_REPLACED: "system", STATEMENT_READY: "system",
-  APPROVAL_STAGE_ACTIVATED: "system", APPROVAL_STAGE_COMPLETED: "system", APPROVAL_ASSIGNED: "system",
-  APPROVAL_DELEGATED: "system", APPROVAL_ESCALATED: "system", APPROVAL_OVERDUE: "system",
-  APPROVAL_WORKFLOW_COMPLETED: "system",
-  PROJECT_CREATED: "system",
-  FEED_POST_CREATED: "system",
+  EVENT_REMINDER: "events",
+  RECEIPT_ISSUED: "receipts", RECEIPT_VOIDED: "receipts", RECEIPT_REPLACED: "receipts",
+  APPROVAL_ASSIGNED: "approvals", APPROVAL_STAGE_ACTIVATED: "approvals", APPROVAL_STAGE_COMPLETED: "approvals",
+  APPROVAL_WORKFLOW_COMPLETED: "approvals", APPROVAL_DELEGATED: "approvals", APPROVAL_ESCALATED: "approvals",
+  APPROVAL_OVERDUE: "approvals",
+  PROJECT_CREATED: "projects",
+  FINANCIAL_RISK: "risks",
   AI_INSIGHT: "ai",
-  FINANCIAL_RISK: "ai",
 }
 
 async function isBlocked(userId: string, type: string): Promise<boolean> {
