@@ -1,11 +1,122 @@
 import { prisma } from "@/lib/prisma"
 import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
-import { getPayoutSchedule, getNextPayout, getPoolCompliance } from "@/lib/services/payout-cycle.service"
+import { getPayoutQueue } from "@/lib/services/payout-rotation.service"
 import { getContributionSchedules } from "@/lib/services/contribution-schedule.service"
 import { getGoals, getGoalStats } from "@/lib/services/goal.service"
 import { getCircleEvents } from "@/lib/services/event.service"
 import { getUserNotifications } from "@/lib/services/notification.service"
+
+/**
+ * Minimal view of a payout queue entry consumed by the stokvel dashboard.
+ * Produced by the shared payout rotation engine (getPayoutQueue) so the
+ * dashboard can never disagree with /circles/[circleId]/payouts.
+ */
+export interface PayoutQueueItemView {
+  id?: string
+  cycleNumber: number
+  amount: number
+  status: string
+  dueDate: Date | null
+  readiness?: string | null
+  confirmedAt?: Date | null
+  paidAt?: Date | null
+  completedAt?: Date | null
+  recipient?: { name?: string | null; email?: string | null } | null
+}
+
+export interface MyCycleView {
+  cycleNumber: number
+  status: string
+  amount: number | null
+  dueDate: Date | null
+}
+
+const PAYOUT_ACTIVE = ["UPCOMING", "READY", "BLOCKED", "PENDING_APPROVAL", "APPROVED"]
+const PAYOUT_DONE = ["COMPLETED", "CONFIRMED_RECEIVED", "PAID"]
+
+/**
+ * Derives the dashboard payout summary strictly from the payout rotation
+ * engine's queue, so current/next beneficiary, position, readiness, blockers
+ * and progress are always consistent with the payout queue page.
+ */
+export function buildPayoutBlock(input: {
+  queue: PayoutQueueItemView[]
+  myCycle: MyCycleView | null
+}): StokvelDashboardData["payout"] {
+  const { queue, myCycle } = input
+  const totalCycles = queue.length
+  const completedCycles = queue.filter((c) => PAYOUT_DONE.includes(c.status)).length
+  const hasSchedule = totalCycles > 0
+
+  const currentIdx = queue.findIndex((c) => PAYOUT_ACTIVE.includes(c.status))
+  const currentCycle = currentIdx === -1 ? null : queue[currentIdx]
+  const nextCycle =
+    currentCycle !== null
+      ? queue.slice(currentIdx + 1).find((c) => PAYOUT_ACTIVE.includes(c.status)) ?? null
+      : null
+
+  const nameOf = (c: PayoutQueueItemView): string =>
+    c.recipient?.name || c.recipient?.email || "—"
+  const dateOf = (d: Date | null | undefined): string =>
+    d ? new Date(d).toISOString() : ""
+
+  const completedCycle = queue.filter((c) => PAYOUT_DONE.includes(c.status)).pop() ?? null
+
+  let readiness = "NOT_STARTED"
+  let blockers: string[] = []
+  if (totalCycles > 0) {
+    if (currentCycle) {
+      if (currentCycle.status === "BLOCKED") {
+        readiness = "BLOCKED"
+        blockers = (currentCycle.readiness || "")
+          .split(";")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      } else {
+        readiness = currentCycle.readiness || currentCycle.status
+      }
+    } else if (completedCycles >= totalCycles) {
+      readiness = "COMPLETE"
+    } else {
+      readiness = "IN_PROGRESS"
+    }
+  }
+
+  return {
+    hasSchedule,
+    currentBeneficiary: currentCycle
+      ? {
+          name: nameOf(currentCycle),
+          amount: currentCycle.amount,
+          dueDate: dateOf(currentCycle.dueDate),
+          status: currentCycle.status,
+          readiness: readiness,
+        }
+      : null,
+    nextBeneficiary: nextCycle
+      ? { name: nameOf(nextCycle), amount: nextCycle.amount, dueDate: dateOf(nextCycle.dueDate) }
+      : null,
+    myPosition: myCycle?.cycleNumber ?? null,
+    totalCycles,
+    completedCycles,
+    readiness,
+    blockers,
+    schedule: queue.map((c) => ({
+      name: nameOf(c),
+      status: c.status,
+      amount: c.amount,
+      order: c.cycleNumber,
+    })),
+    previousPayout: completedCycle
+      ? {
+          name: nameOf(completedCycle),
+          amount: completedCycle.amount,
+          completedAt: dateOf(completedCycle.completedAt ?? completedCycle.paidAt ?? completedCycle.confirmedAt) || null,
+        }
+      : null,
+  }
+}
 
 export interface StokvelDashboardData {
   circle: {
@@ -40,12 +151,13 @@ export interface StokvelDashboardData {
   }
   payout: {
     hasSchedule: boolean
-    currentBeneficiary: { name: string; amount: number; dueDate: string } | null
+    currentBeneficiary: { name: string; amount: number; dueDate: string; status?: string; readiness?: string } | null
     nextBeneficiary: { name: string; amount: number; dueDate: string } | null
     myPosition: number | null
     totalCycles: number
     completedCycles: number
     readiness: string
+    blockers: string[]
     schedule: { name: string; status: string; amount: number; order: number }[]
     previousPayout: { name: string; amount: number; completedAt: string | null } | null
   }
@@ -115,15 +227,11 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     myContributions,
     myScheduled,
     allContributionsThisMonth,
-    compliance,
-    payoutSchedule,
-    nextPayout,
+    queueData,
     goals,
     goalStats,
     events,
     myNotifications,
-    myPayoutCycle,
-    completedPayoutCount,
   ] = await Promise.all([
     prisma.circleMember.findMany({
       where: { circleId },
@@ -144,18 +252,11 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
       where: { circleId, createdAt: { gte: monthStart }, deletedAt: null },
       include: { user: { select: { id: true, name: true, email: true, image: true } } },
     }),
-    getPoolCompliance(circleId),
-    getPayoutSchedule(circleId),
-    getNextPayout(circleId),
+    getPayoutQueue(circleId, userId),
     getGoals(circleId, userId).catch(() => []),
     getGoalStats(circleId, userId).catch(() => null),
     getCircleEvents(circleId).catch(() => []),
     getUserNotifications(userId).catch(() => []),
-    prisma.payoutCycle.findFirst({
-      where: { circleId, recipientId: userId, status: { in: ["UPCOMING", "READY"] } },
-      orderBy: { cycleNumber: "asc" },
-    }),
-    prisma.payoutCycle.count({ where: { circleId, status: "COMPLETED" } }),
   ])
 
   const paidMemberIds = new Set(allContributionsThisMonth.map((c) => c.userId))
@@ -253,17 +354,19 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     }
   })
 
-  const totalCycles = payoutSchedule.length
-  const completedCycles = payoutSchedule.filter((p) => p.status === "COMPLETED").length
+  const payout = buildPayoutBlock({
+    queue: queueData.queue,
+    myCycle: queueData.myCycle,
+  })
 
-  let payoutPosition: number | null = null
-  let payoutAmount: number | null = null
-  let payoutDate: string | null = null
-  if (myPayoutCycle) {
-    payoutPosition = myPayoutCycle.cycleNumber
-    payoutAmount = Number(myPayoutCycle.amount)
-    payoutDate = myPayoutCycle.dueDate?.toISOString() ?? null
-  }
+  const myPosition = payout.myPosition
+  const myPayoutCycleAmount = myPosition !== null
+    ? queueData.queue.find((c) => c.cycleNumber === myPosition && PAYOUT_ACTIVE.includes(c.status))?.amount ?? null
+    : null
+  const payoutAmount = myPayoutCycleAmount
+  const payoutDate = myPosition !== null
+    ? queueData.queue.find((c) => c.cycleNumber === myPosition)?.dueDate?.toISOString() ?? null
+    : null
 
   const alerts: StokvelDashboardData["alerts"] = []
   if (daysRemaining !== null && daysRemaining >= 0 && daysRemaining <= 3) {
@@ -287,23 +390,13 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
       alerts.push({ type: "UPCOMING_MEETING", title: "Upcoming meeting", message: `"${formattedEvent.title}" in ${daysUntil} day${daysUntil === 1 ? "" : "s"}`, severity: "info" })
     }
   }
-  if (nextPayout?.dueDate) {
-    const payoutDue = new Date(nextPayout.dueDate)
+  if (payout.currentBeneficiary) {
+    const payoutDue = new Date(payout.currentBeneficiary.dueDate)
     const daysUntilPayout = Math.ceil((payoutDue.getTime() - now.getTime()) / 86400000)
     if (daysUntilPayout <= 7 && daysUntilPayout >= 0) {
-      alerts.push({ type: "UPCOMING_PAYOUT", title: "Upcoming payout", message: `Next payout to ${nextPayout.recipient?.name ?? "member"} in ${daysUntilPayout} day${daysUntilPayout === 1 ? "" : "s"}`, severity: "info" })
+      alerts.push({ type: "UPCOMING_PAYOUT", title: "Upcoming payout", message: `Next payout to ${payout.currentBeneficiary.name} in ${daysUntilPayout} day${daysUntilPayout === 1 ? "" : "s"}`, severity: "info" })
     }
   }
-
-  const schedule = payoutSchedule.map((p) => ({
-    name: p.recipient?.name ?? "—",
-    status: p.status,
-    amount: Number(p.amount),
-    order: p.cycleNumber,
-  }))
-
-  const currentBeneficiary = payoutSchedule.find((p) => p.status === "READY" || p.status === "UPCOMING")
-  const nextInLine = payoutSchedule.find((p) => p.status === "UPCOMING" && p.cycleNumber > (currentBeneficiary?.cycleNumber ?? 0))
 
   return {
     circle: {
@@ -321,7 +414,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
       totalContributed: myTotalPaid,
       outstandingAmount,
       paymentStreak,
-      payoutPosition,
+      payoutPosition: myPosition,
       payoutAmount,
       payoutDate,
       proofStatus: myThisMonth?.verificationStatus ?? null,
@@ -336,26 +429,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
       goalProgress,
       upcomingEvent: formattedEvent,
     },
-    payout: {
-      hasSchedule: totalCycles > 0,
-      currentBeneficiary: currentBeneficiary
-        ? { name: currentBeneficiary.recipient?.name ?? "—", amount: Number(currentBeneficiary.amount), dueDate: currentBeneficiary.dueDate?.toISOString?.() ?? "" }
-        : null,
-      nextBeneficiary: nextInLine
-        ? { name: nextInLine.recipient?.name ?? "—", amount: Number(nextInLine.amount), dueDate: nextInLine.dueDate?.toISOString?.() ?? "" }
-        : null,
-      myPosition: myPayoutCycle?.cycleNumber ?? null,
-      totalCycles,
-      completedCycles,
-      readiness: completedCycles >= totalCycles && totalCycles > 0 ? "COMPLETE" : completedCycles > 0 ? "IN_PROGRESS" : "NOT_STARTED",
-      schedule,
-      previousPayout: completedCycles > 0
-        ? (() => {
-            const prev = payoutSchedule.filter((p) => p.status === "COMPLETED").pop()
-            return prev ? { name: prev.recipient?.name ?? "—", amount: Number(prev.amount), completedAt: prev.completedAt?.toISOString?.() ?? null } : null
-          })()
-        : null,
-    },
+    payout,
     contributionProgress,
     alerts,
     permissions: {

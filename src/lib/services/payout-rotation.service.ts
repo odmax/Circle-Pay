@@ -233,6 +233,7 @@ export async function getPayoutQueue(circleId: string, userId: string) {
       deferReason: c.deferReason,
       confirmedAt: c.confirmedAt,
       paidAt: c.paidAt,
+      completedAt: c.completedAt,
     })),
     canManage: await hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_MANAGE }),
     canRecord: await hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_RECORD }),

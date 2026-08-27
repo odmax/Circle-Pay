@@ -13,6 +13,7 @@ interface StokvelPayoutQueueProps {
     totalCycles: number
     completedCycles: number
     readiness: string
+    blockers: string[]
     schedule: { name: string; status: string; amount: number; order: number }[]
     previousPayout: { name: string; amount: number; completedAt: string | null } | null
   }
@@ -86,6 +87,17 @@ export function StokvelPayoutQueue({ payout, symbol }: StokvelPayoutQueueProps) 
             </div>
           )}
         </div>
+
+        {payout.readiness === "BLOCKED" && payout.blockers.length > 0 && (
+          <div className="rounded-xl bg-red-50 p-2.5 text-xs text-red-700">
+            <p className="font-semibold mb-1">Payout blocked</p>
+            <ul className="list-inside list-disc space-y-0.5">
+              {payout.blockers.map((b, i) => (
+                <li key={i}>{b}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {payout.previousPayout && (
           <div className="rounded-xl bg-muted/30 p-2.5 text-xs">

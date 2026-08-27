@@ -47,10 +47,14 @@ describe("Stokvel Dashboard — Service", () => {
     }
   })
 
-  it("SD4: service reuses existing payout-cycle service", () => {
-    expect(service).toContain("getPayoutSchedule")
-    expect(service).toContain("getNextPayout")
-    expect(service).toContain("getPoolCompliance")
+  it("SD4: service consumes the payout rotation engine as single source of truth", () => {
+    expect(service).toContain("getPayoutQueue")
+    expect(service).toContain("payout-rotation.service")
+    expect(service).toContain("buildPayoutBlock")
+    // must not fall back to the obsolete payout-cycle service
+    expect(service).not.toContain("payout-cycle.service")
+    expect(service).not.toContain("getPayoutSchedule")
+    expect(service).not.toContain("getNextPayout")
   })
 
   it("SD5: service reuses existing contribution schedule, goal, event services", () => {
@@ -286,5 +290,103 @@ describe("Stokvel Dashboard — Page Route Seating", () => {
   it("SD41: page has a back link to circle overview", () => {
     expect(page).toContain('href={`/circles/${circleId}`}')
     expect(page).toContain("ArrowLeft")
+  })
+})
+
+describe("Stokvel Dashboard — Payout Engine Consistency", () => {
+  const cyc = (n: number, status: string, overrides: Record<string, unknown> = {}) => ({
+    cycleNumber: n,
+    amount: 500,
+    status,
+    dueDate: null,
+    readiness: null,
+    completedAt: null,
+    paidAt: null,
+    confirmedAt: null,
+    recipient: { name: `Member ${n}` },
+    ...overrides,
+  })
+
+  it("SD42: dashboard current beneficiary matches the engine queue active cycle", async () => {
+    const { buildPayoutBlock } = await import("@/lib/services/stokvel-dashboard.service")
+    const queue = [
+      cyc(1, "COMPLETED"),
+      cyc(2, "READY", { readiness: "READY" }),
+      cyc(3, "UPCOMING"),
+    ]
+    const block = buildPayoutBlock({ queue, myCycle: null })
+    expect(block.currentBeneficiary?.name).toBe("Member 2")
+    expect(block.currentBeneficiary?.amount).toBe(500)
+    expect(block.currentBeneficiary?.status).toBe("READY")
+    // the queue page shows cycle #2 as the active beneficiary → identical
+    expect(queue.find((c) => ["READY", "UPCOMING", "BLOCKED", "PENDING_APPROVAL", "APPROVED"].includes(c.status))?.cycleNumber).toBe(2)
+  })
+
+  it("SD43: dashboard next beneficiary matches the engine queue next active cycle", async () => {
+    const { buildPayoutBlock } = await import("@/lib/services/stokvel-dashboard.service")
+    const queue = [
+      cyc(1, "READY", { readiness: "READY" }),
+      cyc(2, "SKIPPED"),
+      cyc(3, "UPCOMING"),
+      cyc(4, "UPCOMING"),
+    ]
+    const block = buildPayoutBlock({ queue, myCycle: null })
+    // skipped cycles are represented but not promoted to next beneficiary
+    expect(block.nextBeneficiary?.name).toBe("Member 3")
+    expect(queue[1].status).toBe("SKIPPED")
+  })
+
+  it("SD44: readiness/blockers match the engine queue readiness for BLOCKED current", async () => {
+    const { buildPayoutBlock } = await import("@/lib/services/stokvel-dashboard.service")
+    const queue = [
+      cyc(1, "BLOCKED", { readiness: "2 member contributions are still outstanding; Available funds (100) are less than the payout amount (500)" }),
+      cyc(2, "UPCOMING"),
+    ]
+    const block = buildPayoutBlock({ queue, myCycle: null })
+    expect(block.readiness).toBe("BLOCKED")
+    expect(block.blockers).toHaveLength(2)
+    expect(block.blockers[0]).toContain("outstanding")
+    // identical to the queue row's readiness string
+    expect(block.blockers.join("; ")).toBe(queue[0].readiness)
+  })
+
+  it("SD45: member queue position matches engine myCycle", async () => {
+    const { buildPayoutBlock } = await import("@/lib/services/stokvel-dashboard.service")
+    const queue = [cyc(1, "READY", { readiness: "READY" }), cyc(2, "UPCOMING"), cyc(3, "UPCOMING")]
+    const block = buildPayoutBlock({
+      queue,
+      myCycle: { cycleNumber: 3, status: "UPCOMING", amount: 500, dueDate: null },
+    })
+    expect(block.myPosition).toBe(3)
+    expect(queue.find((c) => c.cycleNumber === block.myPosition)?.cycleNumber).toBe(3)
+  })
+
+  it("SD46: completed/skipped/deferred cycles are represented consistently in schedule & progress", async () => {
+    const { buildPayoutBlock } = await import("@/lib/services/stokvel-dashboard.service")
+    const queue = [
+      cyc(1, "COMPLETED", { confirmedAt: new Date("2026-01-10") }),
+      cyc(2, "SKIPPED"),
+      cyc(3, "DEFERRED"),
+      cyc(4, "PAID", { paidAt: new Date("2026-02-01") }),
+      cyc(5, "UPCOMING"),
+    ]
+    const block = buildPayoutBlock({ queue, myCycle: null })
+    // completed/paid count matches engine progress definition
+    const done = ["COMPLETED", "CONFIRMED_RECEIVED", "PAID"]
+    expect(block.completedCycles).toBe(queue.filter((c) => done.includes(c.status)).length)
+    expect(block.completedCycles).toBe(2)
+    // every cycle appears in the schedule with its true status
+    expect(block.schedule.map((s) => s.status)).toEqual(["COMPLETED", "SKIPPED", "DEFERRED", "PAID", "UPCOMING"])
+    // previous payout is the most recent completed/paid cycle
+    expect(block.previousPayout?.name).toBe("Member 4")
+    expect(block.previousPayout?.completedAt).toBeDefined()
+  })
+
+  it("SD47: dashboard payout block honours per-beneficiary amount from the queue", async () => {
+    const { buildPayoutBlock } = await import("@/lib/services/stokvel-dashboard.service")
+    const queue = [cyc(1, "READY", { amount: 1200, readiness: "READY" }), cyc(2, "UPCOMING", { amount: 1200 })]
+    const block = buildPayoutBlock({ queue, myCycle: { cycleNumber: 2, status: "UPCOMING", amount: 1200, dueDate: null } })
+    expect(block.currentBeneficiary?.amount).toBe(1200)
+    expect(queue[0].amount).toBe(1200)
   })
 })
