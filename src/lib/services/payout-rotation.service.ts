@@ -19,6 +19,7 @@ import {
 import { createApprovalRequest } from "@/lib/services/approval.service"
 import { recordPayoutToLedger } from "@/lib/services/wallet.service"
 import { getCircleReviewers } from "@/lib/services/approval.service"
+import { getConstitutionRules } from "@/lib/services/constitution-rules.service"
 
 const DAY_MS = 86400000
 
@@ -334,6 +335,30 @@ export async function evaluateCycleReadiness(circleId: string, cycle: PayoutCycl
   const compliance = await getPoolCompliance(circleId)
   if (compliance.collected < amount) {
     blockers.push(`Available funds (${compliance.collected}) are less than the payout amount (${amount})`)
+  }
+
+  // Constitution payout governance
+  const constRules = await getConstitutionRules(circleId)
+  if (constRules.payout.enabled) {
+    if (constRules.payout.minCompliancePercent != null && constRules.payout.minCompliancePercent > 0) {
+      const expected = compliance.expectedTotal
+      const percent = expected > 0 ? Math.round((compliance.collected / expected) * 100) : 100
+      if (percent < constRules.payout.minCompliancePercent) {
+        blockers.push(`Constitution requires at least ${constRules.payout.minCompliancePercent}% contribution compliance`)
+      }
+    }
+    if (constRules.payout.eligibleAfterCycles != null && cycle.cycleNumber <= constRules.payout.eligibleAfterCycles) {
+      blockers.push(`Constitution reserves the first ${constRules.payout.eligibleAfterCycles} cycle(s) before payouts are eligible`)
+    }
+    if (constRules.payout.requiresApproval) {
+      const approval = await prisma.approvalRequest.findFirst({
+        where: { circleId, type: "PAYOUT", resourceId: cycle.id, status: "PENDING" },
+      })
+      const need = constRules.payout.requiredApprovals ?? 1
+      if (!approval || approval.minimumApprovals < need) {
+        blockers.push("Constitution requires payout approval before payment")
+      }
+    }
   }
 
   // Unresolved blocking approval (a PENDING approval on this cycle blocks readiness → handled via PENDING_APPROVAL status instead)
@@ -694,6 +719,11 @@ export async function confirmPayoutReceived(circleId: string, cycleId: string, u
 export async function skipPayout(circleId: string, cycleId: string, userId: string, reason: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_SKIP_DEFER })
 
+  const constRules = await getConstitutionRules(circleId)
+  if (constRules.payout.enabled && !constRules.payout.allowSkipDefer) {
+    throw new Error("The constitution does not allow skipping payouts")
+  }
+
   const cycle = await prisma.payoutCycle.findUnique({ where: { id: cycleId } })
   if (!cycle || cycle.circleId !== circleId) throw new Error("Payout cycle not found")
   if (!["UPCOMING", "READY", "BLOCKED", "PENDING_APPROVAL"].includes(cycle.status)) {
@@ -742,6 +772,11 @@ export async function skipPayout(circleId: string, cycleId: string, userId: stri
 
 export async function deferPayout(circleId: string, cycleId: string, userId: string, reason: string, toCycleNumber?: number) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_SKIP_DEFER })
+
+  const constRules = await getConstitutionRules(circleId)
+  if (constRules.payout.enabled && !constRules.payout.allowSkipDefer) {
+    throw new Error("The constitution does not allow deferring payouts")
+  }
 
   const cycle = await prisma.payoutCycle.findUnique({ where: { id: cycleId } })
   if (!cycle || cycle.circleId !== circleId) throw new Error("Payout cycle not found")

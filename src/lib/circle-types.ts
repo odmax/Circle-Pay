@@ -45,6 +45,7 @@ const tabs = {
   myStatus: { key: "my-status", label: "My Status", icon: "User", href: "/my-status" },
   myStatement: { key: "my-statement", label: "Statement", icon: "FileText", href: "/my-statement" },
   projects: { key: "projects", label: "Projects", icon: "FolderKanban", href: "/projects" },
+  constitution: { key: "constitution", label: "Constitution", icon: "ScrollText", href: "/constitution" },
 } as const
 
 export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
@@ -60,7 +61,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "payoutOrder", label: "Payout Order", type: "text", placeholder: "Member names in order" },
     ],
     defaultSettings: { contributionFrequency: "monthly", payoutMethod: "rotation" },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.polls, tabs.assistant, tabs.contributions, tabs.members, tabs.payouts, tabs.balances, tabs.reports, tabs.wallet, tabs.activity, tabs.insights],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.polls, tabs.assistant, tabs.contributions, tabs.members, tabs.payouts, tabs.constitution, tabs.balances, tabs.reports, tabs.wallet, tabs.activity, tabs.insights],
   },
   HOUSEMATE: {
     label: "Housemates",
@@ -159,7 +160,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "enableBalances", label: "Enable Balances", type: "toggle" },
     ],
     defaultSettings: { enableContributions: true, enableExpenses: true, enableGoals: true, enableBalances: true },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.expenses, tabs.goals, tabs.balances, tabs.members, tabs.activity],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.expenses, tabs.goals, tabs.balances, tabs.constitution, tabs.members, tabs.activity],
   },
 }
 

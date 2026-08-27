@@ -10,6 +10,7 @@ import {
   FileText,
   Shield,
   Settings,
+  ScrollText,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,6 +26,7 @@ interface StokvelQuickActionsProps {
     canViewReports: boolean
     canViewPermissions: boolean
     canManageSchedule: boolean
+    canViewConstitution: boolean
   }
 }
 
@@ -38,6 +40,7 @@ export function StokvelQuickActions({ circleId, permissions }: StokvelQuickActio
     { label: "Schedule", href: `/circles/${circleId}/contributions`, icon: Clock, show: permissions.canManageSchedule },
     { label: "Reports", href: `/circles/${circleId}/reports`, icon: FileText, show: permissions.canViewReports },
     { label: "Permissions", href: `/circles/${circleId}/manage/permissions`, icon: Shield, show: permissions.canViewPermissions },
+    { label: "Constitution", href: `/circles/${circleId}/constitution`, icon: ScrollText, show: permissions.canViewConstitution },
     { label: "Settings", href: `/circles/${circleId}/manage`, icon: Settings, show: permissions.canManagePayouts },
   ]
 

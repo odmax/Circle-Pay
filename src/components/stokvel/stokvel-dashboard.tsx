@@ -10,6 +10,7 @@ import { StokvelPayoutQueue } from "./stokvel-payout-queue"
 import { StokvelContributionProgress } from "./stokvel-contribution-progress"
 import { StokvelQuickActions } from "./stokvel-quick-actions"
 import { StokvelEmptyStates } from "./stokvel-empty-states"
+import { StokvelConstitution } from "./stokvel-constitution"
 
 interface StokvelDashboardProps {
   data: StokvelDashboardData
@@ -46,6 +47,7 @@ export function StokvelDashboard({ data, symbol, userId }: StokvelDashboardProps
             circleId={data.circle.id}
             permissions={permissions}
           />
+          <StokvelConstitution circleId={data.circle.id} constitution={data.constitution} />
           <StokvelEmptyStates
             hasSchedule={payout.hasSchedule}
             hasContributions={group.membersPaid > 0}

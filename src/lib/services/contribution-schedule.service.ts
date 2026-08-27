@@ -3,6 +3,7 @@ import { hasCirclePermission, requireCirclePermission } from "@/lib/permissions/
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import { createAuditLog } from "@/lib/services/audit.service"
 import { createNotification, createBulkNotifications, notifyCircleMembers } from "@/lib/services/notification.service"
+import { detectAndRecordContributionScheduleConflicts } from "@/lib/services/constitution-rules.service"
 
 export type ScheduleFrequency = "WEEKLY" | "FORTNIGHTLY" | "MONTHLY" | "QUARTERLY" | "ANNUALLY" | "CUSTOM"
 
@@ -125,6 +126,19 @@ export async function createContributionSchedule(circleId: string, userId: strin
     link: `/circles/${circleId}/contributions`,
   }).catch(() => {})
 
+  await detectAndRecordContributionScheduleConflicts(
+    circleId,
+    {
+      id: schedule.id,
+      amount: Number(schedule.amount),
+      frequency: schedule.frequency,
+      dueDay: schedule.dueDay == null ? null : Number(schedule.dueDay),
+      gracePeriodDays: schedule.gracePeriodDays == null ? null : Number(schedule.gracePeriodDays),
+      lateFee: schedule.lateFee == null ? null : Number(schedule.lateFee),
+    },
+    userId
+  ).catch(() => {})
+
   return schedule
 }
 
@@ -158,6 +172,19 @@ export async function updateContributionSchedule(circleId: string, scheduleId: s
     entityId: schedule.id,
     newValues: updateData,
   }).catch(() => {})
+
+  await detectAndRecordContributionScheduleConflicts(
+    circleId,
+    {
+      id: schedule.id,
+      amount: Number(schedule.amount),
+      frequency: schedule.frequency,
+      dueDay: schedule.dueDay == null ? null : Number(schedule.dueDay),
+      gracePeriodDays: schedule.gracePeriodDays == null ? null : Number(schedule.gracePeriodDays),
+      lateFee: schedule.lateFee == null ? null : Number(schedule.lateFee),
+    },
+    userId
+  ).catch(() => {})
 
   return schedule
 }

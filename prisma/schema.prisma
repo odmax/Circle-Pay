@@ -115,6 +115,11 @@ model User {
   financialStatementsApproved  ProjectFinancialStatement[]  @relation("FinancialStatementApprover")
   distributionPeriodsCreated   ProjectDistributionPeriod[]  @relation("DistributionPeriodCreator")
   legalAcceptances             UserLegalAcceptance[]
+  constitutionAcceptances      ConstitutionAcceptance[]
+  constitutionAmendments       ConstitutionAmendment[]
+  constitutionsCreated         Constitution[]              @relation("ConstitutionCreator")
+  constitutionVersionsCreated  ConstitutionVersion[]       @relation("ConstitutionVersionCreator")
+  constitutionConflictsResolved ConstitutionRuleConflict[] @relation("ConflictResolver")
   mobileSessions               MobileSession[]
   mobilePushTokens             MobilePushToken[]
   univApprovalRequests         ApprovalRequest[]            @relation("UnivApprovalRequester")
@@ -307,6 +312,9 @@ model Circle {
   distributions          ProjectDistribution[]
   financialStatements    ProjectFinancialStatement[]
   distributionPeriods    ProjectDistributionPeriod[]
+  constitution           Constitution?
+  constitutionAmendments ConstitutionAmendment[]
+  constitutionConflicts  ConstitutionRuleConflict[]
 }
 
 model CircleMember {
@@ -483,6 +491,7 @@ enum ApprovalType {
   JOIN_REQUEST
   MEMBER_PROMOTION
   PAYOUT
+  CONSTITUTION_AMENDMENT
   OTHER
 }
 
@@ -742,6 +751,18 @@ enum NotificationType {
   PAYOUT_SWAPPED
   PAYOUT_ISSUE_REPORTED
   PAYOUT_DRAW_COMPLETED
+  CONSTITUTION_PUBLISHED
+  CONSTITUTION_ACTIVATED
+  CONSTITUTION_SUPERSEDED
+  CONSTITUTION_ACCEPTANCE_REQUIRED
+  CONSTITUTION_ACCEPTANCE_OVERDUE
+  CONSTITUTION_AMENDMENT_PROPOSED
+  CONSTITUTION_AMENDMENT_APPROVED
+  CONSTITUTION_AMENDMENT_REJECTED
+  CONSTITUTION_RULE_CHANGED
+  CONSTITUTION_CONFLICT_DETECTED
+  CONSTITUTION_CONFLICT_RESOLVED
+  CONSTITUTION_MEMBER_ACCEPTED
 }
 
 model Notification {
@@ -3808,4 +3829,167 @@ model ProjectOwnershipEntry {
   @@index([snapshotId])
   @@index([projectId])
   @@index([participantId])
+}
+
+
+// ?"?" Constitution / Rules Engine ?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"
+
+// One constitution per circle; points at the currently active/published version.
+model Constitution {
+  id             String   @id @default(cuid())
+  circleId       String   @unique
+  title          String   @default("Constitution")
+  preamble       String?
+  activeVersionId String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  circle         Circle                  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy      User                    @relation("ConstitutionCreator", fields: [createdById], references: [id])
+  versions       ConstitutionVersion[]
+  ruleSettings   ConstitutionRuleSetting[]
+}
+
+enum ConstitutionStatus {
+  DRAFT
+  PUBLISHED
+  ACTIVE
+  SUPERSEDED
+}
+
+model ConstitutionVersion {
+  id            String             @id @default(cuid())
+  constitutionId String
+  version       Int
+  status        ConstitutionStatus @default(DRAFT)
+  content       Json
+  effectiveDate DateTime?
+  activatedAt   DateTime?
+  publishedAt   DateTime?
+  supersededAt  DateTime?
+  supersededById String?
+  createdById   String
+  createdAt     DateTime           @default(now())
+
+  constitution  Constitution       @relation(fields: [constitutionId], references: [id], onDelete: Cascade)
+  createdBy     User               @relation("ConstitutionVersionCreator", fields: [createdById], references: [id])
+  acceptances   ConstitutionAcceptance[]
+  amendments    ConstitutionAmendment[]
+  rules         ConstitutionRuleSetting[]
+
+  @@unique([constitutionId, version])
+  @@index([constitutionId, status])
+}
+
+model ConstitutionAcceptance {
+  id          String   @id @default(cuid())
+  versionId   String
+  userId      String
+  acceptedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  version ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, userId])
+  @@index([versionId])
+  @@index([userId])
+}
+
+enum ConstitutionAmendmentStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
+model ConstitutionAmendment {
+  id          String                       @id @default(cuid())
+  versionId   String
+  circleId    String
+  clauseKey   String
+  clauseTitle String?
+  oldValue    Json?
+  newValue    Json?
+  reason      String?
+  proposerId  String
+  status      ConstitutionAmendmentStatus  @default(PROPOSED)
+  approvalId  String?
+  effectiveDate DateTime?
+  createdAt   DateTime                     @default(now())
+  updatedAt   DateTime                     @updatedAt
+
+  version  ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  circle   Circle              @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  proposer User                @relation(fields: [proposerId], references: [id])
+
+  @@index([versionId])
+  @@index([circleId])
+}
+
+enum ConstitutionConflictStatus {
+  OPEN
+  PENDING_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ConstitutionSource {
+  CONSTITUTION
+  CIRCLE_SETTINGS
+  PREFERRED
+}
+
+// A detected conflict between a constitution rule and an existing circle setting.
+model ConstitutionRuleConflict {
+  id           String                   @id @default(cuid())
+  circleId     String
+  ruleKey      String
+  ruleSource   String
+  constitutionValue Json?
+  settingKey   String
+  settingValue Json?
+  resolution   Json?
+  status       ConstitutionConflictStatus @default(OPEN)
+  resolvedById String?
+  resolvedAt   DateTime?
+  resolvedAction String?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  circle      Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  resolvedBy  User?  @relation("ConflictResolver", fields: [resolvedById], references: [id])
+
+  @@index([circleId, status])
+}
+
+enum RuleValueType {
+  NUMBER
+  BOOLEAN
+  STRING
+  ENUM
+  JSON
+}
+
+// Executable rule settings derived from the active constitution for enforcement.
+model ConstitutionRuleSetting {
+  id            String        @id @default(cuid())
+  constitutionId String
+  versionId     String
+  key           String
+  ruleType      String
+  valueType     RuleValueType @default(JSON)
+  value         Json
+  sourceClause  String?
+  updatedById   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  constitution Constitution       @relation(fields: [constitutionId], references: [id], onDelete: Cascade)
+  version      ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([constitutionId, key])
+  @@unique([versionId, key])
+  @@index([constitutionId])
 }

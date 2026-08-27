@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import type { NotificationType } from "@/generated/prisma"
 
-const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true, payouts: true }
+const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true, payouts: true, constitution: true }
 
 const TYPE_TO_PREF: Record<string, string> = {
   CONTRIBUTION_MADE: "contributions", CONTRIBUTION_PLAN_CREATED: "contributions", CONTRIBUTION_REMINDER: "contributions",
@@ -22,6 +22,11 @@ const TYPE_TO_PREF: Record<string, string> = {
   PAYOUT_QUEUE_CHANGED: "payouts", PAYOUT_BLOCKED: "payouts", PAYOUT_APPROVAL_REQUIRED: "payouts",
   PAYOUT_CONFIRMED_RECEIVED: "payouts", PAYOUT_DEFERRED: "payouts", PAYOUT_SKIPPED: "payouts",
   PAYOUT_SWAPPED: "payouts", PAYOUT_ISSUE_REPORTED: "payouts", PAYOUT_DRAW_COMPLETED: "payouts",
+  CONSTITUTION_PUBLISHED: "constitution", CONSTITUTION_ACTIVATED: "constitution", CONSTITUTION_SUPERSEDED: "constitution",
+  CONSTITUTION_ACCEPTANCE_REQUIRED: "constitution", CONSTITUTION_ACCEPTANCE_OVERDUE: "constitution",
+  CONSTITUTION_AMENDMENT_PROPOSED: "constitution", CONSTITUTION_AMENDMENT_APPROVED: "constitution", CONSTITUTION_AMENDMENT_REJECTED: "constitution",
+  CONSTITUTION_RULE_CHANGED: "constitution", CONSTITUTION_CONFLICT_DETECTED: "constitution", CONSTITUTION_CONFLICT_RESOLVED: "constitution",
+  CONSTITUTION_MEMBER_ACCEPTED: "constitution",
 }
 
 async function isBlocked(userId: string, type: string): Promise<boolean> {

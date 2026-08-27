@@ -6,6 +6,7 @@ import { getContributionSchedules } from "@/lib/services/contribution-schedule.s
 import { getGoals, getGoalStats } from "@/lib/services/goal.service"
 import { getCircleEvents } from "@/lib/services/event.service"
 import { getUserNotifications } from "@/lib/services/notification.service"
+import { getConstitutionOverview } from "@/lib/services/constitution.service"
 
 /**
  * Minimal view of a payout queue entry consumed by the stokvel dashboard.
@@ -170,6 +171,14 @@ export interface StokvelDashboardData {
     proofStatus: string | null
   }[]
   alerts: { type: string; title: string; message: string; severity: "info" | "warning" | "error" }[]
+  constitution: {
+    exists: boolean
+    activeVersion: number | null
+    status: string | null
+    accepted: boolean
+    acceptancePercent: number
+    conflictCount: number
+  }
   permissions: {
     canSubmitOwn: boolean
     canViewAll: boolean
@@ -181,6 +190,7 @@ export interface StokvelDashboardData {
     canManagePayouts: boolean
     canViewReports: boolean
     canViewPermissions: boolean
+    canViewConstitution: boolean
   }
 }
 
@@ -206,6 +216,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     canManagePayouts,
     canViewReports,
     canViewPermissions,
+    canViewConstitution,
   ] = await Promise.all([
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_SUBMIT_OWN }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL }),
@@ -217,6 +228,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.PAYOUT_APPROVE }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.REPORT_VIEW }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEMBER_AUDIT_VIEW }),
+    hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONSTITUTION_VIEW }),
   ])
 
   const now = new Date()
@@ -398,6 +410,17 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     }
   }
 
+  const overview = await getConstitutionOverview(circleId, userId)
+  const full = "myAcceptance" in overview ? overview : null
+  const constitution = {
+    exists: overview.exists,
+    activeVersion: overview.active?.version ?? null,
+    status: overview.active?.status ?? null,
+    accepted: !!full?.myAcceptance,
+    acceptancePercent: full ? full.percentage : 0,
+    conflictCount: full ? full.conflictCount : 0,
+  }
+
   return {
     circle: {
       id: circleId,
@@ -432,6 +455,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     payout,
     contributionProgress,
     alerts,
+    constitution,
     permissions: {
       canSubmitOwn,
       canViewAll,
@@ -443,6 +467,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
       canManagePayouts,
       canViewReports,
       canViewPermissions,
+      canViewConstitution,
     },
   }
 }
