@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import type { NotificationType } from "@/generated/prisma"
 
-const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true }
+const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true, payouts: true }
 
 const TYPE_TO_PREF: Record<string, string> = {
   CONTRIBUTION_MADE: "contributions", CONTRIBUTION_PLAN_CREATED: "contributions", CONTRIBUTION_REMINDER: "contributions",
@@ -17,6 +17,11 @@ const TYPE_TO_PREF: Record<string, string> = {
   PROJECT_CREATED: "projects",
   FINANCIAL_RISK: "risks",
   AI_INSIGHT: "ai",
+  PAYOUT_QUEUE_CREATED: "payouts", PAYOUT_APPROACHING: "payouts", PAYOUT_READY: "payouts",
+  PAYOUT_APPROVED: "payouts", PAYOUT_PAID: "payouts", PAYOUT_CONFIRMATION_REQUIRED: "payouts",
+  PAYOUT_QUEUE_CHANGED: "payouts", PAYOUT_BLOCKED: "payouts", PAYOUT_APPROVAL_REQUIRED: "payouts",
+  PAYOUT_CONFIRMED_RECEIVED: "payouts", PAYOUT_DEFERRED: "payouts", PAYOUT_SKIPPED: "payouts",
+  PAYOUT_SWAPPED: "payouts", PAYOUT_ISSUE_REPORTED: "payouts", PAYOUT_DRAW_COMPLETED: "payouts",
 }
 
 async function isBlocked(userId: string, type: string): Promise<boolean> {

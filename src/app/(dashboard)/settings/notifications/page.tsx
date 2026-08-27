@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Save, Loader2, PiggyBank, ShoppingBag, Target, Wallet, Calendar, BarChart3, MessageCircle, Megaphone, Settings, Sparkles } from "lucide-react"
+import { Save, Loader2, PiggyBank, ShoppingBag, Target, Wallet, Calendar, BarChart3, MessageCircle, Megaphone, Settings, Sparkles, HandCoins } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
@@ -19,6 +19,7 @@ const CATEGORIES = [
   { key: "projects", label: "Projects", desc: "Project creation and updates", icon: Settings },
   { key: "risks", label: "Risk Alerts", desc: "Financial risk notifications", icon: Sparkles },
   { key: "ai", label: "AI Insights", desc: "AI-powered financial insights", icon: Sparkles },
+  { key: "payouts", label: "Payouts", desc: "Payout queue, readiness, payments, confirmations", icon: HandCoins },
 ]
 
 export default function NotificationPreferencesPage() {

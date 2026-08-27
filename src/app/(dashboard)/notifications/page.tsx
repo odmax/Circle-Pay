@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Users,
   Settings,
+  HandCoins,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -58,6 +59,21 @@ const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   APPROVAL_OVERDUE: Shield,
   PROJECT_CREATED: FolderKanban,
   FINANCIAL_RISK: AlertTriangle,
+  PAYOUT_QUEUE_CREATED: HandCoins,
+  PAYOUT_APPROACHING: HandCoins,
+  PAYOUT_READY: HandCoins,
+  PAYOUT_APPROVED: HandCoins,
+  PAYOUT_PAID: HandCoins,
+  PAYOUT_CONFIRMATION_REQUIRED: HandCoins,
+  PAYOUT_QUEUE_CHANGED: HandCoins,
+  PAYOUT_BLOCKED: HandCoins,
+  PAYOUT_APPROVAL_REQUIRED: HandCoins,
+  PAYOUT_CONFIRMED_RECEIVED: HandCoins,
+  PAYOUT_DEFERRED: HandCoins,
+  PAYOUT_SKIPPED: HandCoins,
+  PAYOUT_SWAPPED: HandCoins,
+  PAYOUT_ISSUE_REPORTED: HandCoins,
+  PAYOUT_DRAW_COMPLETED: HandCoins,
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -85,6 +101,21 @@ const TYPE_LABELS: Record<string, string> = {
   APPROVAL_OVERDUE: "Approval",
   PROJECT_CREATED: "Project",
   FINANCIAL_RISK: "Risk Alert",
+  PAYOUT_QUEUE_CREATED: "Payout",
+  PAYOUT_APPROACHING: "Payout",
+  PAYOUT_READY: "Payout",
+  PAYOUT_APPROVED: "Payout",
+  PAYOUT_PAID: "Payout",
+  PAYOUT_CONFIRMATION_REQUIRED: "Payout",
+  PAYOUT_QUEUE_CHANGED: "Payout",
+  PAYOUT_BLOCKED: "Payout",
+  PAYOUT_APPROVAL_REQUIRED: "Payout",
+  PAYOUT_CONFIRMED_RECEIVED: "Payout",
+  PAYOUT_DEFERRED: "Payout",
+  PAYOUT_SKIPPED: "Payout",
+  PAYOUT_SWAPPED: "Payout",
+  PAYOUT_ISSUE_REPORTED: "Payout",
+  PAYOUT_DRAW_COMPLETED: "Payout",
 }
 
 const TYPE_GROUPS: Record<string, string[]> = {
@@ -114,6 +145,23 @@ const TYPE_GROUPS: Record<string, string[]> = {
   ],
   Projects: ["PROJECT_CREATED"],
   Risks: ["FINANCIAL_RISK"],
+  Payouts: [
+    "PAYOUT_QUEUE_CREATED",
+    "PAYOUT_APPROACHING",
+    "PAYOUT_READY",
+    "PAYOUT_APPROVED",
+    "PAYOUT_PAID",
+    "PAYOUT_CONFIRMATION_REQUIRED",
+    "PAYOUT_QUEUE_CHANGED",
+    "PAYOUT_BLOCKED",
+    "PAYOUT_APPROVAL_REQUIRED",
+    "PAYOUT_CONFIRMED_RECEIVED",
+    "PAYOUT_DEFERRED",
+    "PAYOUT_SKIPPED",
+    "PAYOUT_SWAPPED",
+    "PAYOUT_ISSUE_REPORTED",
+    "PAYOUT_DRAW_COMPLETED",
+  ],
 }
 
 function groupByDate(items: NotificationItem[]) {
@@ -198,6 +246,7 @@ export default function NotificationsPage() {
     "Approvals",
     "Projects",
     "Risks",
+    "Payouts",
   ]
 
   if (loading) {
