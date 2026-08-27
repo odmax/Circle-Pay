@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import type { NotificationType } from "@/generated/prisma"
 
-const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true, payouts: true, constitution: true }
+const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true, payouts: true, constitution: true, governance: true }
 
 const TYPE_TO_PREF: Record<string, string> = {
   CONTRIBUTION_MADE: "contributions", CONTRIBUTION_PLAN_CREATED: "contributions", CONTRIBUTION_REMINDER: "contributions",
@@ -27,6 +27,11 @@ const TYPE_TO_PREF: Record<string, string> = {
   CONSTITUTION_AMENDMENT_PROPOSED: "constitution", CONSTITUTION_AMENDMENT_APPROVED: "constitution", CONSTITUTION_AMENDMENT_REJECTED: "constitution",
   CONSTITUTION_RULE_CHANGED: "constitution", CONSTITUTION_CONFLICT_DETECTED: "constitution", CONSTITUTION_CONFLICT_RESOLVED: "constitution",
   CONSTITUTION_MEMBER_ACCEPTED: "constitution",
+  MEETING_SCHEDULED: "governance", MEETING_REMINDER: "governance", MEETING_AGENDA_UPDATED: "governance",
+  MEETING_RSVP_RECEIVED: "governance", VOTE_OPENED: "governance", VOTE_CLOSING_SOON: "governance",
+  VOTE_RESULT: "governance", MINUTES_PUBLISHED: "governance", MINUTES_AMENDED: "governance",
+  ACTION_ITEM_ASSIGNED: "governance", QUORUM_REACHED: "governance", QUORUM_LOST: "governance",
+  GOV_DECISION_RECORDED: "governance",
 }
 
 async function isBlocked(userId: string, type: string): Promise<boolean> {

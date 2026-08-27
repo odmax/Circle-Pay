@@ -18,6 +18,8 @@ import {
   Settings,
   HandCoins,
   ScrollText,
+  Landmark,
+  Vote,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -87,6 +89,19 @@ const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   CONSTITUTION_CONFLICT_DETECTED: AlertTriangle,
   CONSTITUTION_CONFLICT_RESOLVED: ScrollText,
   CONSTITUTION_MEMBER_ACCEPTED: ScrollText,
+  MEETING_SCHEDULED: Landmark,
+  MEETING_REMINDER: Landmark,
+  MEETING_AGENDA_UPDATED: Landmark,
+  MEETING_RSVP_RECEIVED: Users,
+  VOTE_OPENED: Vote,
+  VOTE_CLOSING_SOON: Vote,
+  VOTE_RESULT: Vote,
+  MINUTES_PUBLISHED: ScrollText,
+  MINUTES_AMENDED: ScrollText,
+  ACTION_ITEM_ASSIGNED: Users,
+  QUORUM_REACHED: Users,
+  QUORUM_LOST: AlertTriangle,
+  GOV_DECISION_RECORDED: Landmark,
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -141,6 +156,19 @@ const TYPE_LABELS: Record<string, string> = {
   CONSTITUTION_CONFLICT_DETECTED: "Constitution",
   CONSTITUTION_CONFLICT_RESOLVED: "Constitution",
   CONSTITUTION_MEMBER_ACCEPTED: "Constitution",
+  MEETING_SCHEDULED: "Meetings & Voting",
+  MEETING_REMINDER: "Meetings & Voting",
+  MEETING_AGENDA_UPDATED: "Meetings & Voting",
+  MEETING_RSVP_RECEIVED: "Meetings & Voting",
+  VOTE_OPENED: "Meetings & Voting",
+  VOTE_CLOSING_SOON: "Meetings & Voting",
+  VOTE_RESULT: "Meetings & Voting",
+  MINUTES_PUBLISHED: "Meetings & Voting",
+  MINUTES_AMENDED: "Meetings & Voting",
+  ACTION_ITEM_ASSIGNED: "Meetings & Voting",
+  QUORUM_REACHED: "Meetings & Voting",
+  QUORUM_LOST: "Meetings & Voting",
+  GOV_DECISION_RECORDED: "Meetings & Voting",
 }
 
 const TYPE_GROUPS: Record<string, string[]> = {
@@ -200,6 +228,21 @@ const TYPE_GROUPS: Record<string, string[]> = {
     "CONSTITUTION_CONFLICT_DETECTED",
     "CONSTITUTION_CONFLICT_RESOLVED",
     "CONSTITUTION_MEMBER_ACCEPTED",
+  ],
+  Governance: [
+    "MEETING_SCHEDULED",
+    "MEETING_REMINDER",
+    "MEETING_AGENDA_UPDATED",
+    "MEETING_RSVP_RECEIVED",
+    "VOTE_OPENED",
+    "VOTE_CLOSING_SOON",
+    "VOTE_RESULT",
+    "MINUTES_PUBLISHED",
+    "MINUTES_AMENDED",
+    "ACTION_ITEM_ASSIGNED",
+    "QUORUM_REACHED",
+    "QUORUM_LOST",
+    "GOV_DECISION_RECORDED",
   ],
 }
 
@@ -286,6 +329,8 @@ export default function NotificationsPage() {
     "Projects",
     "Risks",
     "Payouts",
+    "Constitution",
+    "Governance",
   ]
 
   if (loading) {

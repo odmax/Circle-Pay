@@ -34,6 +34,9 @@ export interface ConstitutionRules {
     enabled: boolean
     quorumPercent: number | null
     thresholdPercent: number | null
+    anonymousVoteAllowed: boolean
+    majorFinancialThreshold: number | null
+    amendmentThreshold: number | null
   }
   membership: {
     enabled: boolean
@@ -69,6 +72,9 @@ const DEFAULT_RULES: ConstitutionRules = {
     enabled: false,
     quorumPercent: null,
     thresholdPercent: null,
+    anonymousVoteAllowed: false,
+    majorFinancialThreshold: null,
+    amendmentThreshold: null,
   },
   membership: {
     enabled: false,
@@ -115,8 +121,9 @@ export async function getConstitutionRules(circleId: string): Promise<Constituti
     },
     voting: {
       ...DEFAULT_RULES.voting,
-      ...coerceNumbers(voting, ["quorumPercent", "thresholdPercent"]),
+      ...coerceNumbers(voting, ["quorumPercent", "thresholdPercent", "majorFinancialThreshold", "amendmentThreshold"]),
       enabled: asBool(voting["enabled"]),
+      anonymousVoteAllowed: asBool(voting["anonymousVoteAllowed"]),
     },
     membership: {
       ...DEFAULT_RULES.membership,
@@ -337,6 +344,65 @@ export function evaluateVotingCompliance(
     thresholdPercent: threshold,
     quorumMet,
     thresholdMet,
+    reason: reasons.length ? reasons.join("; ") : null,
+  }
+}
+
+/**
+ * Governance vote enforcement. Applies constitution quorum, approval threshold,
+ * amendment-specific and major-financial thresholds, and anonymous-vote rules.
+ * The chosen threshold depends on the motion category, so a simple majority is
+ * never sufficient when the constitution requires a higher amendment/financial bar.
+ */
+export type GovernanceVoteCompliance = {
+  votingEnforced: boolean
+  quorumPercent: number | null
+  quorumMet: boolean
+  thresholdPercent: number | null
+  thresholdMet: boolean
+  anonymousAllowed: boolean
+  reason: string | null
+}
+
+export function evaluateGovernanceVoteCompliance(
+  rules: Pick<ConstitutionRules, "voting">,
+  input: {
+    totalMembers: number
+    votesCast: number
+    votesFor: number
+    motionCategory: string
+    isAnonymous: boolean
+  }
+): GovernanceVoteCompliance {
+  const v = rules.voting
+  if (!v.enabled) {
+    return { votingEnforced: false, quorumPercent: null, quorumMet: true, thresholdPercent: null, thresholdMet: true, anonymousAllowed: true, reason: null }
+  }
+  const quorum = v.quorumPercent ?? 50
+  let threshold = v.thresholdPercent ?? 50
+  if (input.motionCategory === "CONSTITUTION_AMENDMENT" && v.amendmentThreshold != null) {
+    threshold = v.amendmentThreshold
+  }
+  if (
+    (input.motionCategory === "FINANCIAL" || input.motionCategory === "PAYOUT_EXCEPTION") &&
+    v.majorFinancialThreshold != null
+  ) {
+    threshold = v.majorFinancialThreshold
+  }
+  const quorumMet = input.totalMembers === 0 || (input.votesCast / input.totalMembers) * 100 >= quorum
+  const thresholdMet = input.votesCast === 0 || (input.votesFor / input.votesCast) * 100 >= threshold
+  const anonymousAllowed = !input.isAnonymous || v.anonymousVoteAllowed === true
+  const reasons: string[] = []
+  if (!quorumMet) reasons.push(`Quorum of ${quorum}% not met`)
+  if (!thresholdMet) reasons.push(`Approval threshold of ${threshold}% not met`)
+  if (!anonymousAllowed) reasons.push("Anonymous voting is not permitted by the constitution")
+  return {
+    votingEnforced: true,
+    quorumPercent: quorum,
+    quorumMet,
+    thresholdPercent: threshold,
+    thresholdMet,
+    anonymousAllowed,
     reason: reasons.length ? reasons.join("; ") : null,
   }
 }

@@ -6,7 +6,7 @@ const DEFAULTS = {
   contributions: true, expenses: true, goals: true,
   wallet: true, events: true, approvals: true,
   members: true, receipts: true, projects: true,
-  risks: true, ai: true, payouts: true, constitution: true,
+  risks: true, ai: true, payouts: true, constitution: true, governance: true,
 }
 
 export async function GET() {

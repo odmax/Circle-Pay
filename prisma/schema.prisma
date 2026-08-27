@@ -129,6 +129,18 @@ model User {
   receiptsVoidedBy             FinancialReceipt[]           @relation("ReceiptVoidedBy")
   workflowsCreated             ApprovalWorkflow[]           @relation("WorkflowCreator")
   workflowsUpdated             ApprovalWorkflow[]           @relation("WorkflowUpdater")
+  meetingsCreated              Meeting[]                    @relation("MeetingCreator")
+  meetingRSVPs                 MeetingRSVP[]                @relation("MeetingRSVPUser")
+  meetingAttendance            MeetingAttendance[]          @relation("AttendanceMember")
+  meetingAttendanceRecorded    MeetingAttendance[]          @relation("AttendanceRecorder")
+  agendaItemsCreated           MeetingAgendaItem[]          @relation("AgendaItemCreator")
+  actionItemsCreated           MeetingActionItem[]          @relation("ActionItemCreator")
+  actionItemsAssigned          MeetingActionItem[]          @relation("ActionItemAssignee")
+  meetingMinutesCreated        MeetingMinutes[]             @relation("MinutesCreator")
+  meetingMinutesEdited         MeetingMinutesVersion[]      @relation("MinutesVersionEditor")
+  governanceVotesCreated       GovernanceVote[]             @relation("VoteCreator")
+  governanceVoteOptionsCreated GovernanceVoteOption[]       @relation("VoteOptionCreator")
+  governanceVotesCast          GovernanceVoteRecord[]       @relation("VoteCaster")
 
   @@index([email])
 }
@@ -315,6 +327,8 @@ model Circle {
   constitution           Constitution?
   constitutionAmendments ConstitutionAmendment[]
   constitutionConflicts  ConstitutionRuleConflict[]
+  meetings               Meeting[]
+  governanceVotes        GovernanceVote[]
 }
 
 model CircleMember {
@@ -492,6 +506,7 @@ enum ApprovalType {
   MEMBER_PROMOTION
   PAYOUT
   CONSTITUTION_AMENDMENT
+  GOVERNANCE
   OTHER
 }
 
@@ -763,6 +778,19 @@ enum NotificationType {
   CONSTITUTION_CONFLICT_DETECTED
   CONSTITUTION_CONFLICT_RESOLVED
   CONSTITUTION_MEMBER_ACCEPTED
+  MEETING_SCHEDULED
+  MEETING_REMINDER
+  MEETING_AGENDA_UPDATED
+  MEETING_RSVP_RECEIVED
+  VOTE_OPENED
+  VOTE_CLOSING_SOON
+  VOTE_RESULT
+  MINUTES_PUBLISHED
+  MINUTES_AMENDED
+  ACTION_ITEM_ASSIGNED
+  QUORUM_REACHED
+  QUORUM_LOST
+  GOV_DECISION_RECORDED
 }
 
 model Notification {
@@ -3992,4 +4020,282 @@ model ConstitutionRuleSetting {
   @@unique([constitutionId, key])
   @@unique([versionId, key])
   @@index([constitutionId])
+}
+
+// ─── Meetings, Voting & Governance ─────────────────────────
+
+enum MeetingType {
+  GENERAL
+  MONTHLY
+  ANNUAL
+  EMERGENCY
+  SPECIAL
+}
+
+enum MeetingStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MeetingRSVPStatus {
+  GOING
+  MAYBE
+  NOT_GOING
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+  LATE
+}
+
+enum AgendaItemStatus {
+  OPEN
+  DISCUSSED
+  DECIDED
+  DEFERRED
+}
+
+enum ActionItemStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MeetingMinutesStatus {
+  DRAFT
+  REVIEW
+  PUBLISHED
+  AMENDED
+}
+
+enum MotionCategory {
+  CONSTITUTION_AMENDMENT
+  NEW_MEMBER
+  FINANCIAL
+  PAYOUT_EXCEPTION
+  PROJECT
+  GENERAL_MOTION
+}
+
+enum GovernanceVoteType {
+  YES_NO
+  MULTIPLE_CHOICE
+  RANKED_CHOICE
+}
+
+enum GovernanceVoteStatus {
+  OPEN
+  CLOSED
+  FINALIZED
+  CANCELLED
+}
+
+model Meeting {
+  id               String          @id @default(cuid())
+  circleId         String
+  createdById      String
+  title            String
+  description      String?
+  type             MeetingType     @default(GENERAL)
+  status           MeetingStatus   @default(DRAFT)
+  scheduledAt      DateTime
+  endAt            DateTime?
+  location         String?
+  isOnline         Boolean         @default(false)
+  meetingLink      String?
+  agenda           String?
+  noticePeriodDays Int?
+  attendanceRequirement Int?
+  quorumPercent    Int?
+  deletedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  circle      Circle                @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy   User                  @relation("MeetingCreator", fields: [createdById], references: [id])
+  rsvps       MeetingRSVP[]
+  attendance  MeetingAttendance[]
+  agendaItems MeetingAgendaItem[]
+  actionItems MeetingActionItem[]
+  minutes     MeetingMinutes[]
+  votes       GovernanceVote[]
+
+  @@index([circleId])
+  @@index([status])
+}
+
+model MeetingRSVP {
+  id        String             @id @default(cuid())
+  meetingId String
+  userId    String
+  status    MeetingRSVPStatus  @default(GOING)
+  note      String?
+  notifiedReminder Boolean      @default(false)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User    @relation("MeetingRSVPUser", fields: [userId], references: [id])
+
+  @@unique([meetingId, userId])
+  @@index([meetingId])
+}
+
+model MeetingAttendance {
+  id           String           @id @default(cuid())
+  meetingId    String
+  userId       String
+  status       AttendanceStatus @default(PRESENT)
+  checkedInAt  DateTime?
+  recordedById String?
+  note         String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  meeting    Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user       User    @relation("AttendanceMember", fields: [userId], references: [id])
+  recordedBy User?   @relation("AttendanceRecorder", fields: [recordedById], references: [id])
+
+  @@unique([meetingId, userId])
+  @@index([meetingId])
+}
+
+model MeetingAgendaItem {
+  id         String           @id @default(cuid())
+  meetingId  String
+  createdById String
+  title      String
+  description String?
+  sortOrder  Int              @default(0)
+  status     AgendaItemStatus @default(OPEN)
+  discussionNotes String?
+  decision   String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("AgendaItemCreator", fields: [createdById], references: [id])
+
+  @@index([meetingId])
+}
+
+model MeetingActionItem {
+  id        String           @id @default(cuid())
+  meetingId String
+  createdById String
+  title     String
+  assigneeId String?
+  dueDate   DateTime?
+  status    ActionItemStatus @default(OPEN)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  meeting  Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("ActionItemCreator", fields: [createdById], references: [id])
+  assignee User?    @relation("ActionItemAssignee", fields: [assigneeId], references: [id])
+
+  @@index([meetingId, assigneeId])
+}
+
+model MeetingMinutes {
+  id          String               @id @default(cuid())
+  meetingId   String               @unique
+  createdById String
+  status      MeetingMinutesStatus @default(DRAFT)
+  publishedAt DateTime?
+  content     Json?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  meeting   Meeting                @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  createdBy User                   @relation("MinutesCreator", fields: [createdById], references: [id])
+  versions  MeetingMinutesVersion[]
+
+  @@index([meetingId])
+}
+
+model MeetingMinutesVersion {
+  id        String   @id @default(cuid())
+  minutesId String
+  version   Int
+  content   Json
+  changeNote String?
+  publishedAt DateTime?
+  editedById String
+  createdAt DateTime @default(now())
+
+  minutes  MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Cascade)
+  editedBy User           @relation("MinutesVersionEditor", fields: [editedById], references: [id])
+
+  @@unique([minutesId, version])
+  @@index([minutesId])
+}
+
+model GovernanceVote {
+  id            String               @id @default(cuid())
+  circleId      String
+  meetingId     String?
+  createdById   String
+  title         String
+  description   String?
+  motionCategory MotionCategory      @default(GENERAL_MOTION)
+  type          GovernanceVoteType   @default(YES_NO)
+  status        GovernanceVoteStatus @default(OPEN)
+  quorumPercent Int?
+  thresholdPercent Int?
+  anonymous     Boolean              @default(false)
+  majorFinancial Boolean             @default(false)
+  closesAt      DateTime?
+  finalizedAt   DateTime?
+  result        Json?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  circle    Circle                @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  meeting   Meeting?              @relation(fields: [meetingId], references: [id])
+  createdBy User                  @relation("VoteCreator", fields: [createdById], references: [id])
+  options   GovernanceVoteOption[]
+  votes     GovernanceVoteRecord[]
+
+  @@index([circleId, status])
+  @@index([meetingId])
+}
+
+model GovernanceVoteOption {
+  id         String   @id @default(cuid())
+  voteId     String
+  text       String
+  sortOrder  Int      @default(0)
+  createdById String
+  createdAt  DateTime @default(now())
+
+  vote      GovernanceVote       @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  createdBy User                 @relation("VoteOptionCreator", fields: [createdById], references: [id])
+  votes     GovernanceVoteRecord[]
+
+  @@index([voteId])
+}
+
+model GovernanceVoteRecord {
+  id        String   @id @default(cuid())
+  voteId    String
+  optionId  String
+  userId    String
+  rank      Int?
+  castAt    DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vote   GovernanceVote       @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  option GovernanceVoteOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User                 @relation("VoteCaster", fields: [userId], references: [id])
+
+  @@unique([voteId, userId])
+  @@index([voteId])
+  @@index([optionId])
 }
