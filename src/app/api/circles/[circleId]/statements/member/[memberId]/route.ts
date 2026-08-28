@@ -37,7 +37,7 @@ export async function GET(
     const from = fromStr ? new Date(fromStr) : undefined
     const to = toStr ? new Date(toStr) : undefined
 
-    const data = await generateMemberStatementData(circleId, memberId, from, to)
+    const data = await generateMemberStatementData(circleId, memberId, session.user.id, from, to)
 
     if (format === "pdf") {
       const statementData: StatementPdfData = {

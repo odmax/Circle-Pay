@@ -328,6 +328,7 @@ export async function addAgendaItem(circleId: string, meetingId: string, userId:
 
 export async function updateAgendaItem(circleId: string, meetingId: string, itemId: string, userId: string, data: { title?: string; description?: string; status?: AgendaItemStatus; discussionNotes?: string; decision?: string; sortOrder?: number }) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_MANAGE })
+  await getMeetingOrThrow(circleId, meetingId)
   const item = await prisma.meetingAgendaItem.findFirst({ where: { id: itemId, meetingId } })
   if (!item) throw new Error("Agenda item not found")
   return prisma.meetingAgendaItem.update({ where: { id: itemId }, data })
@@ -378,6 +379,7 @@ export async function generateMinutes(circleId: string, meetingId: string, userI
 
 export async function reviewMinutes(circleId: string, meetingId: string, minutesId: string, userId: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_MINUTES_MANAGE })
+  await getMeetingOrThrow(circleId, meetingId)
   const minutes = await prisma.meetingMinutes.findFirst({ where: { id: minutesId, meetingId } })
   if (!minutes) throw new Error("Minutes not found")
   if (minutes.status === "PUBLISHED") throw new Error("Published minutes are immutable")
@@ -386,6 +388,7 @@ export async function reviewMinutes(circleId: string, meetingId: string, minutes
 
 export async function publishMinutes(circleId: string, meetingId: string, minutesId: string, userId: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_MINUTES_PUBLISH })
+  await getMeetingOrThrow(circleId, meetingId)
   const minutes = await prisma.meetingMinutes.findFirst({ where: { id: minutesId, meetingId } })
   if (!minutes) throw new Error("Minutes not found")
   if (minutes.status === "PUBLISHED") return minutes
@@ -412,6 +415,7 @@ export async function publishMinutes(circleId: string, meetingId: string, minute
 
 export async function amendMinutes(circleId: string, meetingId: string, minutesId: string, userId: string, content: Record<string, unknown>, changeNote?: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_MINUTES_MANAGE })
+  await getMeetingOrThrow(circleId, meetingId)
   const minutes = await prisma.meetingMinutes.findFirst({ where: { id: minutesId, meetingId } })
   if (!minutes) throw new Error("Minutes not found")
   if (minutes.status !== "PUBLISHED" && minutes.status !== "AMENDED") throw new Error("Only published minutes are amended")
@@ -436,6 +440,7 @@ export async function amendMinutes(circleId: string, meetingId: string, minutesI
 
 export async function getMinutes(circleId: string, meetingId: string, userId: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_VIEW })
+  await getMeetingOrThrow(circleId, meetingId)
   return prisma.meetingMinutes.findFirst({
     where: { meetingId },
     include: { versions: { orderBy: { version: "asc" }, include: { editedBy: { select: { id: true, name: true } } } }, createdBy: { select: { id: true, name: true } } },
@@ -449,6 +454,7 @@ export async function getMinutes(circleId: string, meetingId: string, userId: st
  */
 export async function acknowledgeMinutes(circleId: string, meetingId: string, minutesId: string, userId: string) {
   await validateMember(circleId, userId)
+  await getMeetingOrThrow(circleId, meetingId)
   const minutes = await prisma.meetingMinutes.findFirst({ where: { id: minutesId, meetingId } })
   if (!minutes) throw new Error("Minutes not found")
   if (minutes.status !== "PUBLISHED") throw new Error("Only published minutes can be acknowledged")
@@ -465,6 +471,7 @@ export async function acknowledgeMinutes(circleId: string, meetingId: string, mi
 /** Members who acknowledged a meeting's published minutes. */
 export async function getMinutesAcknowledgements(circleId: string, meetingId: string, minutesId: string, userId: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_VIEW })
+  await getMeetingOrThrow(circleId, meetingId)
   return prisma.meetingMinutesAcknowledgement.findMany({
     where: { minutesId },
     include: { user: { select: { id: true, name: true, email: true, image: true } } },

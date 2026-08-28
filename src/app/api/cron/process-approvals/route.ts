@@ -4,8 +4,10 @@ import { expireStaleApprovals } from "@/lib/services/approval.service"
 import { expireStaleDelegations } from "@/lib/services/delegation.service"
 
 export async function POST(request: NextRequest) {
+  const secret = process.env.CRON_SECRET
   const authHeader = request.headers.get("authorization")
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Fail closed: if CRON_SECRET is not configured, never authorize this endpoint.
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 import {
   getPayoutQueue,
   getPayoutConfig,
@@ -29,6 +30,12 @@ export async function GET(
     }
 
     if (view === "config") {
+      const member = await prisma.circleMember.findUnique({
+        where: { circleId_userId: { circleId, userId: session.user.id } },
+      })
+      if (!member) {
+        return NextResponse.json({ error: "Not a member of this circle" }, { status: 403 })
+      }
       const config = await getPayoutConfig(circleId)
       return NextResponse.json(
         config ? { ...config, amount: config.amount ? Number(config.amount) : null } : null

@@ -170,9 +170,18 @@ export function PayoutActions({
   return (
     <div className="flex flex-wrap gap-2">
       {showConfirm && (
-        <Button size="sm" onClick={run as any} className="bg-emerald-600 text-white hover:bg-emerald-700">
-          <CheckCircle2 className="size-3.5" /> Confirm Receipt
-        </Button>
+        <Dialog open={open === "confirm"} onOpenChange={(v) => setOpen(v ? "confirm" : null)}>
+          {triggerBtn("Confirm Receipt", CheckCircle2, "default", "bg-emerald-600 text-white hover:bg-emerald-700")}
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader><DialogTitle>Confirm Receipt — Payout #{cycle.cycleNumber}</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Confirm that you have received this payout. This marks the payout as received and advances it to completion.
+            </p>
+            <Button onClick={run} disabled={loading} className="bg-emerald-600 text-white hover:bg-emerald-700">
+              {loading ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Confirm receipt
+            </Button>
+          </DialogContent>
+        </Dialog>
       )}
 
       {showPrepare && (

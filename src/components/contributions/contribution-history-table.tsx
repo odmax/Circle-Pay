@@ -110,7 +110,7 @@ export function ContributionHistoryTable({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-muted">
-          <span className="text-lg text-muted-foreground">R</span>
+          <span className="text-lg text-muted-foreground">{currencySymbol}</span>
         </div>
         <h4 className="text-sm font-medium">
           {showDeleted ? "No deleted contributions" : "No contributions yet"}

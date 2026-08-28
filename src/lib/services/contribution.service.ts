@@ -462,7 +462,31 @@ export async function updateContribution(
   if (contribution.status !== "CONFIRMED" && contribution.status !== "REJECTED") {
     if (amountChanged && contribution.status === "PAID") {
       reverseContributionLedger(circleId, contributionId, oldAmount, actorUserId).catch(console.error)
-      recordContributionToLedger(circleId, contributionId, Number(data.amount), actorUserId).catch(console.error)
+      // The corrected amount must use a UNIQUE idempotency key: the original
+      // `contribution:${id}` posting already exists, so re-calling
+      // recordContributionToLedger with the same id would no-op and the ledger
+      // would end up missing the corrected amount after the reversal above.
+      const correctedKey = `corrected:contribution:${contributionId}:${Date.now()}`
+      const wallet = await prisma.wallet.findFirst({ where: { circleId, type: "CIRCLE_WALLET" } })
+      if (wallet) {
+        const getAccountByType = async (type: LedgerAccountType) =>
+          prisma.ledgerAccount.findFirst({ where: { walletId: wallet.id, type } })
+        const contribAcc = await getAccountByType("CONTRIBUTIONS" as LedgerAccountType)
+        const adjAcc = await getAccountByType("ADJUSTMENTS" as LedgerAccountType)
+        if (contribAcc && adjAcc) {
+          await prisma.ledgerTransaction.create({
+            data: {
+              circleId, amount: Number(data.amount), type: "CONTRIBUTION", status: "CONFIRMED", idempotencyKey: correctedKey,
+              entries: {
+                create: [
+                  { accountId: contribAcc.id, type: "CREDIT", amount: Number(data.amount), description: `Corrected contribution ${contributionId}` },
+                  { accountId: adjAcc.id, type: "DEBIT", amount: Number(data.amount), description: `Corrected contribution ${contributionId}` },
+                ],
+              },
+            },
+          })
+        }
+      }
       prisma.financialReceipt
         .updateMany({
           where: { resourceId: contributionId, resourceType: "CONTRIBUTION", status: "ACTIVE" },

@@ -78,10 +78,17 @@ async function loadReceiptNumbers(resourceIds: string[]): Promise<Map<string, st
 export async function generateMemberStatementData(
   circleId: string,
   memberId: string,
+  actorUserId: string,
   from?: Date,
   to?: Date
 ): Promise<MemberStatementResult> {
-  await requireCirclePermission({ userId: memberId, circleId, permission: CIRCLE_PERMISSIONS.LEDGER_VIEW })
+  if (actorUserId === memberId) {
+    const isMember = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId: actorUserId } } })
+    if (!isMember) throw new Error("Not a member")
+  } else {
+    // Viewing another member's statement requires REPORT_VIEW (matches the route guard)
+    await requireCirclePermission({ userId: actorUserId, circleId, permission: CIRCLE_PERMISSIONS.REPORT_VIEW })
+  }
 
   const circle = await prisma.circle.findUniqueOrThrow({
     where: { id: circleId },

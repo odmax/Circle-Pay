@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 import { getMemberStatement } from "@/lib/services/member-status.service"
 import { hasFeature, getCurrentPlanSlug } from "@/lib/services/feature-gate.service"
 import { CURRENCIES } from "@/lib/constants"
@@ -15,7 +16,8 @@ export default async function MyStatementPage({ params }: { params: Promise<{ ci
   const { circleId } = await params
   let stmt, pageError: string | null = null
   try { stmt = await getMemberStatement(circleId, session.user.id) } catch (e) { pageError = (e as Error).message; console.error("Statement error:", e) }
-  const symbol = CURRENCIES.find((c) => c.code === "ZAR")?.symbol || "R"
+  const circle = await prisma.circle.findUnique({ where: { id: circleId }, select: { currency: true } }).catch(() => null)
+  const symbol = CURRENCIES.find((c) => c.code === (circle?.currency ?? "ZAR"))?.symbol || "R"
 
   const statusBadge = (s: string) => ({ PAID: "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]", PENDING: "border-amber-200 bg-amber-50 text-amber-700 text-[10px]", CONFIRMED: "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]", PROOF_SUBMITTED: "border-amber-200 bg-emerald-50 text-emerald-700 text-[10px]", REJECTED: "border-red-200 bg-red-50 text-red-700 text-[10px]" }[s] || "text-[10px]")
 

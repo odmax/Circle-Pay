@@ -5,11 +5,13 @@ export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization")
   const cronToken = request.headers.get("x-cron-token")
   const queryToken = new URL(request.url).searchParams.get("token")
-  const allowed = process.env.CRON_SECRET
-    ? authHeader === `Bearer ${process.env.CRON_SECRET}` ||
-      cronToken === process.env.CRON_SECRET ||
-      queryToken === process.env.CRON_SECRET
-    : true
+  const secret = process.env.CRON_SECRET
+  // Fail closed: if CRON_SECRET is not configured, never authorize this endpoint.
+  const allowed = secret
+    ? authHeader === `Bearer ${secret}` ||
+      cronToken === secret ||
+      queryToken === secret
+    : false
 
   if (!allowed) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

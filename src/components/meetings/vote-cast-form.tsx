@@ -29,6 +29,12 @@ export function VoteCastForm({ circleId, voteId, voteType, options, alreadyVoted
     setSelected([optionId])
   }
 
+  // Ranked choice: allow selecting/deselecting multiple options, preserving the
+  // order in which they were first selected (first selected = rank 1).
+  function rank(optionId: string) {
+    setSelected((prev) => (prev.includes(optionId) ? prev.filter((o) => o !== optionId) : [...prev, optionId]))
+  }
+
   async function submit() {
     if (selected.length === 0) {
       toast.error("Select at least one option")
@@ -67,7 +73,7 @@ export function VoteCastForm({ circleId, voteId, voteType, options, alreadyVoted
           key={opt.id}
           variant={selected.includes(opt.id) ? "default" : "outline"}
           className="w-full justify-start rounded-xl"
-          onClick={() => (isRanked || isYesNo ? selectSingle(opt.id) : toggle(opt.id))}
+          onClick={() => (isRanked ? rank(opt.id) : isYesNo ? selectSingle(opt.id) : toggle(opt.id))}
         >
           {isRanked && selected.includes(opt.id) ? `${selected.indexOf(opt.id) + 1}. ` : ""}
           {opt.text}
