@@ -26,132 +26,138 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  circlesCreated               Circle[]                     @relation("CircleCreator")
-  accounts                     Account[]
-  sessions                     Session[]
-  circleMembers                CircleMember[]
-  contributions                Contribution[]               @relation("ContributionPayer")
-  contributionsRecorded        Contribution[]               @relation("ContributionRecorder")
-  contributionPlansCreated     ContributionPlan[]           @relation("ContributionPlanCreator")
-  contributionSchedulesCreated ContributionSchedule[]       @relation("ContributionScheduleCreator")
-  expensesPaid                 Expense[]                    @relation("ExpensePayer")
-  expensesCreated              Expense[]                    @relation("ExpenseCreator")
-  expenseSplits                ExpenseSplit[]
-  notifications                Notification[]
-  invitationsSent              Invitation[]                 @relation("Inviter")
-  balancesAsDebtor             Balance[]                    @relation("Debtor")
-  balancesAsCreditor           Balance[]                    @relation("Creditor")
-  settlementsAsDebtor          Settlement[]                 @relation("SettlementDebtor")
-  settlementsAsCreditor        Settlement[]                 @relation("SettlementCreditor")
-  settlementsCreated           Settlement[]                 @relation("SettlementCreator")
-  settlementsConfirmed         Settlement[]                 @relation("SettlementConfirmer")
-  goalsCreated                 Goal[]
-  goalAllocationsReceived      GoalAllocation[]             @relation("GoalAllocationReceiver")
-  goalAllocationsCreated       GoalAllocation[]             @relation("GoalAllocationCreator")
-  transactions                 Transaction[]
-  subscription                 UserSubscription?
-  paymentTransactions          PaymentTransaction[]
-  internalAdmin                InternalAdmin?
-  auditLogs                    AuditLog[]
-  auditLogsAffected            AuditLog[]                   @relation("AuditLogAffectedUser")
-  joinRequests                 JoinRequest[]                @relation("JoinRequestUser")
-  joinRequestsReviewed         JoinRequest[]                @relation("JoinRequestReviewer")
-  wallets                      Wallet[]                     @relation("WalletUser")
-  walletTransactions           WalletTransaction[]          @relation("WalletTxInitiator")
-  approvalRequests             WalletApprovalRequest[]      @relation("ApprovalRequester")
-  approvalsGiven               WalletApproval[]             @relation("ApprovalApprover")
-  payoutCycles                 PayoutCycle[]                @relation("PayoutRecipient")
-  payoutConfigsCreated         PayoutConfig[]               @relation("PayoutConfigCreator")
-  payoutPaymentsReceived       PayoutPayment[]              @relation("PayoutPaymentRecipient")
-  payoutPaymentsMade           PayoutPayment[]              @relation("PayoutPaymentPaidBy")
-  payoutEventsActed            PayoutEvent[]                @relation("PayoutEventActor")
-  payoutEventsReceived         PayoutEvent[]                @relation("PayoutEventRecipient")
-  ownerNotes                   OwnerNote[]                  @relation("OwnerNoteAdmin")
-  moderationReviews            CircleModerationReview[]     @relation("ModerationReviewer")
-  bulkOperations               BulkOperation[]              @relation("BulkOpAdmin")
-  platformSettingsUpdated      PlatformSetting[]            @relation("PlatformSettingUpdater")
-  featureFlagsUpdated          FeatureFlag[]                @relation("FeatureFlagUpdater")
-  promoCodesCreated            PromoCode[]                  @relation("PromoCreator")
-  promoRedemptions             PromoRedemption[]            @relation("PromoUser")
-  broadcastsCreated            PlatformBroadcast[]          @relation("BroadcastCreator")
-  broadcastReceived            PlatformBroadcastRecipient[] @relation("BroadcastRecipient")
-  supportTickets               SupportTicket[]              @relation("TicketCreator")
-  supportMessages              SupportTicketMessage[]       @relation("TicketMessageSender")
-  abuseReports                 AbuseReport[]                @relation("AbuseReporter")
-  abuseReportsReviewed         AbuseReport[]                @relation("AbuseReviewer")
-  feedPosts                    FeedPost[]                   @relation("FeedPostAuthor")
-  feedComments                 FeedComment[]                @relation("FeedCommentUser")
-  feedReactions                FeedReaction[]               @relation("FeedReactionUser")
-  eventsCreated                CircleEvent[]                @relation("EventCreator")
-  eventRSVPs                   CircleEventRSVP[]            @relation("RSVPUser")
-  pollsCreated                 CirclePoll[]                 @relation("PollCreator")
-  pollVotes                    CirclePollVote[]             @relation("PollVoter")
-  passwordResetTokens          PasswordResetToken[]
-  verificationsReviewed        CircleVerification[]         @relation("VerificationReviewer")
-  completedWorkflowSteps       CircleWorkflowStep[]         @relation("WorkflowStepCompleter")
-  paymentIntents               CirclePaymentIntent[]        @relation("PaymentIntentUser")
-  paymentIntentsConfirmed      CirclePaymentIntent[]        @relation("PaymentIntentConfirmer")
-  projectsCreated              Project[]                    @relation("ProjectCreator")
-  fundingRoundsCreated         ProjectFundingRound[]        @relation("FundingRoundCreator")
-  projectContributions         ProjectContribution[]        @relation("ProjectContributor")
-  projectContConfirmations     ProjectContribution[]        @relation("ProjectContributionConfirmer")
-  projectExpensesCreated       ProjectExpense[]             @relation("ProjectExpenseCreator")
-  projectExpensesApproved      ProjectExpense[]             @relation("ProjectExpenseApprover")
-  projectExpensesPaid          ProjectExpense[]             @relation("ProjectExpensePayer")
-  projectExpensesVoided        ProjectExpense[]             @relation("ProjectExpenseVoidedBy")
-  projectAssetsCreated         ProjectAsset[]               @relation("ProjectAssetCreator")
-  projectRevenuesCreated       ProjectRevenue[]             @relation("ProjectRevenueCreator")
-  distributionsCreated         ProjectDistribution[]        @relation("DistributionCreator")
-  distributionsApproved        ProjectDistribution[]        @relation("DistributionApprover")
-  distributionItems            ProjectDistributionItem[]    @relation("DistributionRecipient")
-  projectParticipants          ProjectParticipant[]         @relation("ProjectParticipantUser")
-  capitalTxConfirmations       ProjectCapitalTransaction[]  @relation("CapitalTxConfirmer")
-  capitalTxRejections          ProjectCapitalTransaction[]  @relation("CapitalTxRejector")
-  shortfallCoversApproved      ShortfallCover[]             @relation("ShortfallCoverApprover")
-  agreementsApproved           ProjectInvestorAgreement[]   @relation("AgreementApprover")
-  ownershipSnapshotsApproved   ProjectOwnershipSnapshot[]   @relation("OwnershipSnapshotApprover")
-  revenueApprovals             ProjectRevenue[]             @relation("ProjectRevenueApprover")
-  financialStatementsCreated   ProjectFinancialStatement[]  @relation("FinancialStatementCreator")
-  financialStatementsApproved  ProjectFinancialStatement[]  @relation("FinancialStatementApprover")
-  distributionPeriodsCreated   ProjectDistributionPeriod[]  @relation("DistributionPeriodCreator")
-  legalAcceptances             UserLegalAcceptance[]
-  constitutionAcceptances      ConstitutionAcceptance[]
-  constitutionAmendments       ConstitutionAmendment[]
-  constitutionsCreated         Constitution[]              @relation("ConstitutionCreator")
-  constitutionVersionsCreated  ConstitutionVersion[]       @relation("ConstitutionVersionCreator")
-  constitutionConflictsResolved ConstitutionRuleConflict[] @relation("ConflictResolver")
-  mobileSessions               MobileSession[]
-  mobilePushTokens             MobilePushToken[]
-  univApprovalRequests         ApprovalRequest[]            @relation("UnivApprovalRequester")
-  univApprovalDecisions        ApprovalRequestDecision[]    @relation("UnivApprovalReviewer")
-  receiptsIssuedTo             FinancialReceipt[]           @relation("ReceiptIssuedTo")
-  receiptsIssuedBy             FinancialReceipt[]           @relation("ReceiptIssuedBy")
-  receiptsVoidedBy             FinancialReceipt[]           @relation("ReceiptVoidedBy")
-  workflowsCreated             ApprovalWorkflow[]           @relation("WorkflowCreator")
-  workflowsUpdated             ApprovalWorkflow[]           @relation("WorkflowUpdater")
-  meetingsCreated              Meeting[]                    @relation("MeetingCreator")
-  meetingRSVPs                 MeetingRSVP[]                @relation("MeetingRSVPUser")
-  meetingAttendance            MeetingAttendance[]          @relation("AttendanceMember")
-  meetingAttendanceRecorded    MeetingAttendance[]          @relation("AttendanceRecorder")
-  agendaItemsCreated           MeetingAgendaItem[]          @relation("AgendaItemCreator")
-  actionItemsCreated           MeetingActionItem[]          @relation("ActionItemCreator")
-  actionItemsAssigned          MeetingActionItem[]          @relation("ActionItemAssignee")
-  meetingMinutesCreated        MeetingMinutes[]             @relation("MinutesCreator")
-  meetingMinutesEdited         MeetingMinutesVersion[]      @relation("MinutesVersionEditor")
-  governanceVotesCreated       GovernanceVote[]             @relation("VoteCreator")
-  governanceVoteOptionsCreated GovernanceVoteOption[]       @relation("VoteOptionCreator")
-  governanceVotesCast          GovernanceVoteRecord[]       @relation("VoteCaster")
-  governanceBallots            GovernanceBallot[]           @relation("VoteBallot")
-  governanceDecisionsCreated   GovernanceDecision[]         @relation("DecisionCreator")
-  minutesAcknowledgements      MeetingMinutesAcknowledgement[] @relation("MinutesAcknowledgeUser")
-  yearEndClosesCreated         YearEndClose[]                  @relation("YearEndCloseCreator")
-  yearEndClosesApproved        YearEndClose[]                  @relation("YearEndCloseApprover")
-  yearEndClosesFinalized       YearEndClose[]                  @relation("YearEndCloseFinalizer")
-  yearEndClosesOpened          YearEndClose[]                  @relation("YearEndCloseOpener")
-  yearEndStatements            YearEndMemberStatement[]
-  yearEndAdjustmentsCreated    YearEndAdjustment[]             @relation("YearEndAdjCreator")
-  yearEndAdjustmentsSubject    YearEndAdjustment[]             @relation("YearEndAdjSubject")
-  yearEndConfigsCreated        YearEndCloseConfig[]            @relation("YearEndConfigCreator")
+  circlesCreated                Circle[]                        @relation("CircleCreator")
+  accounts                      Account[]
+  sessions                      Session[]
+  circleMembers                 CircleMember[]
+  contributions                 Contribution[]                  @relation("ContributionPayer")
+  contributionsRecorded         Contribution[]                  @relation("ContributionRecorder")
+  contributionPlansCreated      ContributionPlan[]              @relation("ContributionPlanCreator")
+  contributionSchedulesCreated  ContributionSchedule[]          @relation("ContributionScheduleCreator")
+  expensesPaid                  Expense[]                       @relation("ExpensePayer")
+  expensesCreated               Expense[]                       @relation("ExpenseCreator")
+  expenseSplits                 ExpenseSplit[]
+  notifications                 Notification[]
+  invitationsSent               Invitation[]                    @relation("Inviter")
+  balancesAsDebtor              Balance[]                       @relation("Debtor")
+  balancesAsCreditor            Balance[]                       @relation("Creditor")
+  settlementsAsDebtor           Settlement[]                    @relation("SettlementDebtor")
+  settlementsAsCreditor         Settlement[]                    @relation("SettlementCreditor")
+  settlementsCreated            Settlement[]                    @relation("SettlementCreator")
+  settlementsConfirmed          Settlement[]                    @relation("SettlementConfirmer")
+  goalsCreated                  Goal[]
+  goalAllocationsReceived       GoalAllocation[]                @relation("GoalAllocationReceiver")
+  goalAllocationsCreated        GoalAllocation[]                @relation("GoalAllocationCreator")
+  transactions                  Transaction[]
+  subscription                  UserSubscription?
+  paymentTransactions           PaymentTransaction[]
+  internalAdmin                 InternalAdmin?
+  auditLogs                     AuditLog[]
+  auditLogsAffected             AuditLog[]                      @relation("AuditLogAffectedUser")
+  joinRequests                  JoinRequest[]                   @relation("JoinRequestUser")
+  joinRequestsReviewed          JoinRequest[]                   @relation("JoinRequestReviewer")
+  wallets                       Wallet[]                        @relation("WalletUser")
+  walletTransactions            WalletTransaction[]             @relation("WalletTxInitiator")
+  approvalRequests              WalletApprovalRequest[]         @relation("ApprovalRequester")
+  approvalsGiven                WalletApproval[]                @relation("ApprovalApprover")
+  payoutCycles                  PayoutCycle[]                   @relation("PayoutRecipient")
+  payoutConfigsCreated          PayoutConfig[]                  @relation("PayoutConfigCreator")
+  payoutPaymentsReceived        PayoutPayment[]                 @relation("PayoutPaymentRecipient")
+  payoutPaymentsMade            PayoutPayment[]                 @relation("PayoutPaymentPaidBy")
+  payoutEventsActed             PayoutEvent[]                   @relation("PayoutEventActor")
+  payoutEventsReceived          PayoutEvent[]                   @relation("PayoutEventRecipient")
+  ownerNotes                    OwnerNote[]                     @relation("OwnerNoteAdmin")
+  moderationReviews             CircleModerationReview[]        @relation("ModerationReviewer")
+  bulkOperations                BulkOperation[]                 @relation("BulkOpAdmin")
+  platformSettingsUpdated       PlatformSetting[]               @relation("PlatformSettingUpdater")
+  featureFlagsUpdated           FeatureFlag[]                   @relation("FeatureFlagUpdater")
+  promoCodesCreated             PromoCode[]                     @relation("PromoCreator")
+  promoRedemptions              PromoRedemption[]               @relation("PromoUser")
+  broadcastsCreated             PlatformBroadcast[]             @relation("BroadcastCreator")
+  broadcastReceived             PlatformBroadcastRecipient[]    @relation("BroadcastRecipient")
+  supportTickets                SupportTicket[]                 @relation("TicketCreator")
+  supportMessages               SupportTicketMessage[]          @relation("TicketMessageSender")
+  abuseReports                  AbuseReport[]                   @relation("AbuseReporter")
+  abuseReportsReviewed          AbuseReport[]                   @relation("AbuseReviewer")
+  feedPosts                     FeedPost[]                      @relation("FeedPostAuthor")
+  feedComments                  FeedComment[]                   @relation("FeedCommentUser")
+  feedReactions                 FeedReaction[]                  @relation("FeedReactionUser")
+  eventsCreated                 CircleEvent[]                   @relation("EventCreator")
+  eventRSVPs                    CircleEventRSVP[]               @relation("RSVPUser")
+  pollsCreated                  CirclePoll[]                    @relation("PollCreator")
+  pollVotes                     CirclePollVote[]                @relation("PollVoter")
+  passwordResetTokens           PasswordResetToken[]
+  verificationsReviewed         CircleVerification[]            @relation("VerificationReviewer")
+  completedWorkflowSteps        CircleWorkflowStep[]            @relation("WorkflowStepCompleter")
+  paymentIntents                CirclePaymentIntent[]           @relation("PaymentIntentUser")
+  paymentIntentsConfirmed       CirclePaymentIntent[]           @relation("PaymentIntentConfirmer")
+  projectsCreated               Project[]                       @relation("ProjectCreator")
+  fundingRoundsCreated          ProjectFundingRound[]           @relation("FundingRoundCreator")
+  projectContributions          ProjectContribution[]           @relation("ProjectContributor")
+  projectContConfirmations      ProjectContribution[]           @relation("ProjectContributionConfirmer")
+  projectExpensesCreated        ProjectExpense[]                @relation("ProjectExpenseCreator")
+  projectExpensesApproved       ProjectExpense[]                @relation("ProjectExpenseApprover")
+  projectExpensesPaid           ProjectExpense[]                @relation("ProjectExpensePayer")
+  projectExpensesVoided         ProjectExpense[]                @relation("ProjectExpenseVoidedBy")
+  projectAssetsCreated          ProjectAsset[]                  @relation("ProjectAssetCreator")
+  projectRevenuesCreated        ProjectRevenue[]                @relation("ProjectRevenueCreator")
+  distributionsCreated          ProjectDistribution[]           @relation("DistributionCreator")
+  distributionsApproved         ProjectDistribution[]           @relation("DistributionApprover")
+  distributionItems             ProjectDistributionItem[]       @relation("DistributionRecipient")
+  projectParticipants           ProjectParticipant[]            @relation("ProjectParticipantUser")
+  capitalTxConfirmations        ProjectCapitalTransaction[]     @relation("CapitalTxConfirmer")
+  capitalTxRejections           ProjectCapitalTransaction[]     @relation("CapitalTxRejector")
+  shortfallCoversApproved       ShortfallCover[]                @relation("ShortfallCoverApprover")
+  agreementsApproved            ProjectInvestorAgreement[]      @relation("AgreementApprover")
+  ownershipSnapshotsApproved    ProjectOwnershipSnapshot[]      @relation("OwnershipSnapshotApprover")
+  revenueApprovals              ProjectRevenue[]                @relation("ProjectRevenueApprover")
+  financialStatementsCreated    ProjectFinancialStatement[]     @relation("FinancialStatementCreator")
+  financialStatementsApproved   ProjectFinancialStatement[]     @relation("FinancialStatementApprover")
+  distributionPeriodsCreated    ProjectDistributionPeriod[]     @relation("DistributionPeriodCreator")
+  legalAcceptances              UserLegalAcceptance[]
+  constitutionAcceptances       ConstitutionAcceptance[]
+  constitutionAmendments        ConstitutionAmendment[]
+  constitutionsCreated          Constitution[]                  @relation("ConstitutionCreator")
+  constitutionVersionsCreated   ConstitutionVersion[]           @relation("ConstitutionVersionCreator")
+  constitutionConflictsResolved ConstitutionRuleConflict[]      @relation("ConflictResolver")
+  mobileSessions                MobileSession[]
+  mobilePushTokens              MobilePushToken[]
+  univApprovalRequests          ApprovalRequest[]               @relation("UnivApprovalRequester")
+  univApprovalDecisions         ApprovalRequestDecision[]       @relation("UnivApprovalReviewer")
+  receiptsIssuedTo              FinancialReceipt[]              @relation("ReceiptIssuedTo")
+  receiptsIssuedBy              FinancialReceipt[]              @relation("ReceiptIssuedBy")
+  receiptsVoidedBy              FinancialReceipt[]              @relation("ReceiptVoidedBy")
+  workflowsCreated              ApprovalWorkflow[]              @relation("WorkflowCreator")
+  workflowsUpdated              ApprovalWorkflow[]              @relation("WorkflowUpdater")
+  meetingsCreated               Meeting[]                       @relation("MeetingCreator")
+  meetingRSVPs                  MeetingRSVP[]                   @relation("MeetingRSVPUser")
+  meetingAttendance             MeetingAttendance[]             @relation("AttendanceMember")
+  meetingAttendanceRecorded     MeetingAttendance[]             @relation("AttendanceRecorder")
+  agendaItemsCreated            MeetingAgendaItem[]             @relation("AgendaItemCreator")
+  actionItemsCreated            MeetingActionItem[]             @relation("ActionItemCreator")
+  actionItemsAssigned           MeetingActionItem[]             @relation("ActionItemAssignee")
+  meetingMinutesCreated         MeetingMinutes[]                @relation("MinutesCreator")
+  meetingMinutesEdited          MeetingMinutesVersion[]         @relation("MinutesVersionEditor")
+  governanceVotesCreated        GovernanceVote[]                @relation("VoteCreator")
+  governanceVoteOptionsCreated  GovernanceVoteOption[]          @relation("VoteOptionCreator")
+  governanceVotesCast           GovernanceVoteRecord[]          @relation("VoteCaster")
+  governanceBallots             GovernanceBallot[]              @relation("VoteBallot")
+  governanceDecisionsCreated    GovernanceDecision[]            @relation("DecisionCreator")
+  minutesAcknowledgements       MeetingMinutesAcknowledgement[] @relation("MinutesAcknowledgeUser")
+  yearEndClosesCreated          YearEndClose[]                  @relation("YearEndCloseCreator")
+  yearEndClosesApproved         YearEndClose[]                  @relation("YearEndCloseApprover")
+  yearEndClosesFinalized        YearEndClose[]                  @relation("YearEndCloseFinalizer")
+  yearEndClosesOpened           YearEndClose[]                  @relation("YearEndCloseOpener")
+  yearEndStatements             YearEndMemberStatement[]
+  yearEndAdjustmentsCreated     YearEndAdjustment[]             @relation("YearEndAdjCreator")
+  yearEndAdjustmentsSubject     YearEndAdjustment[]             @relation("YearEndAdjSubject")
+  yearEndConfigsCreated         YearEndCloseConfig[]            @relation("YearEndConfigCreator")
+  loans                         Loan[]                          @relation("LoanBorrower")
+  loansDisbursed                Loan[]                          @relation("LoanDisburser")
+  loansApproved                 Loan[]                          @relation("LoanApprover")
+  loanRepayments                LoanRepayment[]                 @relation("LoanRepaymentPayer")
+  loanRepaymentsConfirmed       LoanRepayment[]                 @relation("LoanRepaymentConfirmer")
+  loanConfigsCreated            CircleLoanConfig[]              @relation("LoanConfigCreator")
 
   @@index([email])
 }
@@ -345,6 +351,10 @@ model Circle {
   yearEndStatements      YearEndMemberStatement[]
   yearEndAdjustments     YearEndAdjustment[]
   yearEndConfig          YearEndCloseConfig?
+  loanConfig             CircleLoanConfig?
+  loans                  Loan[]                      @relation("LoanCircle")
+  loanRepayments         LoanRepayment[]             @relation("LoanRepaymentCircle")
+  loanRepaymentSchedules LoanRepaymentSchedule[]     @relation("LoanRepaymentScheduleCircle")
 }
 
 model CircleMember {
@@ -523,6 +533,7 @@ enum ApprovalType {
   PAYOUT
   CONSTITUTION_AMENDMENT
   GOVERNANCE
+  LOAN
   OTHER
 }
 
@@ -813,6 +824,15 @@ enum NotificationType {
   YEAR_END_STATEMENT_READY
   YEAR_END_REOPENED
   YEAR_END_ADJUSTMENT_RECORDED
+  LOAN_APPLIED
+  LOAN_APPROVED
+  LOAN_REJECTED
+  LOAN_DISBURSED
+  LOAN_REPAYMENT_DUE
+  LOAN_REPAYMENT_SUBMITTED
+  LOAN_REPAYMENT_CONFIRMED
+  LOAN_OVERDUE
+  LOAN_DEFAULTED
 }
 
 model Notification {
@@ -3145,6 +3165,7 @@ model ApprovalRequest {
   decisions    ApprovalRequestDecision[]
   contribution Contribution?
   yearEndClose YearEndClose?
+  loans        Loan[]
 
   @@index([circleId])
   @@index([status])
@@ -3882,24 +3903,23 @@ model ProjectOwnershipEntry {
   @@index([participantId])
 }
 
-
 // ?"?" Constitution / Rules Engine ?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"
 
 // One constitution per circle; points at the currently active/published version.
 model Constitution {
-  id             String   @id @default(cuid())
-  circleId       String   @unique
-  title          String   @default("Constitution")
-  preamble       String?
+  id              String   @id @default(cuid())
+  circleId        String   @unique
+  title           String   @default("Constitution")
+  preamble        String?
   activeVersionId String?
-  createdById    String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  circle         Circle                  @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  createdBy      User                    @relation("ConstitutionCreator", fields: [createdById], references: [id])
-  versions       ConstitutionVersion[]
-  ruleSettings   ConstitutionRuleSetting[]
+  circle       Circle                    @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy    User                      @relation("ConstitutionCreator", fields: [createdById], references: [id])
+  versions     ConstitutionVersion[]
+  ruleSettings ConstitutionRuleSetting[]
 }
 
 enum ConstitutionStatus {
@@ -3910,35 +3930,35 @@ enum ConstitutionStatus {
 }
 
 model ConstitutionVersion {
-  id            String             @id @default(cuid())
+  id             String             @id @default(cuid())
   constitutionId String
-  version       Int
-  status        ConstitutionStatus @default(DRAFT)
-  content       Json
-  effectiveDate DateTime?
-  activatedAt   DateTime?
-  publishedAt   DateTime?
-  supersededAt  DateTime?
+  version        Int
+  status         ConstitutionStatus @default(DRAFT)
+  content        Json
+  effectiveDate  DateTime?
+  activatedAt    DateTime?
+  publishedAt    DateTime?
+  supersededAt   DateTime?
   supersededById String?
-  createdById   String
-  createdAt     DateTime           @default(now())
+  createdById    String
+  createdAt      DateTime           @default(now())
 
-  constitution  Constitution       @relation(fields: [constitutionId], references: [id], onDelete: Cascade)
-  createdBy     User               @relation("ConstitutionVersionCreator", fields: [createdById], references: [id])
-  acceptances   ConstitutionAcceptance[]
-  amendments    ConstitutionAmendment[]
-  rules         ConstitutionRuleSetting[]
+  constitution Constitution              @relation(fields: [constitutionId], references: [id], onDelete: Cascade)
+  createdBy    User                      @relation("ConstitutionVersionCreator", fields: [createdById], references: [id])
+  acceptances  ConstitutionAcceptance[]
+  amendments   ConstitutionAmendment[]
+  rules        ConstitutionRuleSetting[]
 
   @@unique([constitutionId, version])
   @@index([constitutionId, status])
 }
 
 model ConstitutionAcceptance {
-  id          String   @id @default(cuid())
-  versionId   String
-  userId      String
-  acceptedAt  DateTime @default(now())
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  versionId  String
+  userId     String
+  acceptedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   version ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
   user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -3956,20 +3976,20 @@ enum ConstitutionAmendmentStatus {
 }
 
 model ConstitutionAmendment {
-  id          String                       @id @default(cuid())
-  versionId   String
-  circleId    String
-  clauseKey   String
-  clauseTitle String?
-  oldValue    Json?
-  newValue    Json?
-  reason      String?
-  proposerId  String
-  status      ConstitutionAmendmentStatus  @default(PROPOSED)
-  approvalId  String?
+  id            String                      @id @default(cuid())
+  versionId     String
+  circleId      String
+  clauseKey     String
+  clauseTitle   String?
+  oldValue      Json?
+  newValue      Json?
+  reason        String?
+  proposerId    String
+  status        ConstitutionAmendmentStatus @default(PROPOSED)
+  approvalId    String?
   effectiveDate DateTime?
-  createdAt   DateTime                     @default(now())
-  updatedAt   DateTime                     @updatedAt
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
 
   version  ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
   circle   Circle              @relation(fields: [circleId], references: [id], onDelete: Cascade)
@@ -3994,23 +4014,23 @@ enum ConstitutionSource {
 
 // A detected conflict between a constitution rule and an existing circle setting.
 model ConstitutionRuleConflict {
-  id           String                   @id @default(cuid())
-  circleId     String
-  ruleKey      String
-  ruleSource   String
+  id                String                     @id @default(cuid())
+  circleId          String
+  ruleKey           String
+  ruleSource        String
   constitutionValue Json?
-  settingKey   String
-  settingValue Json?
-  resolution   Json?
-  status       ConstitutionConflictStatus @default(OPEN)
-  resolvedById String?
-  resolvedAt   DateTime?
-  resolvedAction String?
-  createdAt    DateTime                  @default(now())
-  updatedAt    DateTime                  @updatedAt
+  settingKey        String
+  settingValue      Json?
+  resolution        Json?
+  status            ConstitutionConflictStatus @default(OPEN)
+  resolvedById      String?
+  resolvedAt        DateTime?
+  resolvedAction    String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
 
-  circle      Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  resolvedBy  User?  @relation("ConflictResolver", fields: [resolvedById], references: [id])
+  circle     Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  resolvedBy User?  @relation("ConflictResolver", fields: [resolvedById], references: [id])
 
   @@index([circleId, status])
 }
@@ -4025,19 +4045,19 @@ enum RuleValueType {
 
 // Executable rule settings derived from the active constitution for enforcement.
 model ConstitutionRuleSetting {
-  id            String        @id @default(cuid())
+  id             String        @id @default(cuid())
   constitutionId String
-  versionId     String
-  key           String
-  ruleType      String
-  valueType     RuleValueType @default(JSON)
-  value         Json
-  sourceClause  String?
-  updatedById   String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  versionId      String
+  key            String
+  ruleType       String
+  valueType      RuleValueType @default(JSON)
+  value          Json
+  sourceClause   String?
+  updatedById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  constitution Constitution       @relation(fields: [constitutionId], references: [id], onDelete: Cascade)
+  constitution Constitution        @relation(fields: [constitutionId], references: [id], onDelete: Cascade)
   version      ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
   @@unique([constitutionId, key])
@@ -4120,28 +4140,28 @@ enum GovernanceVoteStatus {
 }
 
 model Meeting {
-  id               String          @id @default(cuid())
-  circleId         String
-  createdById      String
-  title            String
-  description      String?
-  type             MeetingType     @default(GENERAL)
-  status           MeetingStatus   @default(DRAFT)
-  scheduledAt      DateTime
-  endAt            DateTime?
-  location         String?
-  isOnline         Boolean         @default(false)
-  meetingLink      String?
-  agenda           String?
-  noticePeriodDays Int?
+  id                    String        @id @default(cuid())
+  circleId              String
+  createdById           String
+  title                 String
+  description           String?
+  type                  MeetingType   @default(GENERAL)
+  status                MeetingStatus @default(DRAFT)
+  scheduledAt           DateTime
+  endAt                 DateTime?
+  location              String?
+  isOnline              Boolean       @default(false)
+  meetingLink           String?
+  agenda                String?
+  noticePeriodDays      Int?
   attendanceRequirement Int?
-  quorumPercent    Int?
-  deletedAt        DateTime?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  quorumPercent         Int?
+  deletedAt             DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
-  circle      Circle                @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  createdBy   User                  @relation("MeetingCreator", fields: [createdById], references: [id])
+  circle      Circle              @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy   User                @relation("MeetingCreator", fields: [createdById], references: [id])
   rsvps       MeetingRSVP[]
   attendance  MeetingAttendance[]
   agendaItems MeetingAgendaItem[]
@@ -4154,14 +4174,14 @@ model Meeting {
 }
 
 model MeetingRSVP {
-  id        String             @id @default(cuid())
-  meetingId String
-  userId    String
-  status    MeetingRSVPStatus  @default(GOING)
-  note      String?
-  notifiedReminder Boolean      @default(false)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  id               String            @id @default(cuid())
+  meetingId        String
+  userId           String
+  status           MeetingRSVPStatus @default(GOING)
+  note             String?
+  notifiedReminder Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   user    User    @relation("MeetingRSVPUser", fields: [userId], references: [id])
@@ -4190,17 +4210,17 @@ model MeetingAttendance {
 }
 
 model MeetingAgendaItem {
-  id         String           @id @default(cuid())
-  meetingId  String
-  createdById String
-  title      String
-  description String?
-  sortOrder  Int              @default(0)
-  status     AgendaItemStatus @default(OPEN)
+  id              String           @id @default(cuid())
+  meetingId       String
+  createdById     String
+  title           String
+  description     String?
+  sortOrder       Int              @default(0)
+  status          AgendaItemStatus @default(OPEN)
   discussionNotes String?
-  decision   String?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  decision        String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   createdBy User    @relation("AgendaItemCreator", fields: [createdById], references: [id])
@@ -4209,19 +4229,19 @@ model MeetingAgendaItem {
 }
 
 model MeetingActionItem {
-  id        String           @id @default(cuid())
-  meetingId String
+  id          String           @id @default(cuid())
+  meetingId   String
   createdById String
-  title     String
-  assigneeId String?
-  dueDate   DateTime?
-  status    ActionItemStatus @default(OPEN)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  title       String
+  assigneeId  String?
+  dueDate     DateTime?
+  status      ActionItemStatus @default(OPEN)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  meeting  Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   createdBy User    @relation("ActionItemCreator", fields: [createdById], references: [id])
-  assignee User?    @relation("ActionItemAssignee", fields: [assigneeId], references: [id])
+  assignee  User?   @relation("ActionItemAssignee", fields: [assigneeId], references: [id])
 
   @@index([meetingId, assigneeId])
 }
@@ -4236,23 +4256,23 @@ model MeetingMinutes {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
-  meeting   Meeting                @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  createdBy User                   @relation("MinutesCreator", fields: [createdById], references: [id])
-  versions  MeetingMinutesVersion[]
+  meeting          Meeting                         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  createdBy        User                            @relation("MinutesCreator", fields: [createdById], references: [id])
+  versions         MeetingMinutesVersion[]
   acknowledgements MeetingMinutesAcknowledgement[]
 
   @@index([meetingId])
 }
 
 model MeetingMinutesVersion {
-  id        String   @id @default(cuid())
-  minutesId String
-  version   Int
-  content   Json
-  changeNote String?
+  id          String    @id @default(cuid())
+  minutesId   String
+  version     Int
+  content     Json
+  changeNote  String?
   publishedAt DateTime?
-  editedById String
-  createdAt DateTime @default(now())
+  editedById  String
+  createdAt   DateTime  @default(now())
 
   minutes  MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Cascade)
   editedBy User           @relation("MinutesVersionEditor", fields: [editedById], references: [id])
@@ -4262,28 +4282,28 @@ model MeetingMinutesVersion {
 }
 
 model GovernanceVote {
-  id            String               @id @default(cuid())
-  circleId      String
-  meetingId     String?
-  createdById   String
-  title         String
-  description   String?
-  motionCategory MotionCategory      @default(GENERAL_MOTION)
-  type          GovernanceVoteType   @default(YES_NO)
-  status        GovernanceVoteStatus @default(OPEN)
-  quorumPercent Int?
+  id               String               @id @default(cuid())
+  circleId         String
+  meetingId        String?
+  createdById      String
+  title            String
+  description      String?
+  motionCategory   MotionCategory       @default(GENERAL_MOTION)
+  type             GovernanceVoteType   @default(YES_NO)
+  status           GovernanceVoteStatus @default(OPEN)
+  quorumPercent    Int?
   thresholdPercent Int?
-  anonymous     Boolean              @default(false)
-  majorFinancial Boolean             @default(false)
-  closesAt      DateTime?
-  finalizedAt   DateTime?
-  result        Json?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  anonymous        Boolean              @default(false)
+  majorFinancial   Boolean              @default(false)
+  closesAt         DateTime?
+  finalizedAt      DateTime?
+  result           Json?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
-  circle    Circle                @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  meeting   Meeting?              @relation(fields: [meetingId], references: [id])
-  createdBy User                  @relation("VoteCreator", fields: [createdById], references: [id])
+  circle    Circle                 @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  meeting   Meeting?               @relation(fields: [meetingId], references: [id])
+  createdBy User                   @relation("VoteCreator", fields: [createdById], references: [id])
   options   GovernanceVoteOption[]
   ballots   GovernanceBallot[]
   records   GovernanceVoteRecord[]
@@ -4294,15 +4314,15 @@ model GovernanceVote {
 }
 
 model GovernanceVoteOption {
-  id         String   @id @default(cuid())
-  voteId     String
-  text       String
-  sortOrder  Int      @default(0)
+  id          String   @id @default(cuid())
+  voteId      String
+  text        String
+  sortOrder   Int      @default(0)
   createdById String
-  createdAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
 
-  vote      GovernanceVote       @relation(fields: [voteId], references: [id], onDelete: Cascade)
-  createdBy User                 @relation("VoteOptionCreator", fields: [createdById], references: [id])
+  vote      GovernanceVote         @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  createdBy User                   @relation("VoteOptionCreator", fields: [createdById], references: [id])
   votes     GovernanceVoteRecord[]
 
   @@index([voteId])
@@ -4321,8 +4341,8 @@ model GovernanceBallot {
   castAt    DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  vote    GovernanceVote       @relation(fields: [voteId], references: [id], onDelete: Cascade)
-  user    User                 @relation("VoteBallot", fields: [userId], references: [id])
+  vote    GovernanceVote         @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  user    User                   @relation("VoteBallot", fields: [userId], references: [id])
   records GovernanceVoteRecord[]
 
   @@unique([voteId, userId])
@@ -4339,7 +4359,7 @@ model GovernanceVoteRecord {
   castAt    DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ballot GovernanceBallot      @relation(fields: [ballotId], references: [id], onDelete: Cascade)
+  ballot GovernanceBallot     @relation(fields: [ballotId], references: [id], onDelete: Cascade)
   vote   GovernanceVote       @relation(fields: [voteId], references: [id], onDelete: Cascade)
   option GovernanceVoteOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
   user   User                 @relation("VoteCaster", fields: [userId], references: [id])
@@ -4380,9 +4400,9 @@ model GovernanceDecision {
  * prevented by the unique (minutesId, userId) pair.
  */
 model MeetingMinutesAcknowledgement {
-  id        String   @id @default(cuid())
-  minutesId String
-  userId    String
+  id             String   @id @default(cuid())
+  minutesId      String
+  userId         String
   acknowledgedAt DateTime @default(now())
 
   minutes MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Cascade)
@@ -4407,31 +4427,31 @@ enum YearEndCloseStatus {
 }
 
 model YearEndClose {
-  id                 String            @id @default(cuid())
-  circleId           String
-  periodStart        DateTime
-  periodEnd          DateTime
-  status             YearEndCloseStatus @default(DRAFT)
-  approvalRequestId  String?            @unique
-  approvedById       String?
-  approvedAt         DateTime?
-  finalizedById      String?
-  finalizedAt        DateTime?
-  openedById         String?
-  openedAt           DateTime?
-  summary            Json?
-  blockers           Json?
-  corrections        Json?
-  createdById        String
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  id                String             @id @default(cuid())
+  circleId          String
+  periodStart       DateTime
+  periodEnd         DateTime
+  status            YearEndCloseStatus @default(DRAFT)
+  approvalRequestId String?            @unique
+  approvedById      String?
+  approvedAt        DateTime?
+  finalizedById     String?
+  finalizedAt       DateTime?
+  openedById        String?
+  openedAt          DateTime?
+  summary           Json?
+  blockers          Json?
+  corrections       Json?
+  createdById       String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
-  circle           Circle                     @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  createdBy        User                       @relation("YearEndCloseCreator", fields: [createdById], references: [id])
-  approvalRequest  ApprovalRequest?           @relation(fields: [approvalRequestId], references: [id])
-  approvedBy       User?                      @relation("YearEndCloseApprover", fields: [approvedById], references: [id])
-  finalizedBy      User?                      @relation("YearEndCloseFinalizer", fields: [finalizedById], references: [id])
-  openedBy         User?                      @relation("YearEndCloseOpener", fields: [openedById], references: [id])
+  circle           Circle                   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy        User                     @relation("YearEndCloseCreator", fields: [createdById], references: [id])
+  approvalRequest  ApprovalRequest?         @relation(fields: [approvalRequestId], references: [id])
+  approvedBy       User?                    @relation("YearEndCloseApprover", fields: [approvedById], references: [id])
+  finalizedBy      User?                    @relation("YearEndCloseFinalizer", fields: [finalizedById], references: [id])
+  openedBy         User?                    @relation("YearEndCloseOpener", fields: [openedById], references: [id])
   memberStatements YearEndMemberStatement[]
   adjustments      YearEndAdjustment[]
 
@@ -4442,22 +4462,22 @@ model YearEndClose {
 }
 
 model YearEndMemberStatement {
-  id                       String    @id @default(cuid())
+  id                       String   @id @default(cuid())
   closeId                  String
   circleId                 String
   userId                   String
-  statementNumber          String    @unique
+  statementNumber          String   @unique
   periodStart              DateTime
   periodEnd                DateTime
-  totalContributed         Decimal   @db.Decimal(12, 2) @default(0)
-  outstandingContributions Decimal   @db.Decimal(12, 2) @default(0)
-  penaltiesFees            Decimal   @db.Decimal(12, 2) @default(0)
-  payoutsReceived          Decimal   @db.Decimal(12, 2) @default(0)
-  allocatedReturns         Decimal   @db.Decimal(12, 2) @default(0)
-  finalEntitlement         Decimal   @db.Decimal(12, 2) @default(0)
+  totalContributed         Decimal  @default(0) @db.Decimal(12, 2)
+  outstandingContributions Decimal  @default(0) @db.Decimal(12, 2)
+  penaltiesFees            Decimal  @default(0) @db.Decimal(12, 2)
+  payoutsReceived          Decimal  @default(0) @db.Decimal(12, 2)
+  allocatedReturns         Decimal  @default(0) @db.Decimal(12, 2)
+  finalEntitlement         Decimal  @default(0) @db.Decimal(12, 2)
   snapshot                 Json?
-  isCurrent                Boolean   @default(true)
-  createdAt                DateTime  @default(now())
+  isCurrent                Boolean  @default(true)
+  createdAt                DateTime @default(now())
 
   close  YearEndClose @relation(fields: [closeId], references: [id], onDelete: Cascade)
   circle Circle       @relation(fields: [circleId], references: [id], onDelete: Cascade)
@@ -4481,10 +4501,10 @@ model YearEndAdjustment {
   afterValue  Json?
   createdAt   DateTime @default(now())
 
-  close      YearEndClose @relation(fields: [closeId], references: [id], onDelete: Cascade)
-  circle     Circle       @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  user       User         @relation("YearEndAdjSubject", fields: [userId], references: [id])
-  createdBy  User         @relation("YearEndAdjCreator", fields: [createdById], references: [id])
+  close     YearEndClose @relation(fields: [closeId], references: [id], onDelete: Cascade)
+  circle    Circle       @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user      User         @relation("YearEndAdjSubject", fields: [userId], references: [id])
+  createdBy User         @relation("YearEndAdjCreator", fields: [createdById], references: [id])
 
   @@index([closeId])
   @@index([circleId])
@@ -4506,4 +4526,176 @@ model YearEndCloseConfig {
   createdBy User   @relation("YearEndConfigCreator", fields: [createdById], references: [id])
 
   @@index([circleId])
+}
+
+enum LoanStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  DISBURSED
+  REPAYING
+  PAID_OFF
+  OVERDUE
+  DEFAULTED
+}
+
+enum LoanRepaymentFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+enum LoanRepaymentStatus {
+  PENDING
+  PROOF_SUBMITTED
+  CONFIRMED
+  REJECTED
+  OVERDUE
+  WAIVED
+}
+
+enum LoanDisbursementStatus {
+  SCHEDULED
+  PROOF_SUBMITTED
+  CONFIRMED
+  REJECTED
+}
+
+model CircleLoanConfig {
+  id                        String                 @id @default(cuid())
+  circleId                  String                 @unique
+  enabled                   Boolean                @default(false)
+  minLoanAmount             Decimal?               @db.Decimal(14, 2)
+  maxLoanAmount             Decimal?               @db.Decimal(14, 2)
+  maxTotalLoansOutstanding  Decimal?               @db.Decimal(14, 2)
+  maxActiveLoansPerMember   Int?                   @default(1)
+  interestRate              Decimal                @default(0) @db.Decimal(14, 4)
+  serviceFeePercent         Decimal                @default(0) @db.Decimal(14, 4)
+  maxRepaymentTermMonths    Int?                   @default(12)
+  defaultRepaymentFrequency LoanRepaymentFrequency @default(MONTHLY)
+  gracePeriodDays           Int?                   @default(7)
+  lateFeePercent            Decimal?               @default(5) @db.Decimal(14, 4)
+  allowsMemberInitiated     Boolean                @default(true)
+  requiresApproval          Boolean                @default(true)
+  autoConfirmRepayments     Boolean                @default(false)
+  createdById               String
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("LoanConfigCreator", fields: [createdById], references: [id])
+
+  @@index([circleId])
+}
+
+model Loan {
+  id                 String                 @id @default(cuid())
+  circleId           String
+  memberId           String
+  principal          Decimal                @db.Decimal(14, 2)
+  serviceFee         Decimal                @default(0) @db.Decimal(14, 2)
+  interestRate       Decimal                @default(0) @db.Decimal(14, 4)
+  termMonths         Int
+  repaymentFrequency LoanRepaymentFrequency @default(MONTHLY)
+  repaymentStartDate DateTime?
+  status             LoanStatus             @default(DRAFT)
+  purpose            String?
+  requestedAt        DateTime               @default(now())
+  approvedById       String?
+  approvedAt         DateTime?
+  disbursedById      String?
+  disbursedAt        DateTime?
+  dueNoticeSentAt    DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  circle            Circle                  @relation("LoanCircle", fields: [circleId], references: [id], onDelete: Cascade)
+  member            User                    @relation("LoanBorrower", fields: [memberId], references: [id])
+  approvedBy        User?                   @relation("LoanApprover", fields: [approvedById], references: [id])
+  disbursedBy       User?                   @relation("LoanDisburser", fields: [disbursedById], references: [id])
+  approvalRequest   ApprovalRequest?        @relation(fields: [approvalRequestId], references: [id])
+  approvalRequestId String?                 @unique
+  disbursement      LoanDisbursement?
+  schedule          LoanRepaymentSchedule[]
+  repayments        LoanRepayment[]
+
+  @@index([circleId])
+  @@index([memberId])
+  @@index([status])
+}
+
+model LoanDisbursement {
+  id             String                 @id @default(cuid())
+  loanId         String                 @unique
+  amount         Decimal                @db.Decimal(14, 2)
+  method         String?
+  reference      String?
+  proofUrl       String?
+  proofReference String?
+  status         LoanDisbursementStatus @default(SCHEDULED)
+  confirmedById  String?
+  confirmedAt    DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model LoanRepaymentSchedule {
+  id           String              @id @default(cuid())
+  loanId       String
+  circleId     String
+  periodNumber Int
+  dueDate      DateTime
+  principalDue Decimal             @db.Decimal(14, 2)
+  interestDue  Decimal             @default(0) @db.Decimal(14, 2)
+  totalDue     Decimal             @db.Decimal(14, 2)
+  amountPaid   Decimal             @default(0) @db.Decimal(14, 2)
+  status       LoanRepaymentStatus @default(PENDING)
+  paidAt       DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  circle     Circle          @relation("LoanRepaymentScheduleCircle", fields: [circleId], references: [id], onDelete: Cascade)
+  loanLine   Loan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  repayments LoanRepayment[]
+
+  @@index([loanId])
+  @@index([circleId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model LoanRepayment {
+  id             String              @id @default(cuid())
+  loanId         String
+  scheduleId     String
+  circleId       String
+  memberId       String
+  amount         Decimal             @db.Decimal(14, 2)
+  feeApplied     Decimal             @default(0) @db.Decimal(14, 2)
+  proofUrl       String?
+  proofReference String?
+  status         LoanRepaymentStatus @default(PENDING)
+  completedAt    DateTime?
+  confirmedById  String?
+  confirmedAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  circle      Circle                @relation("LoanRepaymentCircle", fields: [circleId], references: [id], onDelete: Cascade)
+  loan        Loan                  @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  schedule    LoanRepaymentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  member      User                  @relation("LoanRepaymentPayer", fields: [memberId], references: [id])
+  confirmedBy User?                 @relation("LoanRepaymentConfirmer", fields: [confirmedById], references: [id])
+
+  @@index([loanId])
+  @@index([scheduleId])
+  @@index([circleId])
+  @@index([memberId])
+  @@index([status])
 }

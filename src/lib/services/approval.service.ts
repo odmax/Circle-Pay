@@ -23,6 +23,7 @@ export interface CircleApprovalConfig {
   project?: ApprovalSettings
   walletWithdrawal?: ApprovalSettings
   settlement?: ApprovalSettings
+  loan?: ApprovalSettings
 }
 
 export const DEFAULT_APPROVAL_SETTINGS: CircleApprovalConfig = {
@@ -31,6 +32,7 @@ export const DEFAULT_APPROVAL_SETTINGS: CircleApprovalConfig = {
   project: { enabled: false, minimumApprovals: 2, allowedRoles: ["OWNER", "ADMIN"], ownerRequiredAboveAmount: null, expiryDays: 14 },
   walletWithdrawal: { enabled: false, minimumApprovals: 2, allowedRoles: ["OWNER", "ADMIN", "TREASURER"], ownerRequiredAboveAmount: 10000, expiryDays: 7 },
   settlement: { enabled: false, minimumApprovals: 1, allowedRoles: ["OWNER", "ADMIN", "TREASURER"], ownerRequiredAboveAmount: null, expiryDays: 7 },
+  loan: { enabled: false, minimumApprovals: 1, allowedRoles: ["OWNER", "ADMIN", "TREASURER"], ownerRequiredAboveAmount: null, expiryDays: 7 },
 }
 
 const REVIEW_PERMISSION_MAP: Record<string, string> = {
@@ -45,6 +47,7 @@ const REVIEW_PERMISSION_MAP: Record<string, string> = {
   MEMBER_PROMOTION: CIRCLE_PERMISSIONS.MEMBER_ROLE_UPDATE,
   PAYOUT: CIRCLE_PERMISSIONS.PAYOUT_APPROVE,
   GOVERNANCE: CIRCLE_PERMISSIONS.GOVERNANCE_VOTE_MANAGE,
+  LOAN: CIRCLE_PERMISSIONS.LOAN_APPROVE,
   OTHER: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW,
 }
 
@@ -60,6 +63,7 @@ const REJECT_PERMISSION_MAP: Record<string, string> = {
   MEMBER_PROMOTION: CIRCLE_PERMISSIONS.MEMBER_ROLE_UPDATE,
   PAYOUT: CIRCLE_PERMISSIONS.PAYOUT_APPROVE,
   GOVERNANCE: CIRCLE_PERMISSIONS.GOVERNANCE_VOTE_MANAGE,
+  LOAN: CIRCLE_PERMISSIONS.LOAN_APPROVE,
   OTHER: CIRCLE_PERMISSIONS.CONTRIBUTION_REJECT,
 }
 
@@ -75,6 +79,7 @@ const APPROVAL_TYPE_SETTINGS_MAP: Record<string, keyof CircleApprovalConfig> = {
   MEMBER_PROMOTION: "contribution",
   PAYOUT: "walletWithdrawal",
   GOVERNANCE: "contribution",
+  LOAN: "loan",
   OTHER: "contribution",
 }
 
@@ -101,6 +106,7 @@ export async function getApprovalConfig(circleId: string): Promise<CircleApprova
     project: merge(DEFAULT_APPROVAL_SETTINGS.project!, settings.project),
     walletWithdrawal: merge(DEFAULT_APPROVAL_SETTINGS.walletWithdrawal!, settings.walletWithdrawal),
     settlement: merge(DEFAULT_APPROVAL_SETTINGS.settlement!, settings.settlement),
+    loan: merge(DEFAULT_APPROVAL_SETTINGS.loan!, settings.loan),
   }
 }
 

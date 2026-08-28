@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import type { NotificationType } from "@/generated/prisma"
 
-const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true, payouts: true, constitution: true, governance: true, yearEnd: true }
+const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true, payouts: true, constitution: true, governance: true, yearEnd: true, loans: true }
 
 const TYPE_TO_PREF: Record<string, string> = {
   CONTRIBUTION_MADE: "contributions", CONTRIBUTION_PLAN_CREATED: "contributions", CONTRIBUTION_REMINDER: "contributions",
@@ -34,6 +34,9 @@ const TYPE_TO_PREF: Record<string, string> = {
   GOV_DECISION_RECORDED: "governance",
   YEAR_END_INITIATED: "yearEnd", YEAR_END_APPROVAL_REQUIRED: "yearEnd", YEAR_END_FINALIZED: "yearEnd",
   YEAR_END_STATEMENT_READY: "yearEnd", YEAR_END_REOPENED: "yearEnd", YEAR_END_ADJUSTMENT_RECORDED: "yearEnd",
+  LOAN_APPLIED: "loans", LOAN_APPROVED: "loans", LOAN_REJECTED: "loans", LOAN_DISBURSED: "loans",
+  LOAN_REPAYMENT_DUE: "loans", LOAN_REPAYMENT_SUBMITTED: "loans", LOAN_REPAYMENT_CONFIRMED: "loans",
+  LOAN_OVERDUE: "loans", LOAN_DEFAULTED: "loans",
 }
 
 async function isBlocked(userId: string, type: string): Promise<boolean> {

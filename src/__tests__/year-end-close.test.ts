@@ -39,7 +39,7 @@ describe("Year-End Close — Financial Contract", () => {
       "allocatedReturns",
       "finalEntitlement",
     ]) {
-      expect(compact).toContain(`${field} Decimal @db.Decimal(12, 2)`)
+      expect(compact).toContain(`${field} Decimal @default(0) @db.Decimal(12, 2)`)
     }
     expect(compact).toContain("statementNumber String @unique")
   })
