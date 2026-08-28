@@ -160,6 +160,17 @@ model User {
   loanDisbursementsConfirmed    LoanDisbursement[]              @relation("LoanDisbursementConfirmer")
   loanProofs                    LoanProof[]                      @relation("LoanProofUploader")
   loanConfigsCreated            CircleLoanConfig[]              @relation("LoanConfigCreator")
+  groceryConfigsCreated         CircleGroceryConfig[]           @relation("GroceryConfigCreator")
+  groceryCampaignsCreated       GroceryCampaign[]               @relation("GroceryCampaignCreator")
+  groceryCampaignsFinalized     GroceryCampaign[]               @relation("GroceryCampaignFinalizer")
+  groceryListItemsCreated       GroceryListItem[]               @relation("GroceryListCreator")
+  groceryQuotesCreated          GrocerySupplierQuote[]          @relation("GroceryQuoteCreator")
+  groceryQuotesApproved         GrocerySupplierQuote[]          @relation("GroceryQuoteApprover")
+  groceryPurchasesRecorded      GroceryPurchase[]               @relation("GroceryPurchaseRecorder")
+  groceryPurchasesConfirmed     GroceryPurchase[]               @relation("GroceryPurchaseConfirmer")
+  groceryAllocationsCreated     GroceryAllocation[]             @relation("GroceryAllocationCreator")
+  groceryAllocations            GroceryAllocation[]             @relation("GroceryAllocationRecipient")
+  groceryExpensesCreated        GroceryExpense[]                @relation("GroceryExpenseCreator")
 
   @@index([email])
 }
@@ -358,6 +369,8 @@ model Circle {
   loanRepayments         LoanRepayment[]             @relation("LoanRepaymentCircle")
   loanRepaymentSchedules LoanRepaymentSchedule[]     @relation("LoanRepaymentScheduleCircle")
   loanProofs             LoanProof[]
+  groceryConfig           CircleGroceryConfig?
+  groceryCampaigns        GroceryCampaign[]
 }
 
 model CircleMember {
@@ -395,6 +408,7 @@ model Contribution {
   circleId             String
   userId               String
   planId               String?
+  groceryCampaignId    String?
   amount               Decimal             @db.Decimal(12, 2)
   status               ContributionStatus  @default(PAID)
   paymentDate          DateTime            @default(now())
@@ -434,6 +448,7 @@ model Contribution {
   user            User                   @relation("ContributionPayer", fields: [userId], references: [id])
   plan            ContributionPlan?      @relation(fields: [planId], references: [id])
   schedule        ContributionSchedule?  @relation(fields: [scheduleId], references: [id])
+  groceryCampaign GroceryCampaign?       @relation("GroceryCampaignContributions", fields: [groceryCampaignId], references: [id], onDelete: SetNull)
   createdBy       User                   @relation("ContributionRecorder", fields: [createdById], references: [id])
   approvalRequest ApprovalRequest?       @relation(fields: [approvalRequestId], references: [id])
   goalAllocations GoalAllocation[]
@@ -443,6 +458,7 @@ model Contribution {
   @@index([userId])
   @@index([planId])
   @@index([scheduleId])
+  @@index([groceryCampaignId])
   @@index([dueDate])
   @@index([status])
   @@index([createdAt])
@@ -836,6 +852,11 @@ enum NotificationType {
   LOAN_REPAYMENT_CONFIRMED
   LOAN_OVERDUE
   LOAN_DEFAULTED
+  GROCERY_CAMPAIGN_CREATED
+  GROCERY_SUPPLIER_APPROVED
+  GROCERY_PURCHASE_RECORDED
+  GROCERY_ALLOCATION_CREATED
+  GROCERY_CAMPAIGN_CLOSED
 }
 
 model Notification {
@@ -4739,4 +4760,190 @@ model LoanProof {
   @@index([disbursementId])
   @@index([circleId])
   @@index([uploadedById])
+}
+
+// --- Grocery Stokvel Mode ---------------------------------
+
+enum GroceryCampaignStatus {
+  DRAFT
+  ACTIVE
+  PURCHASING
+  DISTRIBUTING
+  CLOSED
+}
+
+enum GroceryAllocationStatus {
+  PENDING
+  CONFIRMED
+  ISSUE_REPORTED
+}
+
+enum GroceryQuoteStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum GroceryPurchaseStatus {
+  RECORDED
+  RECEIPT_SUBMITTED
+  CONFIRMED
+}
+
+model CircleGroceryConfig {
+  id          String   @id @default(cuid())
+  circleId    String   @unique
+  enabled     Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("GroceryConfigCreator", fields: [createdById], references: [id])
+
+  @@index([circleId])
+}
+
+model GroceryCampaign {
+  id               String                @id @default(cuid())
+  circleId         String
+  name             String
+  description      String?
+  targetAmount     Decimal               @db.Decimal(14, 2)
+  contributionStart DateTime?
+  contributionEnd  DateTime?
+  distributionDate DateTime?
+  status           GroceryCampaignStatus @default(DRAFT)
+  estimatedCost    Decimal               @default(0) @db.Decimal(14, 2)
+  createdById      String
+  approvedQuoteId    String?
+  isFinalized      Boolean               @default(false)
+  finalizedAt      DateTime?
+  finalizedById    String?
+
+  reconContributions   Decimal @default(0) @db.Decimal(14, 2)
+  reconPurchaseCost    Decimal @default(0) @db.Decimal(14, 2)
+  reconOtherExpenses   Decimal @default(0) @db.Decimal(14, 2)
+  reconRemainingBalance Decimal @default(0) @db.Decimal(14, 2)
+  reconSavings         Decimal @default(0) @db.Decimal(14, 2)
+  reconSnapshot        String?
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  circle           Circle                  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy        User                    @relation("GroceryCampaignCreator", fields: [createdById], references: [id])
+  finalizedBy      User?                   @relation("GroceryCampaignFinalizer", fields: [finalizedById], references: [id])
+  purchase         GroceryPurchase?
+  listItems        GroceryListItem[]
+  supplierQuotes   GrocerySupplierQuote[]  @relation("GroceryQuoteCampaign")
+  allocations      GroceryAllocation[]
+  expenses         GroceryExpense[]
+  contributions    Contribution[]          @relation("GroceryCampaignContributions")
+
+  @@index([circleId])
+  @@index([status])
+}
+
+model GroceryListItem {
+  id             String  @id @default(cuid())
+  campaignId     String
+  product        String
+  category       String?
+  quantity       Decimal @default(1) @db.Decimal(14, 3)
+  unit           String?
+  estimatedPrice Decimal @default(0) @db.Decimal(14, 2)
+  notes          String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  grocery    GroceryCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdBy User             @relation("GroceryListCreator", fields: [createdById], references: [id])
+
+  @@index([campaignId])
+}
+
+model GrocerySupplierQuote {
+  id                String             @id @default(cuid())
+  campaignId        String
+  supplier          String
+  quoteAmount       Decimal            @db.Decimal(14, 2)
+  quoteDocUrl       String?
+  quoteDocFilename  String?
+  notes             String?
+  status            GroceryQuoteStatus @default(PENDING)
+  createdById       String
+  approvedById      String?
+  approvedAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  grocery      GroceryCampaign @relation("GroceryQuoteCampaign", fields: [campaignId], references: [id], onDelete: Cascade)
+  createdBy    User            @relation("GroceryQuoteCreator", fields: [createdById], references: [id])
+  approvedBy   User?           @relation("GroceryQuoteApprover", fields: [approvedById], references: [id])
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+model GroceryPurchase {
+  id              String    @id @default(cuid())
+  campaignId      String    @unique
+  supplier        String
+  purchaseAmount  Decimal   @db.Decimal(14, 2)
+  purchaseDate    DateTime?
+  paymentReference String?
+  receiptUrl      String?
+  receiptFilename String?
+  status          GroceryPurchaseStatus @default(RECORDED)
+  recordedById    String
+  confirmedById   String?
+  confirmedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  grocery    GroceryCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recordedBy User            @relation("GroceryPurchaseRecorder", fields: [recordedById], references: [id])
+  confirmedBy User?          @relation("GroceryPurchaseConfirmer", fields: [confirmedById], references: [id])
+
+  @@index([status])
+}
+
+model GroceryAllocation {
+  id              String                 @id @default(cuid())
+  campaignId      String
+  memberId        String
+  items           String
+  value           Decimal                @db.Decimal(14, 2)
+  status          GroceryAllocationStatus @default(PENDING)
+  confirmedAt     DateTime?
+  issueNote       String?
+  allocatedById   String
+  allocatedAt     DateTime               @default(now())
+
+  grocery    GroceryCampaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  member     User                    @relation("GroceryAllocationRecipient", fields: [memberId], references: [id])
+  allocatedBy User                   @relation("GroceryAllocationCreator", fields: [allocatedById], references: [id])
+
+  @@index([campaignId])
+  @@index([memberId])
+}
+
+model GroceryExpense {
+  id              String   @id @default(cuid())
+  campaignId      String
+  title           String
+  amount          Decimal  @db.Decimal(14, 2)
+  date            DateTime @default(now())
+  category        String?
+  receiptUrl      String?
+  receiptFilename String?
+  createdById     String
+  createdAt       DateTime @default(now())
+
+  grocery    GroceryCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdBy  User            @relation("GroceryExpenseCreator", fields: [createdById], references: [id])
+
+  @@index([campaignId])
 }

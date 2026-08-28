@@ -14,6 +14,7 @@ import { StokvelConstitution } from "./stokvel-constitution"
 import { StokvelGovernance } from "./stokvel-governance"
 import { StokvelYearEnd } from "./stokvel-year-end"
 import { StokvelLoan } from "./stokvel-loan"
+import { StokvelGrocery } from "./stokvel-grocery"
 
 interface StokvelDashboardProps {
   data: StokvelDashboardData
@@ -40,6 +41,14 @@ export function StokvelDashboard({ data, symbol, userId }: StokvelDashboardProps
           loan={data.loan}
           symbol={symbol}
           canReviewLoans={permissions.canReviewLoans}
+        />
+      )}
+
+      {permissions.canViewGrocery && (
+        <StokvelGrocery
+          circleId={data.circle.id}
+          grocery={data.grocery}
+          symbol={symbol}
         />
       )}
 

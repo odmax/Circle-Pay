@@ -238,6 +238,18 @@ export interface StokvelDashboardData {
     repaymentRate: number
     latestStatus: string | null
   }
+  grocery: {
+    enabled: boolean
+    hasCampaign: boolean
+    activeCampaign: {
+      id: string
+      name: string
+      status: string
+      targetPercent: number
+      amountCollected: number
+      targetAmount: number
+    } | null
+  }
   permissions: {
     canSubmitOwn: boolean
     canViewAll: boolean
@@ -257,6 +269,7 @@ export interface StokvelDashboardData {
     canViewLoans: boolean
     canReviewLoans: boolean
     canApplyLoans: boolean
+    canViewGrocery: boolean
   }
 }
 
@@ -290,6 +303,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     canViewLoans,
     canReviewLoans,
     canApplyLoans,
+    canViewGrocery,
   ] = await Promise.all([
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_SUBMIT_OWN }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL }),
@@ -309,6 +323,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LOAN_VIEW_OWN }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LOAN_REPAYMENT_REVIEW }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LOAN_APPLY }),
+    hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GROCERY_VIEW_OWN }),
   ])
 
   const now = new Date()
@@ -469,6 +484,36 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     pendingApplications,
     repaymentRate,
     latestStatus: myLoans[0]?.status ?? null,
+  }
+
+  // Grocery widget data. Only surfaced when the user can view grocery at all.
+  let groceryBlock: StokvelDashboardData["grocery"] = { enabled: false, hasCampaign: false, activeCampaign: null }
+  if (canViewGrocery) {
+    const [groceryConfig, groceryCampaigns] = await Promise.all([
+      prisma.circleGroceryConfig.findUnique({ where: { circleId } }),
+      prisma.groceryCampaign.findMany({
+        where: { circleId },
+        orderBy: { createdAt: "desc" },
+        include: { contributions: { where: { status: { in: ["PAID", "CONFIRMED"] } } } },
+      }),
+    ])
+    const activeGrocery = groceryCampaigns.find((c) => ["ACTIVE", "PURCHASING", "DISTRIBUTING"].includes(c.status)) ?? null
+    groceryBlock = {
+      enabled: groceryConfig?.enabled ?? false,
+      hasCampaign: groceryCampaigns.length > 0,
+      activeCampaign: activeGrocery
+        ? {
+            id: activeGrocery.id,
+            name: activeGrocery.name,
+            status: activeGrocery.status,
+            targetAmount: Number(activeGrocery.targetAmount),
+            amountCollected: activeGrocery.contributions.reduce((s, x) => s + Number(x.amount), 0),
+            targetPercent: Number(activeGrocery.targetAmount) > 0
+              ? Math.round((activeGrocery.contributions.reduce((s, x) => s + Number(x.amount), 0) / Number(activeGrocery.targetAmount)) * 100)
+              : 0,
+          }
+        : null,
+    }
   }
 
   // Resolve the user's RSVP for the NEXT meeting only (not any other meeting).
@@ -727,6 +772,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     governance,
     yearEnd,
     loan: loanBlock,
+    grocery: groceryBlock,
     permissions: {
       canSubmitOwn,
       canViewAll,
@@ -746,6 +792,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
       canViewLoans,
       canReviewLoans,
       canApplyLoans,
+      canViewGrocery,
     },
   }
 }

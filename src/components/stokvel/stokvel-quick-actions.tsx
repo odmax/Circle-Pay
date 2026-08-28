@@ -14,6 +14,7 @@ import {
   UsersRound,
   Scale,
   Landmark,
+  ShoppingCart,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,7 @@ interface StokvelQuickActionsProps {
     canVote?: boolean
     canManageMeetings?: boolean
     canViewLoans?: boolean
+    canViewGrocery?: boolean
   }
 }
 
@@ -51,6 +53,7 @@ export function StokvelQuickActions({ circleId, permissions }: StokvelQuickActio
     { label: "Meetings", href: `/circles/${circleId}/meetings`, icon: UsersRound, show: !!permissions.canViewMeetings },
     { label: "Votes", href: `/circles/${circleId}/votes`, icon: Scale, show: !!permissions.canVote },
     { label: "Loans", href: `/circles/${circleId}/loans`, icon: Landmark, show: !!permissions.canViewLoans },
+    { label: "Grocery", href: `/circles/${circleId}/grocery`, icon: ShoppingCart, show: !!permissions.canViewGrocery },
     { label: "Settings", href: `/circles/${circleId}/manage`, icon: Settings, show: permissions.canManagePayouts },
   ]
 
