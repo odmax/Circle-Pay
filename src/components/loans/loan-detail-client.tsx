@@ -54,6 +54,22 @@ interface ScheduleItem {
   status: string
 }
 
+interface ProofItem {
+  id: string
+  kind: string
+  repaymentId: string | null
+  disbursementId: string | null
+  fileUrl: string
+  filename: string
+  mimeType: string
+  size: number
+  reference: string | null
+  note: string | null
+  uploadedByName: string | null
+  uploadedById: string
+  uploadedAt: string | null
+}
+
 interface RepaymentItem {
   id: string
   scheduleId: string
@@ -64,6 +80,21 @@ interface RepaymentItem {
   confirmedByName: string | null
   confirmedAt: string | null
   createdAt: string | null
+  proofs: ProofItem[]
+}
+
+interface DisbursementDetail {
+  id: string
+  amount: string
+  method: string | null
+  reference: string | null
+  status: string
+  proofUrl: string | null
+  proofReference: string | null
+  confirmedByName: string | null
+  confirmedAt: string | null
+  createdAt: string | null
+  proofs: ProofItem[]
 }
 
 interface LoanDetail {
@@ -82,6 +113,7 @@ interface LoanDetail {
   disbursedAt: string | null
   schedule: ScheduleItem[]
   repayments: RepaymentItem[]
+  disbursement: DisbursementDetail | null
   canViewAny: boolean
 }
 
@@ -152,6 +184,57 @@ async function post(url: string, body?: unknown) {
   return data
 }
 
+async function postMultipart(url: string, fields: Record<string, string | undefined>, file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+  for (const [key, value] of Object.entries(fields)) {
+    if (value != null) formData.append(key, value)
+  }
+  const res = await fetch(url, { method: "POST", body: formData })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error || "Upload failed")
+  }
+  return data
+}
+
+function isImage(mimeType: string) {
+  return mimeType.startsWith("image/")
+}
+
+function ProofPreview({ proof }: { proof: ProofItem }) {
+  const preview = isImage(proof.mimeType) ? (
+    <a href={proof.fileUrl} target="_blank" rel="noreferrer">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={proof.fileUrl}
+        alt={proof.filename}
+        className="h-12 w-12 rounded-md border border-border/60 object-cover"
+        loading="lazy"
+      />
+    </a>
+  ) : (
+    <a
+      href={proof.fileUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex h-12 w-12 items-center justify-center rounded-md border border-border/60 bg-muted text-xs font-semibold text-brand"
+      title={proof.filename}
+    >
+      PDF
+    </a>
+  )
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      {preview}
+      <a href={proof.fileUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand underline">
+        {proof.filename}
+      </a>
+    </span>
+  )
+}
+
 export function LoanDetailClient({ circleId, loanId, symbol, permissions }: LoanDetailClientProps) {
   const [loan, setLoan] = useState<LoanDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -161,15 +244,16 @@ export function LoanDetailClient({ circleId, loanId, symbol, permissions }: Loan
   // Repayment submission form
   const [repayScheduleId, setRepayScheduleId] = useState("")
   const [repayAmount, setRepayAmount] = useState("")
-  const [repayProofUrl, setRepayProofUrl] = useState("")
-  const [repayProofRef, setRepayProofRef] = useState("")
+  const [repayFile, setRepayFile] = useState<File | null>(null)
+  const [repayNote, setRepayNote] = useState("")
   const [showRepayForm, setShowRepayForm] = useState(false)
 
   // Disbursement form
   const [disbAmount, setDisbAmount] = useState("")
   const [disbMethod, setDisbMethod] = useState("")
   const [disbReference, setDisbReference] = useState("")
-  const [disbProofRef, setDisbProofRef] = useState("")
+  const [disbFile, setDisbFile] = useState<File | null>(null)
+  const [disbNote, setDisbNote] = useState("")
   const [showDisbForm, setShowDisbForm] = useState(false)
 
   // Reject reason inputs
@@ -207,6 +291,59 @@ export function LoanDetailClient({ circleId, loanId, symbol, permissions }: Loan
       await load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Action failed")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const submitRepaymentProof = async () => {
+    if (!repayFile || !repayScheduleId || !Number(repayAmount)) {
+      toast.error("Select a period, enter an amount, and choose a proof file")
+      return
+    }
+    setBusy("submit repayment")
+    try {
+      await postMultipart(
+        `/api/circles/${circleId}/loans/${loanId}/repayments/proof`,
+        { scheduleId: repayScheduleId, amount: repayAmount, note: repayNote || undefined },
+        repayFile
+      )
+      toast.success("Repayment proof submitted")
+      setShowRepayForm(false)
+      setRepayFile(null)
+      setRepayNote("")
+      setRepayAmount("")
+      setRepayScheduleId("")
+      await load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const submitDisbursementProof = async () => {
+    if (!disbFile) {
+      toast.error("Choose a proof file")
+      return
+    }
+    setBusy("disburse")
+    try {
+      await postMultipart(
+        `/api/circles/${circleId}/loans/${loanId}/disburse/proof`,
+        { amount: disbAmount || undefined, method: disbMethod || undefined, reference: disbReference || undefined, note: disbNote || undefined },
+        disbFile
+      )
+      toast.success("Disbursement proof submitted")
+      setShowDisbForm(false)
+      setDisbFile(null)
+      setDisbNote("")
+      setDisbAmount("")
+      setDisbMethod("")
+      setDisbReference("")
+      await load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed")
     } finally {
       setBusy(null)
     }
@@ -467,12 +604,26 @@ export function LoanDetailClient({ circleId, loanId, symbol, permissions }: Loan
                         <Input value={disbReference} onChange={(e) => setDisbReference(e.target.value)} placeholder="Bank reference" className="h-8" />
                       </div>
                       <div>
-                        <Label className="text-xs">Proof ref</Label>
-                        <Input value={disbProofRef} onChange={(e) => setDisbProofRef(e.target.value)} placeholder="Optional" className="h-8" />
+                        <Label className="text-xs">Note (optional)</Label>
+                        <Input value={disbNote} onChange={(e) => setDisbNote(e.target.value)} placeholder="Optional" className="h-8" />
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-4">
+                        <Label className="text-xs">Proof file (PDF, JPG, PNG, WebP, HEIC · max 5MB)</Label>
+                        <Input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/heic,application/pdf,.pdf,.jpg,.jpeg,.png,.webp,.heic"
+                          className="h-8 file:h-8 file:rounded-lg file:border-0 file:bg-muted file:px-2.5 file:text-sm"
+                          onChange={(e) => setDisbFile(e.target.files?.[0] ?? null)}
+                        />
+                        {disbFile && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Selected: {disbFile.name} · {(disbFile.size / 1024).toFixed(0)} KB
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
-                        <Button size="sm" className="rounded-xl" onClick={() => action("disburse", `/api/circles/${circleId}/loans/${loanId}/disburse`, { amount: disbAmount ? Number(disbAmount) : undefined, method: disbMethod || undefined, reference: disbReference || undefined, proofReference: disbProofRef || undefined })} disabled={busy !== null}>
-                          <Banknote className="size-4 mr-1" /> Record disbursement
+                        <Button size="sm" className="rounded-xl" onClick={() => submitDisbursementProof()} disabled={busy !== null || !disbFile}>
+                          <Banknote className="size-4 mr-1" /> Upload proof & record
                         </Button>
                         <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => setShowDisbForm(false)}>Cancel</Button>
                       </div>
@@ -506,6 +657,16 @@ export function LoanDetailClient({ circleId, loanId, symbol, permissions }: Loan
                 <Button variant="destructive" size="sm" className="rounded-xl" onClick={() => action("default", `/api/circles/${circleId}/loans/${loanId}/default`)} disabled={busy !== null}>
                   <FileWarning className="size-4 mr-1" /> Mark defaulted
                 </Button>
+              )}
+
+              {loan.disbursement && loan.disbursement.proofs.length > 0 && (
+                <div className="flex flex-col gap-1.5 rounded-xl border border-border/60 bg-muted/20 p-3 text-sm">
+                  <p className="text-xs font-medium text-muted-foreground">Disbursement proof</p>
+                  <ProofPreview proof={loan.disbursement.proofs[loan.disbursement.proofs.length - 1]} />
+                  <p className="text-xs text-muted-foreground">
+                    {loan.disbursement.proofs.length} upload{loan.disbursement.proofs.length > 1 ? "s" : ""} · status {loan.disbursement.status}
+                  </p>
+                </div>
               )}
 
               {(canConfirmRepayment || canRejectRepayment) && awaitingRepayment && (
@@ -564,20 +725,33 @@ export function LoanDetailClient({ circleId, loanId, symbol, permissions }: Loan
                   <Label htmlFor="repay-amount">Amount paid</Label>
                   <Input id="repay-amount" type="number" min={0} step="0.01" value={repayAmount} onChange={(e) => setRepayAmount(e.target.value)} className="h-8" placeholder="e.g. 500" />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor="repay-ref">Reference / receipt ref</Label>
-                    <Input id="repay-ref" value={repayProofRef} onChange={(e) => setRepayProofRef(e.target.value)} className="h-8" placeholder="Payment reference" />
+                <div>
+                  <Label htmlFor="repay-proof-file">
+                    Proof file (PDF, JPG, PNG, WebP, HEIC · max 5MB)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="repay-proof-file"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/heic,application/pdf,.pdf,.jpg,.jpeg,.png,.webp,.heic"
+                      className="h-8 file:h-8 file:rounded-lg file:border-0 file:bg-muted file:px-2.5 file:text-sm"
+                      onChange={(e) => setRepayFile(e.target.files?.[0] ?? null)}
+                    />
                   </div>
-                  <div>
-                    <Label htmlFor="repay-url">Proof URL (optional)</Label>
-                    <Input id="repay-url" value={repayProofUrl} onChange={(e) => setRepayProofUrl(e.target.value)} className="h-8" placeholder="https://…" />
-                  </div>
+                  {repayFile && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Selected: {repayFile.name} · {(repayFile.size / 1024).toFixed(0)} KB
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="repay-note">Note (optional)</Label>
+                  <Input id="repay-note" value={repayNote} onChange={(e) => setRepayNote(e.target.value)} className="h-8" placeholder="Payment reference or note" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button size="sm" className="rounded-xl" disabled={busy !== null || !repayScheduleId || !Number(repayAmount)} onClick={() => action("submit repayment", `/api/circles/${circleId}/loans/${loanId}/repayments`, { scheduleId: repayScheduleId, amount: Number(repayAmount), proofUrl: repayProofUrl || undefined, proofReference: repayProofRef || undefined })}>
+                  <Button size="sm" className="rounded-xl" disabled={busy !== null || !repayScheduleId || !Number(repayAmount) || !repayFile} onClick={() => submitRepaymentProof()}>
                     {busy === "submit repayment" ? <Loader2 className="size-4 mr-1 animate-spin" /> : <CheckCircle2 className="size-4 mr-1" />}
-                    Submit repayment
+                    {repayFile ? (repayFile.name ? "Upload proof & submit" : "Submit repayment") : "Upload proof & submit"}
                   </Button>
                   <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => setShowRepayForm(false)}>Cancel</Button>
                 </div>
@@ -588,7 +762,7 @@ export function LoanDetailClient({ circleId, loanId, symbol, permissions }: Loan
               </Button>
             )}
             <p className="text-xs text-muted-foreground">
-              Submit a proof reference and your repayment will be reviewed and confirmed by the authorised members.
+              Upload a proof file (PDF or image) and your repayment will be reviewed and confirmed by the authorised members.
             </p>
           </CardContent>
         </Card>
@@ -692,7 +866,17 @@ export function LoanDetailClient({ circleId, loanId, symbol, permissions }: Loan
                     <tr key={r.id} className="border-b border-border/40 last:border-0">
                       <td className="py-2.5 pr-3">{fmtDate(r.createdAt)}</td>
                       <td className="py-2.5 pr-3 font-semibold">{symbol}{Number(r.amount).toLocaleString()}</td>
-                      <td className="py-2.5 pr-3 text-muted-foreground">{r.proofReference || r.proofUrl || "—"}</td>
+                      <td className="py-2.5 pr-3">
+                        {r.proofs.length > 0 ? (
+                          <ProofPreview proof={r.proofs[r.proofs.length - 1]} />
+                        ) : r.proofUrl ? (
+                          <a href={r.proofUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand underline">
+                            {r.proofReference || "View"}
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">{r.proofReference || "—"}</span>
+                        )}
+                      </td>
                       <td className="py-2.5 pr-3">
                         <Badge variant="outline" className={`text-[10px] ${r.status === "CONFIRMED" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : r.status === "REJECTED" ? "border-red-200 bg-red-50 text-red-700" : "border-sky-200 bg-sky-50 text-sky-700"}`}>
                           {REPAYMENT_STATUS_LABELS[r.status] ?? r.status}

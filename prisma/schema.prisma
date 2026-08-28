@@ -157,6 +157,8 @@ model User {
   loansApproved                 Loan[]                          @relation("LoanApprover")
   loanRepayments                LoanRepayment[]                 @relation("LoanRepaymentPayer")
   loanRepaymentsConfirmed       LoanRepayment[]                 @relation("LoanRepaymentConfirmer")
+  loanDisbursementsConfirmed    LoanDisbursement[]              @relation("LoanDisbursementConfirmer")
+  loanProofs                    LoanProof[]                      @relation("LoanProofUploader")
   loanConfigsCreated            CircleLoanConfig[]              @relation("LoanConfigCreator")
 
   @@index([email])
@@ -355,6 +357,7 @@ model Circle {
   loans                  Loan[]                      @relation("LoanCircle")
   loanRepayments         LoanRepayment[]             @relation("LoanRepaymentCircle")
   loanRepaymentSchedules LoanRepaymentSchedule[]     @relation("LoanRepaymentScheduleCircle")
+  loanProofs             LoanProof[]
 }
 
 model CircleMember {
@@ -4563,6 +4566,11 @@ enum LoanDisbursementStatus {
   REJECTED
 }
 
+enum LoanProofKind {
+  REPAYMENT
+  DISBURSEMENT
+}
+
 model CircleLoanConfig {
   id                        String                 @id @default(cuid())
   circleId                  String                 @unique
@@ -4620,6 +4628,7 @@ model Loan {
   disbursement      LoanDisbursement?
   schedule          LoanRepaymentSchedule[]
   repayments        LoanRepayment[]
+  proofs            LoanProof[]
 
   @@index([circleId])
   @@index([memberId])
@@ -4641,6 +4650,8 @@ model LoanDisbursement {
   updatedAt      DateTime               @updatedAt
 
   loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  confirmedBy User? @relation("LoanDisbursementConfirmer", fields: [confirmedById], references: [id])
+  proofs LoanProof[]
 
   @@index([status])
 }
@@ -4692,10 +4703,40 @@ model LoanRepayment {
   schedule    LoanRepaymentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   member      User                  @relation("LoanRepaymentPayer", fields: [memberId], references: [id])
   confirmedBy User?                 @relation("LoanRepaymentConfirmer", fields: [confirmedById], references: [id])
+  proofs      LoanProof[]
 
   @@index([loanId])
   @@index([scheduleId])
   @@index([circleId])
   @@index([memberId])
   @@index([status])
+}
+
+model LoanProof {
+  id             String         @id @default(cuid())
+  loanId         String
+  kind           LoanProofKind
+  repaymentId    String?
+  disbursementId String?
+  circleId       String
+  uploadedById   String
+  fileUrl        String
+  filename       String
+  mimeType       String
+  size           Int
+  reference      String?
+  note           String?
+  uploadedAt     DateTime       @default(now())
+
+  loan         Loan             @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  repayment    LoanRepayment?   @relation(fields: [repaymentId], references: [id], onDelete: Cascade)
+  disbursement LoanDisbursement? @relation(fields: [disbursementId], references: [id], onDelete: Cascade)
+  circle       Circle           @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  uploadedBy   User             @relation("LoanProofUploader", fields: [uploadedById], references: [id])
+
+  @@index([loanId])
+  @@index([repaymentId])
+  @@index([disbursementId])
+  @@index([circleId])
+  @@index([uploadedById])
 }

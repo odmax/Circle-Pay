@@ -514,6 +514,90 @@ export async function rejectDisbursement(circleId: string, loanId: string, userI
   })
 }
 
+export async function recordDisbursementProof(
+  circleId: string,
+  loanId: string,
+  userId: string,
+  data: {
+    fileUrl: string
+    filename: string
+    mimeType: string
+    size: number
+    amount?: number
+    method?: string
+    reference?: string
+    note?: string
+  }
+) {
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LOAN_DISBURSE })
+  const loan = await getLoanOrThrow(circleId, loanId)
+  if (loan.status !== "APPROVED") throw new Error(`Loan must be approved before disbursement (status: ${loan.status})`)
+
+  const amount = data.amount != null ? new Prisma.Decimal(data.amount) : dec(loan.principal)
+  const now = new Date()
+
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.loanDisbursement.findUnique({ where: { loanId } })
+    const wasReplacement = !!existing && existing.status === "PROOF_SUBMITTED"
+
+    const disbursement = existing
+      ? await tx.loanDisbursement.update({
+          where: { loanId },
+          data: {
+            amount,
+            method: data.method ?? null,
+            reference: data.reference ?? null,
+            proofUrl: data.fileUrl,
+            proofReference: data.reference ?? null,
+            status: "PROOF_SUBMITTED",
+          },
+        })
+      : await tx.loanDisbursement.create({
+          data: {
+            loanId,
+            amount,
+            method: data.method ?? null,
+            reference: data.reference ?? null,
+            proofUrl: data.fileUrl,
+            proofReference: data.reference ?? null,
+            status: "PROOF_SUBMITTED",
+          },
+        })
+
+    const proof = await tx.loanProof.create({
+      data: {
+        loanId,
+        kind: "DISBURSEMENT",
+        disbursementId: disbursement.id,
+        circleId,
+        uploadedById: userId,
+        fileUrl: data.fileUrl,
+        filename: data.filename,
+        mimeType: data.mimeType,
+        size: data.size,
+        reference: data.reference ?? null,
+        note: data.note ?? null,
+      },
+    })
+
+    await tx.loan.update({
+      where: { id: loanId },
+      data: { status: "DISBURSED", repaymentStartDate: now },
+    })
+
+    createAuditLog({
+      userId,
+      circleId,
+      action: wasReplacement ? "LOAN_DISBURSEMENT_PROOF_REPLACED" : "LOAN_DISBURSEMENT_RECORDED",
+      entityType: "LoanProof",
+      entityId: proof.id,
+      oldValues: wasReplacement ? { proofUrl: existing!.proofUrl } : undefined,
+      newValues: { amount: amount.toFixed(2), method: data.method, reference: data.reference, filename: data.filename },
+    }).catch(() => {})
+    return { disbursement, proof }
+  })
+}
+
 // ─── Repayments ───────────────────────────────────────────
 
 export async function submitLoanRepayment(
@@ -568,6 +652,140 @@ export async function submitLoanRepayment(
       link: `/circles/${circleId}/loans`,
     }).catch(() => {})
     return repayment
+  })
+}
+
+// ─── Proof uploads (real file evidence) ────────────────────
+
+export async function recordLoanRepaymentProof(
+  circleId: string,
+  loanId: string,
+  userId: string,
+  data: {
+    scheduleId: string
+    amount?: number
+    fileUrl: string
+    filename: string
+    mimeType: string
+    size: number
+    reference?: string
+    note?: string
+  }
+) {
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LOAN_REPAY_SUBMIT_OWN })
+  const loan = await getLoanOrThrow(circleId, loanId)
+  const isOwner = loan.memberId === userId
+  const canSubmitForOthers = await hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LOAN_REPAYMENT_REVIEW })
+  // Members cannot upload proof for another member's loan.
+  if (!isOwner && !canSubmitForOthers) throw new Error("You can only upload proof for your own loan")
+
+  const schedule = await prisma.loanRepaymentSchedule.findFirst({ where: { id: data.scheduleId, loanId, circleId } })
+  if (!schedule) throw new Error("Repayment schedule not found")
+  if (schedule.status === "CONFIRMED") throw new Error("This repayment period is already confirmed and cannot be changed")
+
+  const existing = await prisma.loanRepayment.findFirst({
+    where: { loanId, scheduleId: schedule.id, circleId, status: { not: "REJECTED" } },
+  })
+  // A confirmed repayment's proof can never be silently replaced.
+  if (existing && existing.status === "CONFIRMED") throw new Error("Confirmed repayment proof cannot be replaced")
+
+  const wasReplacement = !!existing && existing.status === "PROOF_SUBMITTED"
+
+  let previousProof: { fileUrl: string; filename: string } | null = null
+  if (wasReplacement && existing) {
+    const last = await prisma.loanProof.findFirst({
+      where: { repaymentId: existing.id, kind: "REPAYMENT" },
+      orderBy: { uploadedAt: "desc" },
+    })
+    previousProof = last ? { fileUrl: last.fileUrl, filename: last.filename } : null
+  }
+
+  let amount: Prisma.Decimal
+  if (data.amount != null) {
+    amount = new Prisma.Decimal(data.amount)
+  } else if (existing) {
+    amount = existing.amount
+  } else {
+    amount = dec(schedule.totalDue)
+  }
+
+  return prisma.$transaction(async (tx) => {
+    // Re-submission updates the same repayment row (no duplicate financial posting);
+    // amountPaid/confirmation only ever happen at CONFIRM time.
+    const repayment = wasReplacement
+      ? await tx.loanRepayment.update({
+          where: { id: existing!.id },
+          data: {
+            amount,
+            proofUrl: data.fileUrl,
+            proofReference: data.reference ?? null,
+            status: "PROOF_SUBMITTED",
+          },
+        })
+      : await tx.loanRepayment.create({
+          data: {
+            loanId,
+            scheduleId: schedule.id,
+            circleId,
+            memberId: loan.memberId,
+            amount,
+            proofUrl: data.fileUrl,
+            proofReference: data.reference ?? null,
+            status: "PROOF_SUBMITTED",
+          },
+        })
+
+    await tx.loanRepaymentSchedule.update({
+      where: { id: schedule.id },
+      data: { status: "PROOF_SUBMITTED" },
+    })
+
+    const proof = await tx.loanProof.create({
+      data: {
+        loanId,
+        kind: "REPAYMENT",
+        repaymentId: repayment.id,
+        circleId,
+        uploadedById: userId,
+        fileUrl: data.fileUrl,
+        filename: data.filename,
+        mimeType: data.mimeType,
+        size: data.size,
+        reference: data.reference ?? null,
+        note: data.note ?? null,
+      },
+    })
+
+    if (wasReplacement) {
+      createAuditLog({
+        userId,
+        circleId,
+        affectedUserId: loan.memberId,
+        action: "LOAN_REPAYMENT_PROOF_REPLACED",
+        entityType: "LoanProof",
+        entityId: proof.id,
+        oldValues: { proofUrl: previousProof?.fileUrl ?? existing!.proofUrl, filename: previousProof?.filename ?? null },
+        newValues: { proofUrl: data.fileUrl, filename: data.filename, size: data.size },
+      }).catch(() => {})
+    } else {
+      createAuditLog({
+        userId,
+        circleId,
+        affectedUserId: loan.memberId,
+        action: "LOAN_REPAYMENT_SUBMITTED",
+        entityType: "LoanRepayment",
+        entityId: repayment.id,
+        newValues: { amount: amount.toFixed(2), scheduleId: schedule.id, filename: data.filename },
+      }).catch(() => {})
+    }
+
+    notifyCircleMembers(circleId, userId, {
+      type: "LOAN_REPAYMENT_SUBMITTED",
+      title: wasReplacement ? "Repayment proof updated" : "Repayment proof submitted",
+      message: `A repayment of ${amount.toFixed(2)} ${wasReplacement ? "has been updated" : "has been submitted"} for review.`,
+      link: `/circles/${circleId}/loans`,
+    }).catch(() => {})
+    return { repayment, proof }
   })
 }
 
@@ -758,9 +976,37 @@ export async function getLoan(circleId: string, loanId: string, userId: string) 
     include: { confirmedBy: { select: { id: true, name: true } } },
   })
 
+  const [loanProofs, disbursement] = await Promise.all([
+    prisma.loanProof.findMany({
+      where: { loanId, circleId },
+      orderBy: { uploadedAt: "asc" },
+      include: { uploadedBy: { select: { id: true, name: true } } },
+    }),
+    prisma.loanDisbursement.findUnique({
+      where: { loanId },
+      include: { confirmedBy: { select: { id: true, name: true } } },
+    }),
+  ])
+
   const memberName = await prisma.user.findUnique({
     where: { id: loan.memberId },
     select: { name: true, email: true },
+  })
+
+  const serialiseProof = (p: (typeof loanProofs)[number]) => ({
+    id: p.id,
+    kind: p.kind,
+    repaymentId: p.repaymentId,
+    disbursementId: p.disbursementId,
+    fileUrl: p.fileUrl,
+    filename: p.filename,
+    mimeType: p.mimeType,
+    size: p.size,
+    reference: p.reference,
+    note: p.note,
+    uploadedByName: p.uploadedBy?.name ?? null,
+    uploadedById: p.uploadedById,
+    uploadedAt: p.uploadedAt,
   })
 
   return {
@@ -797,7 +1043,23 @@ export async function getLoan(circleId: string, loanId: string, userId: string) 
       confirmedByName: r.confirmedBy?.name ?? null,
       confirmedAt: r.confirmedAt,
       createdAt: r.createdAt,
+      proofs: loanProofs.filter((p) => p.repaymentId === r.id).map(serialiseProof),
     })),
+    disbursement: disbursement
+      ? {
+          id: disbursement.id,
+          amount: dec(disbursement.amount).toFixed(2),
+          method: disbursement.method,
+          reference: disbursement.reference,
+          status: disbursement.status,
+          proofUrl: disbursement.proofUrl,
+          proofReference: disbursement.proofReference,
+          confirmedByName: disbursement.confirmedBy?.name ?? null,
+          confirmedAt: disbursement.confirmedAt,
+          createdAt: disbursement.createdAt,
+          proofs: loanProofs.filter((p) => p.disbursementId === disbursement.id).map(serialiseProof),
+        }
+      : null,
     canViewAny,
   }
 }
