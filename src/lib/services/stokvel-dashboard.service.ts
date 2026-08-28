@@ -7,6 +7,7 @@ import { getGoals, getGoalStats } from "@/lib/services/goal.service"
 import { getCircleEvents } from "@/lib/services/event.service"
 import { getUserNotifications } from "@/lib/services/notification.service"
 import { getConstitutionOverview } from "@/lib/services/constitution.service"
+import type { LoanRepaymentStatus } from "@/generated/prisma/enums"
 
 /**
  * Minimal view of a payout queue entry consumed by the stokvel dashboard.
@@ -217,6 +218,26 @@ export interface StokvelDashboardData {
     blockerCodes: string[]
     clear: boolean
   }
+  loan: {
+    enabled: boolean
+    canApply: boolean
+    myActiveLoans: number
+    myPendingReview: number
+    nextRepayment: {
+      amount: number
+      dueDate: string
+      status: string
+      periodNumber: number
+      loanId: string
+    } | null
+    outstandingBalance: number
+    overdue: boolean
+    defaulted: boolean
+    totalLoansOutstanding: number
+    pendingApplications: number
+    repaymentRate: number
+    latestStatus: string | null
+  }
   permissions: {
     canSubmitOwn: boolean
     canViewAll: boolean
@@ -233,6 +254,9 @@ export interface StokvelDashboardData {
     canVote: boolean
     canManageMeetings: boolean
     canViewYearEnd: boolean
+    canViewLoans: boolean
+    canReviewLoans: boolean
+    canApplyLoans: boolean
   }
 }
 
@@ -263,6 +287,9 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     canVote,
     canManageMeetings,
     canViewYearEnd,
+    canViewLoans,
+    canReviewLoans,
+    canApplyLoans,
   ] = await Promise.all([
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_SUBMIT_OWN }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL }),
@@ -279,6 +306,9 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOVERNANCE_VOTE }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_MANAGE }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.YEAR_END_VIEW }),
+    hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LOAN_VIEW_OWN }),
+    hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LOAN_REPAYMENT_REVIEW }),
+    hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.LOAN_APPLY }),
   ])
 
   const now = new Date()
@@ -354,6 +384,92 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     }),
     prisma.meetingAttendance.findMany({ where: { meeting: { circleId } } }),
   ])
+
+  // Loan widget data. Only surfaced when the user can view loans at all.
+  const canSeeLoans = canViewLoans || canReviewLoans
+  const [loanConfig, myLoans, allLoans] = canSeeLoans
+    ? await Promise.all([
+        prisma.circleLoanConfig.findUnique({ where: { circleId } }),
+        prisma.loan.findMany({
+          where: { circleId, memberId: userId },
+          orderBy: { createdAt: "desc" },
+        }),
+        (canReviewLoans || canViewLoans)
+          ? prisma.loan.findMany({ where: { circleId }, orderBy: { createdAt: "desc" }, take: 500 })
+          : Promise.resolve([]),
+      ])
+    : [null, [], []]
+
+  const loanActiveStatuses = ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED", "REPAYING", "OVERDUE"]
+  const loanRepaymentActiveStatuses: LoanRepaymentStatus[] = ["PENDING", "PROOF_SUBMITTED", "OVERDUE"]
+  const loanEnabled = loanConfig?.enabled ?? false
+
+  // My active loans (in a non-terminal state) — first is newest.
+  const myActive = myLoans.filter((l) => loanActiveStatuses.includes(l.status))
+  const myPendingReview = myLoans.filter((l) => l.status === "SUBMITTED" || l.status === "UNDER_REVIEW").length
+
+  // Next repayment: earliest pending/overdue schedule across my active loans.
+  const myActiveIds = myActive.map((l) => l.id)
+  const myActiveSchedules =
+    myActiveIds.length > 0
+      ? await prisma.loanRepaymentSchedule.findMany({
+          where: { loanId: { in: myActiveIds }, status: { in: loanRepaymentActiveStatuses } },
+          orderBy: { dueDate: "asc" },
+          take: 100,
+        })
+      : []
+
+  // Outstanding balance = sum of unresolved schedule due amounts across my active loans.
+  const outstandingBalance = myActiveSchedules
+    .filter((s) => s.status === "PENDING" || s.status === "PROOF_SUBMITTED" || s.status === "OVERDUE")
+    .reduce((sum, s) => sum + Number(s.totalDue) - Number(s.amountPaid), 0)
+
+  const firstPending = myActiveSchedules[0] ?? null
+  const nextRepayment = firstPending
+    ? {
+        amount: Math.max(0, Number(firstPending.totalDue) - Number(firstPending.amountPaid)),
+        dueDate: firstPending.dueDate ? firstPending.dueDate.toISOString() : "",
+        status: firstPending.status,
+        periodNumber: firstPending.periodNumber,
+        loanId: firstPending.loanId,
+      }
+    : null
+
+  const myOverdue = myLoans.some((l) => l.status === "OVERDUE") || myActiveSchedules.some((s) => s.status === "OVERDUE")
+  const myDefaulted = myLoans.some((l) => l.status === "DEFAULTED")
+
+  // Portfolio summary (admin/treasurer only).
+  let totalLoansOutstanding = 0
+  let pendingApplications = 0
+  let repaymentRate = 0
+  if (canReviewLoans || canViewLoans) {
+    totalLoansOutstanding = allLoans
+      .filter((l) => ["APPROVED", "DISBURSED", "REPAYING", "OVERDUE"].includes(l.status))
+      .reduce((sum, l) => sum + Number(l.principal), 0)
+    pendingApplications = allLoans.filter((l) => l.status === "SUBMITTED" || l.status === "UNDER_REVIEW").length
+    const withSchedule = await prisma.loanRepaymentSchedule.count({
+      where: { circleId, loanId: { in: allLoans.map((l) => l.id) } },
+    })
+    const confirmedSchedules = await prisma.loanRepaymentSchedule.count({
+      where: { circleId, loanId: { in: allLoans.map((l) => l.id) }, status: "CONFIRMED" },
+    })
+    repaymentRate = withSchedule > 0 ? Math.round((confirmedSchedules / withSchedule) * 100) : 0
+  }
+
+  const loanBlock: StokvelDashboardData["loan"] = {
+    enabled: loanEnabled,
+    canApply: canApplyLoans,
+    myActiveLoans: myActive.length,
+    myPendingReview,
+    nextRepayment,
+    outstandingBalance: Math.max(0, outstandingBalance),
+    overdue: myOverdue,
+    defaulted: myDefaulted,
+    totalLoansOutstanding,
+    pendingApplications,
+    repaymentRate,
+    latestStatus: myLoans[0]?.status ?? null,
+  }
 
   // Resolve the user's RSVP for the NEXT meeting only (not any other meeting).
   const myRSVP: string | null =
@@ -610,6 +726,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     constitution,
     governance,
     yearEnd,
+    loan: loanBlock,
     permissions: {
       canSubmitOwn,
       canViewAll,
@@ -626,6 +743,9 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
       canVote,
       canManageMeetings,
       canViewYearEnd,
+      canViewLoans,
+      canReviewLoans,
+      canApplyLoans,
     },
   }
 }

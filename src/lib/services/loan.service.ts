@@ -758,9 +758,15 @@ export async function getLoan(circleId: string, loanId: string, userId: string) 
     include: { confirmedBy: { select: { id: true, name: true } } },
   })
 
+  const memberName = await prisma.user.findUnique({
+    where: { id: loan.memberId },
+    select: { name: true, email: true },
+  })
+
   return {
     id: loan.id,
     memberId: loan.memberId,
+    memberName: memberName?.name ?? memberName?.email ?? loan.memberId,
     principal: dec(loan.principal).toFixed(2),
     serviceFee: dec(loan.serviceFee).toFixed(2),
     interestRate: dec(loan.interestRate).toFixed(4),

@@ -13,6 +13,7 @@ import { StokvelEmptyStates } from "./stokvel-empty-states"
 import { StokvelConstitution } from "./stokvel-constitution"
 import { StokvelGovernance } from "./stokvel-governance"
 import { StokvelYearEnd } from "./stokvel-year-end"
+import { StokvelLoan } from "./stokvel-loan"
 
 interface StokvelDashboardProps {
   data: StokvelDashboardData
@@ -32,6 +33,15 @@ export function StokvelDashboard({ data, symbol, userId }: StokvelDashboardProps
         <StokvelMyContribution my={my} symbol={symbol} />
         <StokvelGroupPot group={group} symbol={symbol} />
       </div>
+
+      {permissions.canViewLoans && (
+        <StokvelLoan
+          circleId={data.circle.id}
+          loan={data.loan}
+          symbol={symbol}
+          canReviewLoans={permissions.canReviewLoans}
+        />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
