@@ -32,6 +32,15 @@ export type CreateVoteInput = {
   options?: string[]
 }
 
+/**
+ * A single selection within a member's ballot. For RANKED_CHOICE every selection
+ * carries a unique 1-based rank; for YES_NO / MULTIPLE_CHOICE ranks are omitted.
+ */
+export type VoteSelection = {
+  optionId: string
+  rank?: number
+}
+
 export async function createVote(circleId: string, userId: string, data: CreateVoteInput) {
   await validateMember(circleId, userId)
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOVERNANCE_VOTE_MANAGE })
@@ -109,24 +118,28 @@ export async function getVote(circleId: string, voteId: string, userId: string) 
   })
   if (!vote) throw new Error("Vote not found")
 
-  const [memberCount, myVote] = await Promise.all([
+  const [memberCount, myBallot, votesCast] = await Promise.all([
     prisma.circleMember.count({ where: { circleId } }),
-    prisma.governanceVoteRecord.findUnique({ where: { voteId_userId: { voteId, userId } }, select: { optionId: true, rank: true } }),
+    prisma.governanceBallot.findUnique({
+      where: { voteId_userId: { voteId, userId } },
+      select: { records: { select: { optionId: true, rank: true } } },
+    }),
+    prisma.governanceBallot.count({ where: { voteId } }),
   ])
 
-  const totalVotes = vote.options.reduce((sum, o) => sum + o._count.votes, 0)
+  const totalVotes = votesCast
   return {
     ...vote,
     memberCount,
     totalVotes,
-    myVote,
+    myVote: myBallot,
     // Anonymous: only aggregate counts are exposed, never individual voters.
     voterIdentities: vote.anonymous ? [] : vote.options,
     quorum: {
       memberCount,
-      votesCast: totalVotes,
+      votesCast,
       quorumPercent: vote.quorumPercent,
-      reached: vote.quorumPercent == null ? false : (totalVotes / memberCount) * 100 >= vote.quorumPercent,
+      reached: vote.quorumPercent == null ? false : (votesCast / memberCount) * 100 >= vote.quorumPercent,
     },
   }
 }
@@ -135,24 +148,88 @@ function optionCounts(vote: { options: { id: string; text: string; sortOrder: nu
   return vote.options.map((o) => ({ optionId: o.id, text: o.text, count: o._count.votes }))
 }
 
-export async function castVote(circleId: string, voteId: string, userId: string, optionId: string, rank?: number) {
+/**
+ * Casts (or atomically replaces) a member's ballot for a governance vote.
+ *
+ * `selections` is a list of option picks. Validation enforced:
+ *  - every option belongs to THIS vote (invalid / cross-vote options rejected)
+ *  - no duplicate option IDs
+ *  - ranks unique, positive integers, and required for RANKED_CHOICE
+ *  - selection count matches the vote type (YES_NO == 1, MULTIPLE_CHOICE >= 1)
+ *  - member is a circle member and vote is OPEN
+ *  - one ballot per member: revoting while OPEN replaces the previous ballot
+ *    atomically in a transaction (no partial multi-choice / ranked writes)
+ */
+export async function castVote(circleId: string, voteId: string, userId: string, selections: VoteSelection[]) {
   await validateMember(circleId, userId)
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOVERNANCE_VOTE })
   const vote = await getVoteOrThrow(circleId, voteId)
 
   if (vote.status !== "OPEN") throw new Error("Vote is not open")
-  const option = await prisma.governanceVoteOption.findFirst({ where: { id: optionId, voteId } })
-  if (!option) throw new Error("Option not found")
+  if (!Array.isArray(selections) || selections.length === 0) {
+    throw new Error("At least one selection is required")
+  }
 
-  const existing = await prisma.governanceVoteRecord.findUnique({ where: { voteId_userId: { voteId, userId } } })
-  if (existing) throw new Error("You have already voted in this governance vote")
+  // All options must belong to this vote (invalid & cross-vote options blocked).
+  const options = await prisma.governanceVoteOption.findMany({ where: { voteId } })
+  const optionIds = new Set(options.map((o) => o.id))
+  const validOptions = selections.map((s) => s.optionId)
+  for (const id of validOptions) {
+    if (!optionIds.has(id)) throw new Error("Option not found for this vote")
+  }
 
-  const record = await prisma.governanceVoteRecord.create({
-    data: { voteId, optionId, userId, rank: rank ?? null },
+  // No duplicate option IDs.
+  if (new Set(validOptions).size !== validOptions.length) {
+    throw new Error("Each option may only be selected once")
+  }
+
+  const ranks = selections.filter((s) => s.rank != null).map((s) => s.rank as number)
+  if (new Set(ranks).size !== ranks.length) {
+    throw new Error("Ranks must be unique")
+  }
+  if (ranks.some((r) => !Number.isInteger(r) || r < 1)) {
+    throw new Error("Ranks must be positive integers")
+  }
+
+  // Selection shape per vote type.
+  switch (vote.type) {
+    case "YES_NO":
+      if (selections.length !== 1) throw new Error("YES_NO votes require exactly one selection")
+      if (selections.some((s) => s.rank != null)) throw new Error("YES_NO selections must not include ranks")
+      break
+    case "MULTIPLE_CHOICE":
+      if (selections.some((s) => s.rank != null)) throw new Error("MULTIPLE_CHOICE selections must not include ranks")
+      break
+    case "RANKED_CHOICE":
+      if (selections.some((s) => s.rank == null)) throw new Error("RANKED_CHOICE requires every selection to have a rank")
+      if (ranks.length !== selections.length) throw new Error("Every RANKED_CHOICE selection requires a unique rank")
+      break
+  }
+
+  // One ballot per member; a prior ballot is replaced atomically (revote while OPEN).
+  const existing = await prisma.governanceBallot.findUnique({ where: { voteId_userId: { voteId, userId } } })
+
+  await prisma.$transaction(async (tx) => {
+    let ballotId: string
+    if (existing) {
+      await tx.governanceVoteRecord.deleteMany({ where: { ballotId: existing.id } })
+      ballotId = existing.id
+      await tx.governanceBallot.update({ where: { id: existing.id }, data: { updatedAt: new Date() } })
+    } else {
+      const ballot = await tx.governanceBallot.create({ data: { voteId, userId } })
+      ballotId = ballot.id
+    }
+    await tx.governanceVoteRecord.createMany({
+      data: selections.map((s) => ({ ballotId, voteId, optionId: s.optionId, userId, rank: s.rank ?? null })),
+    })
   })
 
   createAuditLog({ userId, circleId, action: "VOTE_CAST", entityType: "GovernanceVote", entityId: voteId, reason: "Ballot cast (identity protected when anonymous)" }).catch(() => {})
-  return record
+
+  return prisma.governanceBallot.findUnique({
+    where: { voteId_userId: { voteId, userId } },
+    include: { records: true },
+  })
 }
 
 export async function closeVote(circleId: string, voteId: string, userId: string) {
@@ -181,8 +258,9 @@ export async function finalizeVote(circleId: string, voteId: string, userId: str
   if (vote.status === "FINALIZED") return vote
   if (vote.status === "CANCELLED") throw new Error("Cancelled votes cannot be finalized")
 
-  const [memberCount, records, options] = await Promise.all([
+  const [memberCount, votesCast, records, options] = await Promise.all([
     prisma.circleMember.count({ where: { circleId } }),
+    prisma.governanceBallot.count({ where: { voteId } }),
     prisma.governanceVoteRecord.findMany({ where: { voteId } }),
     prisma.governanceVoteOption.findMany({ where: { voteId }, orderBy: { sortOrder: "asc" } }),
   ])
@@ -194,7 +272,6 @@ export async function finalizeVote(circleId: string, voteId: string, userId: str
     if (opt) totals[opt.text] = (totals[opt.text] || 0) + 1
   }
 
-  const votesCast = records.length
   const yesOption = vote.type === "YES_NO" ? options.find((o) => o.text.toLowerCase() === "yes") : null
   const votesFor = yesOption ? (totals[yesOption.text] || 0) : Math.max(0, ...Object.values(totals))
 
@@ -261,6 +338,6 @@ export async function finalizeVote(circleId: string, voteId: string, userId: str
 
 export async function hasVotedSerially(circleId: string, voteId: string, userId: string) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOVERNANCE_VOTE_VIEW })
-  const v = await prisma.governanceVoteRecord.findUnique({ where: { voteId_userId: { voteId, userId } } })
+  const v = await prisma.governanceBallot.findUnique({ where: { voteId_userId: { voteId, userId } } })
   return !!v
 }

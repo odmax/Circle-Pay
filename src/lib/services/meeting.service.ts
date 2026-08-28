@@ -172,7 +172,7 @@ export async function getMeetingById(circleId: string, meetingId: string, userId
       agendaItems: { orderBy: { sortOrder: "asc" } },
       actionItems: { include: { assignee: { select: { id: true, name: true, email: true } } }, orderBy: { createdAt: "asc" } },
       minutes: { include: { versions: { orderBy: { version: "desc" }, take: 5 } } },
-      votes: { include: { options: { orderBy: { sortOrder: "asc" } }, _count: { select: { votes: true } } } },
+      votes: { include: { options: { orderBy: { sortOrder: "asc" } }, _count: { select: { records: true } } } },
     },
   })
   if (!meeting) throw new Error("Meeting not found")

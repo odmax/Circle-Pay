@@ -8,8 +8,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cir
   try {
     const { circleId, voteId } = await params
     const body = await req.json()
-    if (!body.optionId) return NextResponse.json({ error: "optionId required" }, { status: 400 })
-    const record = await castVote(circleId, voteId, session.user.id, body.optionId, body.rank)
+    if (!Array.isArray(body.selections) || body.selections.length === 0) {
+      return NextResponse.json({ error: "selections array is required" }, { status: 400 })
+    }
+    const record = await castVote(circleId, voteId, session.user.id, body.selections)
     return NextResponse.json(record)
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 400 })

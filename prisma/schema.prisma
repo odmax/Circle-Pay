@@ -141,6 +141,7 @@ model User {
   governanceVotesCreated       GovernanceVote[]             @relation("VoteCreator")
   governanceVoteOptionsCreated GovernanceVoteOption[]       @relation("VoteOptionCreator")
   governanceVotesCast          GovernanceVoteRecord[]       @relation("VoteCaster")
+  governanceBallots            GovernanceBallot[]           @relation("VoteBallot")
 
   @@index([email])
 }
@@ -4261,7 +4262,8 @@ model GovernanceVote {
   meeting   Meeting?              @relation(fields: [meetingId], references: [id])
   createdBy User                  @relation("VoteCreator", fields: [createdById], references: [id])
   options   GovernanceVoteOption[]
-  votes     GovernanceVoteRecord[]
+  ballots   GovernanceBallot[]
+  records   GovernanceVoteRecord[]
 
   @@index([circleId, status])
   @@index([meetingId])
@@ -4282,8 +4284,30 @@ model GovernanceVoteOption {
   @@index([voteId])
 }
 
+/**
+ * One member's filled-in ballot for a governance vote. A single ballot owns one or
+ * more records (multi-choice selections / ranked preferences) and is unique per
+ * member per vote, enforcing one-ballot-per-member. Revoting swaps the ballot's
+ * records atomically.
+ */
+model GovernanceBallot {
+  id        String   @id @default(cuid())
+  voteId    String
+  userId    String
+  castAt    DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vote    GovernanceVote       @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  user    User                 @relation("VoteBallot", fields: [userId], references: [id])
+  records GovernanceVoteRecord[]
+
+  @@unique([voteId, userId])
+  @@index([voteId])
+}
+
 model GovernanceVoteRecord {
   id        String   @id @default(cuid())
+  ballotId  String
   voteId    String
   optionId  String
   userId    String
@@ -4291,11 +4315,13 @@ model GovernanceVoteRecord {
   castAt    DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  ballot GovernanceBallot      @relation(fields: [ballotId], references: [id], onDelete: Cascade)
   vote   GovernanceVote       @relation(fields: [voteId], references: [id], onDelete: Cascade)
   option GovernanceVoteOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
   user   User                 @relation("VoteCaster", fields: [userId], references: [id])
 
-  @@unique([voteId, userId])
+  @@unique([ballotId, optionId])
+  @@unique([ballotId, rank])
   @@index([voteId])
   @@index([optionId])
 }
