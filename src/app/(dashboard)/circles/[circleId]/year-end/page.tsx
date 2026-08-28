@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button"
 import { auth } from "@/lib/auth"
 import { getCircleById } from "@/lib/services/circle.service"
 import { CURRENCIES } from "@/lib/constants"
-import { YearEndClient } from "@/components/year-end/year-end-client"
+import { YearEndClient, type YearEndPermissions } from "@/components/year-end/year-end-client"
+import { hasCirclePermission } from "@/lib/permissions/circle-permissions"
+import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 
 export default async function YearEndPage({
   params,
@@ -28,6 +30,34 @@ export default async function YearEndPage({
     CURRENCIES.find((c) => c.code === circle.currency)?.symbol ??
     circle.currency
 
+  const canViewYearEnd = await hasCirclePermission({
+    userId: session.user.id,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.YEAR_END_VIEW,
+  })
+  const canManageYearEnd = await hasCirclePermission({
+    userId: session.user.id,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.YEAR_END_MANAGE,
+  })
+  const canApproveYearEnd = await hasCirclePermission({
+    userId: session.user.id,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.YEAR_END_APPROVE,
+  })
+  const canAdjustYearEnd = await hasCirclePermission({
+    userId: session.user.id,
+    circleId,
+    permission: CIRCLE_PERMISSIONS.YEAR_END_ADJUST,
+  })
+
+  const permissions: YearEndPermissions = {
+    canView: canViewYearEnd,
+    canManage: canManageYearEnd,
+    canApprove: canApproveYearEnd,
+    canAdjust: canAdjustYearEnd,
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -49,6 +79,7 @@ export default async function YearEndPage({
         circleId={circleId}
         userId={session.user.id}
         symbol={symbol}
+        permissions={permissions}
       />
     </div>
   )

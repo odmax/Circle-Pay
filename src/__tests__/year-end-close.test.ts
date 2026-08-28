@@ -14,6 +14,8 @@ const notif = readFile("src/lib/services/notification.service.ts")
 const dashboard = readFile("src/lib/services/stokvel-dashboard.service.ts")
 const route = readFile("src/app/api/circles/[circleId]/year-end/route.ts")
 const statementsRoute = readFile("src/app/api/circles/[circleId]/year-end/[closeId]/statements/route.ts")
+const client = readFile("src/components/year-end/year-end-client.tsx")
+const page = readFile("src/app/(dashboard)/circles/[circleId]/year-end/page.tsx")
 
 describe("Year-End Close — Financial Contract", () => {
   it("YE1: schema defines the YearEndClose workflow model and status enum", () => {
@@ -197,5 +199,69 @@ describe("Year-End Close — API & Dashboard Wiring", () => {
     expect(dashboard).toContain("CIRCLE_PERMISSIONS.YEAR_END_VIEW")
     expect(dashboard).toContain("prisma.yearEndClose.findFirst")
     expect(dashboard).toContain("yearEndStepOrder")
+  })
+
+  it("YE22: page resolves member/admin/owner UI permissions via Circle permission checks (no hardcoded roles)", () => {
+    expect(page).toContain("hasCirclePermission({")
+    for (const p of [
+      "CIRCLE_PERMISSIONS.YEAR_END_VIEW",
+      "CIRCLE_PERMISSIONS.YEAR_END_MANAGE",
+      "CIRCLE_PERMISSIONS.YEAR_END_APPROVE",
+      "CIRCLE_PERMISSIONS.YEAR_END_ADJUST",
+    ]) {
+      expect(page).toContain(`permission: ${p}`)
+    }
+    // No hardcoded role names drive the UI branch.
+    expect(page).not.toContain('role === "OWNER"')
+    expect(page).not.toContain('role === "ADMIN"')
+    expect(page).not.toContain('role === "MEMBER"')
+    expect(page).toContain("const permissions: YearEndPermissions = {")
+    expect(page).toContain("canView: canViewYearEnd")
+    expect(page).toContain("canManage: canManageYearEnd")
+    expect(page).toContain("canApprove: canApproveYearEnd")
+    expect(page).toContain("canAdjust: canAdjustYearEnd")
+    expect(client).toContain("permissions: YearEndPermissions")
+    expect(client).toContain("permissions }: YearEndClientProps")
+  })
+
+  it("YE23: member visibility — read-only status + own statement, action buttons hidden or shown as read-only", () => {
+    // A member without MANAGE cannot initiate.
+    expect(client).toContain("canManage ? (")
+    expect(client).toContain("Authorized members will begin the close workflow when ready.")
+    // Every action button is gated by the matching permission.
+    expect(client).toContain("statusAllowsReconcile && canManage")
+    expect(client).toContain("statusAllowsSubmit && canManage")
+    expect(client).toContain("statusAllowsApprove && permApprove")
+    expect(client).toContain("statusAllowsFinalize && canManage")
+    expect(client).toContain("statusAllowsReopen && canAdjust")
+    // Read-only state replaces buttons that would 403.
+    expect(client).toContain("Read-only — the next step requires authorized members")
+    // Member's own statement is always shown read-only.
+    expect(client).toContain("status.myStatement &&")
+  })
+
+  it("YE24: admin visibility — manage + approve + adjust actions rendered when the workflow allows", () => {
+    expect(client).toContain("permApprove")
+    // Manage drives reconcile/submit/finalize/initiate.
+    expect(client).toContain("const canReconcile = statusAllowsReconcile && canManage")
+    expect(client).toContain("const canFinalize = statusAllowsFinalize && canManage")
+    // Adjust drives reopen.
+    expect(client).toContain("const canReopen = statusAllowsReopen && canAdjust")
+    // Read-only truthiness accounts for all four permission gates.
+    expect(client).toContain("(statusAllowsReconcile && !canManage) ||")
+    expect(client).toContain("(statusAllowsApprove && !permApprove) ||")
+    expect(client).toContain("(statusAllowsReopen && !canAdjust)")
+  })
+
+  it("YE25: owner visibility — role permissions give owners all four YEAR_END capabilities", () => {
+    const ownerPerms = rolePerms
+    // OWNER inherits every permission key via Object.values, including YEAR_END_*.
+    expect(ownerPerms).toContain("const OWNER_PERMISSIONS: CirclePermission[] = Object.values(P)")
+    // The four flags driving the UI all map to real permission keys.
+    for (const p of ["YEAR_END_VIEW", "YEAR_END_MANAGE", "YEAR_END_APPROVE", "YEAR_END_ADJUST"]) {
+      expect(perms).toContain(`${p}: "${p}"`)
+    }
+    // API enforcement is unchanged (server remains the source of truth).
+    expect(service).toContain("requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.YEAR_END_MANAGE })")
   })
 })

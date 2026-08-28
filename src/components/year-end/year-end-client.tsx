@@ -6,10 +6,18 @@ import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
+export interface YearEndPermissions {
+  canView: boolean
+  canManage: boolean
+  canApprove: boolean
+  canAdjust: boolean
+}
+
 interface YearEndClientProps {
   circleId: string
   userId: string
   symbol: string
+  permissions: YearEndPermissions
 }
 
 interface CloseItem {
@@ -63,7 +71,7 @@ async function post(url: string, body?: unknown) {
   return data
 }
 
-export function YearEndClient({ circleId, userId, symbol }: YearEndClientProps) {
+export function YearEndClient({ circleId, userId, symbol, permissions }: YearEndClientProps) {
   const [status, setStatus] = useState<StatusData | null>(null)
   const [closes, setCloses] = useState<CloseItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -105,12 +113,35 @@ export function YearEndClient({ circleId, userId, symbol }: YearEndClientProps) 
   const activeClose =
     closes.length > 0 ? closes[0] : null
 
-  const showInitiate = !status?.hasClose
-  const canFinalize = activeClose && (activeClose.status === "APPROVED" || activeClose.status === "PENDING_APPROVAL")
-  const canApprove = activeClose && activeClose.status === "PENDING_APPROVAL"
-  const canReconcile = activeClose && ["DRAFT", "RECONCILING", "REOPENED"].includes(activeClose.status)
-  const canSubmit = activeClose && ["DRAFT", "RECONCILING", "REOPENED"].includes(activeClose.status)
-  const canReopen = activeClose && activeClose.status === "FINALIZED"
+  const { canManage, canApprove: permApprove, canAdjust } = permissions
+
+  // Status gating (server-permission independent) — what the workflow allows right now.
+  const noClose = !status?.hasClose
+  const statusAllowsReconcile = !!activeClose && ["DRAFT", "RECONCILING", "REOPENED"].includes(activeClose.status)
+  const statusAllowsSubmit = !!activeClose && ["DRAFT", "RECONCILING", "REOPENED"].includes(activeClose.status)
+  const statusAllowsApprove = !!activeClose && activeClose.status === "PENDING_APPROVAL"
+  const statusAllowsFinalize = !!activeClose && (activeClose.status === "APPROVED" || activeClose.status === "PENDING_APPROVAL")
+  const statusAllowsReopen = !!activeClose && activeClose.status === "FINALIZED"
+
+  // Permission + status gating — the button set the user actually sees.
+  const canReconcile = statusAllowsReconcile && canManage
+  const canSubmit = statusAllowsSubmit && canManage
+  const canApprove = statusAllowsApprove && permApprove
+  const canFinalize = statusAllowsFinalize && canManage
+  const canReopen = statusAllowsReopen && canAdjust
+
+  // Read-only signals shown when the workflow would allow an action but the
+  // user lacks the permission — instead of rendering a button that 403s.
+  const isManagedByOthers =
+    !!activeClose &&
+    !noClose &&
+    (
+      (statusAllowsReconcile && !canManage) ||
+      (statusAllowsSubmit && !canManage) ||
+      (statusAllowsApprove && !permApprove) ||
+      (statusAllowsFinalize && !canManage) ||
+      (statusAllowsReopen && !canAdjust)
+    )
 
   const fmt = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString() : "—")
 
@@ -126,17 +157,23 @@ export function YearEndClient({ circleId, userId, symbol }: YearEndClientProps) 
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : !status?.hasClose ? (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                No year-end close has been initiated. Start the financial year-end close workflow to reconcile, approve and lock the period.
-              </p>
-              <Button
-                onClick={() => act("initiate", `/api/circles/${circleId}/year-end`)}
-                disabled={busy !== null}
-              >
-                <Play className="size-4 mr-1.5" /> Initiate close
-              </Button>
-            </div>
+            canManage ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  No year-end close has been initiated. Start the financial year-end close workflow to reconcile, approve and lock the period.
+                </p>
+                <Button
+                  onClick={() => act("initiate", `/api/circles/${circleId}/year-end`)}
+                  disabled={busy !== null}
+                >
+                  <Play className="size-4 mr-1.5" /> Initiate close
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/60 p-3 text-sm text-muted-foreground">
+                No year-end close has been initiated. Authorized members will begin the close workflow when ready.
+              </div>
+            )
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-2">
@@ -164,33 +201,35 @@ export function YearEndClient({ circleId, userId, symbol }: YearEndClientProps) 
                 </div>
               )}
 
+              {isManagedByOthers && (
+                <div className="rounded-xl border border-border/60 bg-muted/40 p-2.5 text-xs text-muted-foreground">
+                  <Lock className="size-3.5 inline mr-1.5" />
+                  Read-only — the next step requires authorized members (treasurer or admin).
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2">
-                {showInitiate && (
-                  <Button onClick={() => act("initiate", `/api/circles/${circleId}/year-end`)} disabled={busy !== null}>
-                    <Play className="size-4 mr-1.5" /> Initiate close
-                  </Button>
-                )}
-                {canReconcile && (
+                {activeClose && canReconcile && (
                   <Button variant="outline" onClick={() => act("reconcile", `/api/circles/${circleId}/year-end/${activeClose.id}/reconcile`)} disabled={busy !== null}>
                     <RefreshCw className="size-4 mr-1.5" /> Reconcile
                   </Button>
                 )}
-                {canSubmit && (
+                {activeClose && canSubmit && (
                   <Button variant="outline" onClick={() => act("submit", `/api/circles/${circleId}/year-end/${activeClose.id}/submit`)} disabled={busy !== null}>
                     <Send className="size-4 mr-1.5" /> Submit for approval
                   </Button>
                 )}
-                {canApprove && (
+                {activeClose && canApprove && (
                   <Button variant="outline" onClick={() => act("approve", `/api/circles/${circleId}/year-end/${activeClose.id}/approve`)} disabled={busy !== null}>
                     <CheckCircle2 className="size-4 mr-1.5" /> Approve
                   </Button>
                 )}
-                {canFinalize && (
+                {activeClose && canFinalize && (
                   <Button onClick={() => act("finalize", `/api/circles/${circleId}/year-end/${activeClose.id}/finalize`)} disabled={busy !== null}>
                     <Lock className="size-4 mr-1.5" /> Finalize & lock
                   </Button>
                 )}
-                {canReopen && (
+                {activeClose && canReopen && (
                   <Button variant="outline" onClick={() => act("reopen", `/api/circles/${circleId}/year-end/${activeClose.id}/reopen`)} disabled={busy !== null}>
                     <LockOpen className="size-4 mr-1.5" /> Reopen (audited)
                   </Button>
