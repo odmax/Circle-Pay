@@ -198,6 +198,25 @@ export interface StokvelDashboardData {
     pendingDecisions: { id: string; title: string; outcome: string }[]
     latestMinutes: { id: string; status: string; publishedAt: string | null } | null
   }
+  yearEnd: {
+    hasClose: boolean
+    status: string | null
+    statusIndex: number
+    totalSteps: number
+    periodStart: string | null
+    periodEnd: string | null
+    finalizedAt: string | null
+    statementsGenerated: number
+    myStatement: {
+      statementNumber: string
+      periodStart: string
+      periodEnd: string
+      totalContributed: string
+      finalEntitlement: string
+    } | null
+    blockerCodes: string[]
+    clear: boolean
+  }
   permissions: {
     canSubmitOwn: boolean
     canViewAll: boolean
@@ -213,6 +232,7 @@ export interface StokvelDashboardData {
     canViewMeetings: boolean
     canVote: boolean
     canManageMeetings: boolean
+    canViewYearEnd: boolean
   }
 }
 
@@ -242,6 +262,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     canViewMeetings,
     canVote,
     canManageMeetings,
+    canViewYearEnd,
   ] = await Promise.all([
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_SUBMIT_OWN }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL }),
@@ -257,6 +278,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_VIEW }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOVERNANCE_VOTE }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_MANAGE }),
+    hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.YEAR_END_VIEW }),
   ])
 
   const now = new Date()
@@ -518,6 +540,39 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     conflictCount: full ? full.conflictCount : 0,
   }
 
+  const yearEndStepOrder = ["DRAFT", "RECONCILING", "PENDING_APPROVAL", "APPROVED", "FINALIZED"] as const
+  const [latestClose, myYearEndStatement] = canViewYearEnd
+    ? await Promise.all([
+        prisma.yearEndClose.findFirst({ where: { circleId }, orderBy: { periodEnd: "desc" } }),
+        prisma.yearEndMemberStatement.findFirst({
+          where: { circleId, userId, isCurrent: true },
+          select: { statementNumber: true, periodStart: true, periodEnd: true, totalContributed: true, finalEntitlement: true },
+        }),
+      ])
+    : [null, null]
+  const yearEndBlockerJson = (latestClose?.blockers ?? null) as { blockers?: { code: string }[]; clear?: boolean } | null
+  const yearEnd = {
+    hasClose: !!latestClose,
+    status: latestClose?.status ?? null,
+    statusIndex: latestClose ? yearEndStepOrder.indexOf(latestClose.status as (typeof yearEndStepOrder)[number]) : -1,
+    totalSteps: yearEndStepOrder.length,
+    periodStart: latestClose?.periodStart ? latestClose.periodStart.toISOString() : null,
+    periodEnd: latestClose?.periodEnd ? latestClose.periodEnd.toISOString() : null,
+    finalizedAt: latestClose?.finalizedAt ? latestClose.finalizedAt.toISOString() : null,
+    statementsGenerated: latestClose ? await prisma.yearEndMemberStatement.count({ where: { closeId: latestClose.id } }).catch(() => 0) : 0,
+    myStatement: myYearEndStatement
+      ? {
+          statementNumber: myYearEndStatement.statementNumber,
+          periodStart: myYearEndStatement.periodStart.toISOString(),
+          periodEnd: myYearEndStatement.periodEnd.toISOString(),
+          totalContributed: String(myYearEndStatement.totalContributed),
+          finalEntitlement: String(myYearEndStatement.finalEntitlement),
+        }
+      : null,
+    blockerCodes: (yearEndBlockerJson?.blockers ?? []).map((b) => b.code),
+    clear: yearEndBlockerJson?.clear ?? true,
+  }
+
   return {
     circle: {
       id: circleId,
@@ -554,6 +609,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     alerts,
     constitution,
     governance,
+    yearEnd,
     permissions: {
       canSubmitOwn,
       canViewAll,
@@ -569,6 +625,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
       canViewMeetings,
       canVote,
       canManageMeetings,
+      canViewYearEnd,
     },
   }
 }

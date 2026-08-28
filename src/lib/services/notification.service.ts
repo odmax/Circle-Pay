@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import type { NotificationType } from "@/generated/prisma"
 
-const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true, payouts: true, constitution: true, governance: true }
+const DEFAULTS = { contributions: true, expenses: true, goals: true, wallet: true, events: true, approvals: true, members: true, receipts: true, projects: true, risks: true, ai: true, payouts: true, constitution: true, governance: true, yearEnd: true }
 
 const TYPE_TO_PREF: Record<string, string> = {
   CONTRIBUTION_MADE: "contributions", CONTRIBUTION_PLAN_CREATED: "contributions", CONTRIBUTION_REMINDER: "contributions",
@@ -32,6 +32,8 @@ const TYPE_TO_PREF: Record<string, string> = {
   VOTE_RESULT: "governance", MINUTES_PUBLISHED: "governance", MINUTES_AMENDED: "governance",
   ACTION_ITEM_ASSIGNED: "governance", QUORUM_REACHED: "governance", QUORUM_LOST: "governance",
   GOV_DECISION_RECORDED: "governance",
+  YEAR_END_INITIATED: "yearEnd", YEAR_END_APPROVAL_REQUIRED: "yearEnd", YEAR_END_FINALIZED: "yearEnd",
+  YEAR_END_STATEMENT_READY: "yearEnd", YEAR_END_REOPENED: "yearEnd", YEAR_END_ADJUSTMENT_RECORDED: "yearEnd",
 }
 
 async function isBlocked(userId: string, type: string): Promise<boolean> {

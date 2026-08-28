@@ -144,6 +144,14 @@ model User {
   governanceBallots            GovernanceBallot[]           @relation("VoteBallot")
   governanceDecisionsCreated   GovernanceDecision[]         @relation("DecisionCreator")
   minutesAcknowledgements      MeetingMinutesAcknowledgement[] @relation("MinutesAcknowledgeUser")
+  yearEndClosesCreated         YearEndClose[]                  @relation("YearEndCloseCreator")
+  yearEndClosesApproved        YearEndClose[]                  @relation("YearEndCloseApprover")
+  yearEndClosesFinalized       YearEndClose[]                  @relation("YearEndCloseFinalizer")
+  yearEndClosesOpened          YearEndClose[]                  @relation("YearEndCloseOpener")
+  yearEndStatements            YearEndMemberStatement[]
+  yearEndAdjustmentsCreated    YearEndAdjustment[]             @relation("YearEndAdjCreator")
+  yearEndAdjustmentsSubject    YearEndAdjustment[]             @relation("YearEndAdjSubject")
+  yearEndConfigsCreated        YearEndCloseConfig[]            @relation("YearEndConfigCreator")
 
   @@index([email])
 }
@@ -333,6 +341,10 @@ model Circle {
   meetings               Meeting[]
   governanceVotes        GovernanceVote[]
   governanceDecisions    GovernanceDecision[]
+  yearEndCloses          YearEndClose[]
+  yearEndStatements      YearEndMemberStatement[]
+  yearEndAdjustments     YearEndAdjustment[]
+  yearEndConfig          YearEndCloseConfig?
 }
 
 model CircleMember {
@@ -795,6 +807,12 @@ enum NotificationType {
   QUORUM_REACHED
   QUORUM_LOST
   GOV_DECISION_RECORDED
+  YEAR_END_INITIATED
+  YEAR_END_APPROVAL_REQUIRED
+  YEAR_END_FINALIZED
+  YEAR_END_STATEMENT_READY
+  YEAR_END_REOPENED
+  YEAR_END_ADJUSTMENT_RECORDED
 }
 
 model Notification {
@@ -3126,6 +3144,7 @@ model ApprovalRequest {
   stages       ApprovalRequestStage[]
   decisions    ApprovalRequestDecision[]
   contribution Contribution?
+  yearEndClose YearEndClose?
 
   @@index([circleId])
   @@index([status])
@@ -4371,4 +4390,120 @@ model MeetingMinutesAcknowledgement {
 
   @@unique([minutesId, userId])
   @@index([minutesId])
+}
+
+// ─── Year-End Close & Member Statements ────────────────
+// Financial year-end close workflow. Values are immutable once FINALIZED;
+// historical figures are never silently mutated — corrections go through
+// YEAR_END_ADJUST or an audited REOPENED reopen.
+
+enum YearEndCloseStatus {
+  DRAFT
+  RECONCILING
+  PENDING_APPROVAL
+  APPROVED
+  FINALIZED
+  REOPENED
+}
+
+model YearEndClose {
+  id                 String            @id @default(cuid())
+  circleId           String
+  periodStart        DateTime
+  periodEnd          DateTime
+  status             YearEndCloseStatus @default(DRAFT)
+  approvalRequestId  String?            @unique
+  approvedById       String?
+  approvedAt         DateTime?
+  finalizedById      String?
+  finalizedAt        DateTime?
+  openedById         String?
+  openedAt           DateTime?
+  summary            Json?
+  blockers           Json?
+  corrections        Json?
+  createdById        String
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  circle           Circle                     @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy        User                       @relation("YearEndCloseCreator", fields: [createdById], references: [id])
+  approvalRequest  ApprovalRequest?           @relation(fields: [approvalRequestId], references: [id])
+  approvedBy       User?                      @relation("YearEndCloseApprover", fields: [approvedById], references: [id])
+  finalizedBy      User?                      @relation("YearEndCloseFinalizer", fields: [finalizedById], references: [id])
+  openedBy         User?                      @relation("YearEndCloseOpener", fields: [openedById], references: [id])
+  memberStatements YearEndMemberStatement[]
+  adjustments      YearEndAdjustment[]
+
+  @@unique([circleId, periodEnd])
+  @@index([circleId])
+  @@index([status])
+  @@index([approvalRequestId])
+}
+
+model YearEndMemberStatement {
+  id                       String    @id @default(cuid())
+  closeId                  String
+  circleId                 String
+  userId                   String
+  statementNumber          String    @unique
+  periodStart              DateTime
+  periodEnd                DateTime
+  totalContributed         Decimal   @db.Decimal(12, 2) @default(0)
+  outstandingContributions Decimal   @db.Decimal(12, 2) @default(0)
+  penaltiesFees            Decimal   @db.Decimal(12, 2) @default(0)
+  payoutsReceived          Decimal   @db.Decimal(12, 2) @default(0)
+  allocatedReturns         Decimal   @db.Decimal(12, 2) @default(0)
+  finalEntitlement         Decimal   @db.Decimal(12, 2) @default(0)
+  snapshot                 Json?
+  isCurrent                Boolean   @default(true)
+  createdAt                DateTime  @default(now())
+
+  close  YearEndClose @relation(fields: [closeId], references: [id], onDelete: Cascade)
+  circle Circle       @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id])
+
+  @@unique([closeId, userId])
+  @@unique([circleId, userId, periodEnd])
+  @@index([userId])
+  @@index([circleId])
+}
+
+model YearEndAdjustment {
+  id          String   @id @default(cuid())
+  closeId     String
+  circleId    String
+  userId      String
+  createdById String
+  type        String
+  reason      String
+  beforeValue Json?
+  afterValue  Json?
+  createdAt   DateTime @default(now())
+
+  close      YearEndClose @relation(fields: [closeId], references: [id], onDelete: Cascade)
+  circle     Circle       @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user       User         @relation("YearEndAdjSubject", fields: [userId], references: [id])
+  createdBy  User         @relation("YearEndAdjCreator", fields: [createdById], references: [id])
+
+  @@index([closeId])
+  @@index([circleId])
+  @@index([userId])
+}
+
+model YearEndCloseConfig {
+  id                 String   @id @default(cuid())
+  circleId           String   @unique
+  fiscalYearEndMonth Int?     @default(12)
+  fiscalYearEndDay   Int?     @default(31)
+  autoNotifyMembers  Boolean  @default(true)
+  requireApproval    Boolean  @default(true)
+  createdById        String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("YearEndConfigCreator", fields: [createdById], references: [id])
+
+  @@index([circleId])
 }

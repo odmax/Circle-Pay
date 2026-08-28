@@ -12,6 +12,7 @@ import { StokvelQuickActions } from "./stokvel-quick-actions"
 import { StokvelEmptyStates } from "./stokvel-empty-states"
 import { StokvelConstitution } from "./stokvel-constitution"
 import { StokvelGovernance } from "./stokvel-governance"
+import { StokvelYearEnd } from "./stokvel-year-end"
 
 interface StokvelDashboardProps {
   data: StokvelDashboardData
@@ -55,6 +56,9 @@ export function StokvelDashboard({ data, symbol, userId }: StokvelDashboardProps
             canVote={permissions.canVote}
             canManageMeetings={permissions.canManageMeetings}
           />
+          {permissions.canViewYearEnd && (
+            <StokvelYearEnd circleId={data.circle.id} yearEnd={data.yearEnd} />
+          )}
           <StokvelEmptyStates
             hasSchedule={payout.hasSchedule}
             hasContributions={group.membersPaid > 0}
