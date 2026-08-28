@@ -179,3 +179,132 @@ describe("Meetings — Lifecycle", () => {
     expect(meeting).toContain("export async function reviewMinutes")
   })
 })
+
+describe("Meetings — Notice Period & Quorum Rules", () => {
+  it("M5: scheduled meetings enforce the constitution notice period", () => {
+    expect(meeting).toContain("async function noticePeriodFor(circleId: string)")
+    expect(meeting).toContain("data.noticePeriodDays ?? (await noticePeriodFor(circleId))")
+    expect(meeting).toContain("in advance")
+    expect(meeting).toContain("status === \"SCHEDULED\"")
+  })
+
+  it("M6: quorum falls back to the constitution meeting group", () => {
+    expect(meeting).toContain("rules?.meeting.quorumPercent")
+  })
+})
+
+describe("Meetings — Minutes Acknowledgement", () => {
+  it("M7: only published minutes can be acknowledged", () => {
+    expect(meeting).toContain("export async function acknowledgeMinutes")
+    expect(meeting).toContain("status !== \"PUBLISHED\"")
+    expect(meeting).toContain("Only published minutes can be acknowledged")
+  })
+
+  it("M8: acknowledgement uniqueness is enforced by upsert on the (minutesId, userId) pair", () => {
+    expect(meeting).toContain("meetingMinutesAcknowledgement.upsert")
+    expect(meeting).toContain("minutesId_userId: { minutesId, userId }")
+    expect(meeting).toContain('action: "MINUTES_ACKNOWLEDGED"')
+  })
+
+  it("M9: acknowledgements list is scoped to a minutes id and joins user", () => {
+    expect(meeting).toContain("export async function getMinutesAcknowledgements")
+    expect(meeting).toContain("where: { minutesId }")
+    expect(meeting).toContain("user: { select: { id: true, name: true, email: true, image: true } }")
+  })
+
+  it("M10: MeetingMinutesAcknowledgement exists in the schema with a unique member pair", () => {
+    expect(schema).toContain("model MeetingMinutesAcknowledgement {")
+    expect(schema).toContain("@@unique([minutesId, userId])")
+  })
+})
+
+describe("Meetings — Reminder Scheduling Primitive", () => {
+  it("M11: sendMeetingReminders is deduplicated per RSVP via notifiedReminder", () => {
+    expect(meeting).toContain("export async function sendMeetingReminders")
+    expect(meeting).toContain("notifiedReminder: false")
+    expect(meeting).toContain('type: "MEETING_REMINDER"')
+    expect(meeting).toContain("data: { notifiedReminder: true }")
+  })
+})
+
+describe("Governance — Decisions & Closing-Soon", () => {
+  it("G22: finalizeVote records an immutable decision linked to the vote", () => {
+    expect(gov).toContain("prisma.governanceDecision.create")
+    expect(gov).toContain("voteId,")
+    expect(gov).toContain("outcome: result.outcome")
+    expect(gov).toContain('action: "GOV_DECISION_RECORDED"')
+  })
+
+  it("G23: decision read helpers exist and are scoped to the circle", () => {
+    expect(gov).toContain("export async function getCircleDecisions")
+    expect(gov).toContain("export async function getDecision")
+    expect(gov).toContain("where: { id: decisionId, circleId }")
+  })
+
+  it("G24: GovernanceDecision model exists, immutable with one-per-vote guarantee", () => {
+    expect(schema).toContain("model GovernanceDecision {")
+    expect(schema).toContain("voteId         String         @unique")
+    expect(schema).toContain("@@index([circleId])")
+  })
+
+  it("G25: sendVoteClosingSoon notifies only members who have not yet voted", () => {
+    expect(gov).toContain("export async function sendVoteClosingSoon")
+    expect(gov).toContain('type: "VOTE_CLOSING_SOON"')
+    expect(gov).toContain("voted.has(m.userId)")
+  })
+})
+
+describe("Constitution — Meeting Rules Group", () => {
+  it("C1: constitution rules define a meeting group with notice and quorum", () => {
+    expect(rulesEngine).toContain("meeting: {")
+    expect(rulesEngine).toContain("noticePeriodDays: number | null")
+    expect(rulesEngine).toContain("quorumPercent: number | null")
+  })
+
+  it("C2: the meeting group is parsed from the constitution map", () => {
+    expect(rulesEngine).toContain('const meeting = (map["meeting"] ?? {})')
+    expect(rulesEngine).toContain('coerceNumbers(meeting, ["noticePeriodDays", "quorumPercent"])')
+  })
+})
+
+describe("Dashboard — Governance Block", () => {
+  const dash = (() => {
+    try {
+      return readFile("src/lib/services/stokvel-dashboard.service.ts")
+    } catch {
+      return ""
+    }
+  })()
+  const dashWidget = (() => {
+    try {
+      return readFile("src/components/stokvel/stokvel-governance.tsx")
+    } catch {
+      return ""
+    }
+  })()
+
+  it("D1: dashboard data exposes a governance block with meeting/votes/decisions/minutes", () => {
+    expect(dash).toContain("governance: {")
+    expect(dash).toContain("nextMeeting")
+    expect(dash).toContain("openVotes")
+    expect(dash).toContain("pendingDecisions")
+    expect(dash).toContain("latestMinutes")
+  })
+
+  it("D2: myRSVP resolves to the RSVP matching the upcoming meeting id", () => {
+    expect(dash).toContain("myRsvp.find((r) => r.meeting.id === nextMeeting.id)")
+  })
+
+  it("D3: dashboard exposes governance permission flags", () => {
+    expect(dash).toContain("canViewMeetings")
+    expect(dash).toContain("canVote")
+    expect(dash).toContain("canManageMeetings")
+  })
+
+  it("D4: a governance widget component renders meetings & votes actions", () => {
+    expect(dashWidget).toContain("nextMeeting")
+    expect(dashWidget).toContain("openVotes")
+    expect(dashWidget).toContain("/meetings")
+    expect(dashWidget).toContain("/votes")
+  })
+})

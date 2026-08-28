@@ -38,6 +38,11 @@ export interface ConstitutionRules {
     majorFinancialThreshold: number | null
     amendmentThreshold: number | null
   }
+  meeting: {
+    enabled: boolean
+    noticePeriodDays: number | null
+    quorumPercent: number | null
+  }
   membership: {
     enabled: boolean
     exitNoticeDays: number | null
@@ -76,6 +81,11 @@ const DEFAULT_RULES: ConstitutionRules = {
     majorFinancialThreshold: null,
     amendmentThreshold: null,
   },
+  meeting: {
+    enabled: false,
+    noticePeriodDays: null,
+    quorumPercent: null,
+  },
   membership: {
     enabled: false,
     exitNoticeDays: null,
@@ -101,6 +111,7 @@ export async function getConstitutionRules(circleId: string): Promise<Constituti
   const contribution = (map["contribution"] ?? {}) as Record<string, unknown>
   const payout = (map["payout"] ?? {}) as Record<string, unknown>
   const voting = (map["voting"] ?? {}) as Record<string, unknown>
+  const meeting = (map["meeting"] ?? {}) as Record<string, unknown>
   const membership = (map["membership"] ?? {}) as Record<string, unknown>
 
   const rules: ConstitutionRules = {
@@ -124,6 +135,11 @@ export async function getConstitutionRules(circleId: string): Promise<Constituti
       ...coerceNumbers(voting, ["quorumPercent", "thresholdPercent", "majorFinancialThreshold", "amendmentThreshold"]),
       enabled: asBool(voting["enabled"]),
       anonymousVoteAllowed: asBool(voting["anonymousVoteAllowed"]),
+    },
+    meeting: {
+      ...DEFAULT_RULES.meeting,
+      ...coerceNumbers(meeting, ["noticePeriodDays", "quorumPercent"]),
+      enabled: asBool(meeting["enabled"]),
     },
     membership: {
       ...DEFAULT_RULES.membership,

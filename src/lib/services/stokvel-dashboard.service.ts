@@ -179,6 +179,25 @@ export interface StokvelDashboardData {
     acceptancePercent: number
     conflictCount: number
   }
+  governance: {
+    nextMeeting: {
+      id: string
+      title: string
+      scheduledAt: string | null
+      status: string
+      countdownDays: number | null
+    } | null
+    myRSVP: string | null
+    quorum: {
+      required: number | null
+      present: number
+      quorumPercent: number | null
+      reached: boolean
+    } | null
+    openVotes: { id: string; title: string; closesAt: string | null; anonymous: boolean }[]
+    pendingDecisions: { id: string; title: string; outcome: string }[]
+    latestMinutes: { id: string; status: string; publishedAt: string | null } | null
+  }
   permissions: {
     canSubmitOwn: boolean
     canViewAll: boolean
@@ -191,6 +210,9 @@ export interface StokvelDashboardData {
     canViewReports: boolean
     canViewPermissions: boolean
     canViewConstitution: boolean
+    canViewMeetings: boolean
+    canVote: boolean
+    canManageMeetings: boolean
   }
 }
 
@@ -217,6 +239,9 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     canViewReports,
     canViewPermissions,
     canViewConstitution,
+    canViewMeetings,
+    canVote,
+    canManageMeetings,
   ] = await Promise.all([
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_SUBMIT_OWN }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_VIEW_ALL }),
@@ -229,6 +254,9 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.REPORT_VIEW }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEMBER_AUDIT_VIEW }),
     hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.CONSTITUTION_VIEW }),
+    hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_VIEW }),
+    hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOVERNANCE_VOTE }),
+    hasCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_MANAGE }),
   ])
 
   const now = new Date()
@@ -270,6 +298,75 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     getCircleEvents(circleId).catch(() => []),
     getUserNotifications(userId).catch(() => []),
   ])
+
+  // Governance / meetings integration feed.
+  const [nextMeeting, myRsvp, openVotes, pendingDecisions, latestMinutes, meetingQuorum] = await Promise.all([
+    prisma.meeting.findFirst({
+      where: { circleId, deletedAt: null, status: { in: ["SCHEDULED", "DRAFT"] } },
+      orderBy: { scheduledAt: "asc" },
+    }),
+    prisma.meetingRSVP.findMany({
+      where: {
+        meeting: { circleId, deletedAt: null, status: { in: ["SCHEDULED", "DRAFT"] } },
+        userId,
+      },
+      select: { status: true, meeting: { select: { id: true, scheduledAt: true } } },
+      orderBy: { meeting: { scheduledAt: "asc" } },
+    }),
+    prisma.governanceVote.findMany({
+      where: { circleId, status: "OPEN" },
+      select: { id: true, title: true, closesAt: true, anonymous: true },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    prisma.governanceDecision.findMany({
+      where: { circleId, outcome: "APPROVED" },
+      select: { id: true, title: true, outcome: true },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    prisma.meetingMinutes.findFirst({
+      where: { meeting: { circleId }, status: "PUBLISHED" },
+      select: { id: true, status: true, publishedAt: true },
+      orderBy: { publishedAt: "desc" },
+    }),
+    prisma.meetingAttendance.findMany({ where: { meeting: { circleId } } }),
+  ])
+
+  // Resolve the user's RSVP for the NEXT meeting only (not any other meeting).
+  const myRSVP: string | null =
+    (nextMeeting && myRsvp.find((r) => r.meeting.id === nextMeeting.id)?.status) ?? null
+
+  const governance: StokvelDashboardData["governance"] = {
+    nextMeeting: nextMeeting
+      ? {
+          id: nextMeeting.id,
+          title: nextMeeting.title,
+          scheduledAt: nextMeeting.scheduledAt ? nextMeeting.scheduledAt.toISOString() : null,
+          status: nextMeeting.status,
+          countdownDays: nextMeeting.scheduledAt
+            ? Math.max(0, Math.ceil((new Date(nextMeeting.scheduledAt).getTime() - now.getTime()) / 86400000))
+            : null,
+        }
+      : null,
+    myRSVP,
+    quorum: nextMeeting
+      ? (() => {
+          const present = meetingQuorum.filter((a) => a.status === "PRESENT" || a.status === "LATE").length
+          const quorumPercent = nextMeeting.quorumPercent ?? null
+          const required = quorumPercent == null ? null : Math.ceil((memberCount * quorumPercent) / 100)
+          return {
+            required,
+            present,
+            quorumPercent,
+            reached: required == null ? false : present >= required,
+          }
+        })()
+      : null,
+    openVotes: openVotes.map((v) => ({ id: v.id, title: v.title, closesAt: v.closesAt ? v.closesAt.toISOString() : null, anonymous: v.anonymous })),
+    pendingDecisions,
+    latestMinutes: latestMinutes ? { id: latestMinutes.id, status: latestMinutes.status, publishedAt: latestMinutes.publishedAt ? latestMinutes.publishedAt.toISOString() : null } : null,
+  }
 
   const paidMemberIds = new Set(allContributionsThisMonth.map((c) => c.userId))
   const membersPaid = allMembers.filter((m) => paidMemberIds.has(m.userId)).length
@@ -456,6 +553,7 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
     contributionProgress,
     alerts,
     constitution,
+    governance,
     permissions: {
       canSubmitOwn,
       canViewAll,
@@ -468,6 +566,9 @@ export async function getStokvelDashboard(circleId: string, userId: string): Pro
       canViewReports,
       canViewPermissions,
       canViewConstitution,
+      canViewMeetings,
+      canVote,
+      canManageMeetings,
     },
   }
 }

@@ -30,7 +30,14 @@ async function getMeetingOrThrow(circleId: string, meetingId: string) {
 async function quorumFor(circleId: string, meeting: { quorumPercent: number | null }) {
   if (meeting.quorumPercent != null) return meeting.quorumPercent
   const rules = await getConstitutionRules(circleId).catch(() => null)
-  return rules?.voting.quorumPercent ?? null
+  return rules?.voting.quorumPercent ?? rules?.meeting.quorumPercent ?? null
+}
+
+/** Required look-ahead (days) between scheduling and the meeting, per the constitution. */
+async function noticePeriodFor(circleId: string): Promise<number | null> {
+  const rules = await getConstitutionRules(circleId).catch(() => null)
+  const days = rules?.meeting.noticePeriodDays ?? null
+  return days != null && days > 0 ? days : null
 }
 
 export type CreateMeetingInput = {
@@ -54,6 +61,18 @@ export async function createMeeting(circleId: string, userId: string, data: Crea
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_CREATE })
 
   const status: MeetingStatus = data.status === "SCHEDULED" ? "SCHEDULED" : "DRAFT"
+
+  const scheduledAt = new Date(data.scheduledAt)
+  const requiredNotice = data.noticePeriodDays ?? (await noticePeriodFor(circleId))
+  if (status === "SCHEDULED" && requiredNotice != null) {
+    const minSchedule = Date.now() + requiredNotice * 86400000
+    if (scheduledAt.getTime() < minSchedule) {
+      throw new Error(`Meeting must be scheduled at least ${requiredNotice} day${requiredNotice === 1 ? "" : "s"} in advance`)
+    }
+  }
+
+  const constitutionQuorum = data.quorumPercent ?? (await quorumFor(circleId, { quorumPercent: null }))
+
   const meeting = await prisma.meeting.create({
     data: {
       circleId,
@@ -61,15 +80,15 @@ export async function createMeeting(circleId: string, userId: string, data: Crea
       title: data.title,
       description: data.description,
       type: (data.type || "GENERAL") as MeetingType,
-      scheduledAt: new Date(data.scheduledAt),
+      scheduledAt,
       endAt: data.endAt ? new Date(data.endAt) : null,
       location: data.location,
       isOnline: data.isOnline || false,
       meetingLink: data.meetingLink,
       agenda: data.agenda,
-      noticePeriodDays: data.noticePeriodDays,
+      noticePeriodDays: requiredNotice ?? null,
       attendanceRequirement: data.attendanceRequirement,
-      quorumPercent: data.quorumPercent,
+      quorumPercent: constitutionQuorum,
       status,
     },
   })
@@ -421,4 +440,63 @@ export async function getMinutes(circleId: string, meetingId: string, userId: st
     where: { meetingId },
     include: { versions: { orderBy: { version: "asc" }, include: { editedBy: { select: { id: true, name: true } } } }, createdBy: { select: { id: true, name: true } } },
   })
+}
+
+/**
+ * Records a member's acknowledgement of published minutes. Requires a member of
+ * the circle; the minutes must be PUBLISHED. Duplicate acknowledgements are
+ * prevented by the (minutesId, userId) unique constraint.
+ */
+export async function acknowledgeMinutes(circleId: string, meetingId: string, minutesId: string, userId: string) {
+  await validateMember(circleId, userId)
+  const minutes = await prisma.meetingMinutes.findFirst({ where: { id: minutesId, meetingId } })
+  if (!minutes) throw new Error("Minutes not found")
+  if (minutes.status !== "PUBLISHED") throw new Error("Only published minutes can be acknowledged")
+
+  const ack = await prisma.meetingMinutesAcknowledgement.upsert({
+    where: { minutesId_userId: { minutesId, userId } },
+    create: { minutesId, userId },
+    update: {},
+  })
+  createAuditLog({ userId, circleId, action: "MINUTES_ACKNOWLEDGED", entityType: "MeetingMinutes", entityId: minutesId, affectedUserId: userId }).catch(() => {})
+  return ack
+}
+
+/** Members who acknowledged a meeting's published minutes. */
+export async function getMinutesAcknowledgements(circleId: string, meetingId: string, minutesId: string, userId: string) {
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.MEETING_VIEW })
+  return prisma.meetingMinutesAcknowledgement.findMany({
+    where: { minutesId },
+    include: { user: { select: { id: true, name: true, email: true, image: true } } },
+  })
+}
+
+/**
+ * Scheduling primitive for MEETING_REMINDER notifications. De-duplicated per
+ * (meetingId, userId) via the RSVP notifiedReminder flag so a member is reminded
+ * at most once per meeting. Returns the number of reminders sent.
+ */
+export async function sendMeetingReminders(circleId: string, meetingId: string, leadHours = 24): Promise<number> {
+  const meeting = await getMeetingOrThrow(circleId, meetingId)
+  const now = Date.now()
+  const leadMs = leadHours * 3600000
+  if (!meeting.scheduledAt || meeting.status === "CANCELLED" || meeting.status === "COMPLETED") return 0
+  const delta = new Date(meeting.scheduledAt).getTime() - now
+  if (delta > leadMs || delta < 0) return 0
+
+  const rsvps = await prisma.meetingRSVP.findMany({ where: { meetingId, status: { in: ["GOING", "MAYBE"] }, notifiedReminder: false } })
+  let sent = 0
+  for (const rsvp of rsvps) {
+    await createNotification({
+      userId: rsvp.userId,
+      circleId,
+      type: "MEETING_REMINDER",
+      title: `Reminder: ${meeting.title}`,
+      message: `Starts ${new Date(meeting.scheduledAt).toLocaleString()}`,
+      link: `/circles/${circleId}/meetings/${meetingId}`,
+    }).catch(() => {})
+    await prisma.meetingRSVP.update({ where: { id: rsvp.id }, data: { notifiedReminder: true } }).catch(() => {})
+    sent++
+  }
+  return sent
 }

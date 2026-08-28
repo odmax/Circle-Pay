@@ -142,6 +142,8 @@ model User {
   governanceVoteOptionsCreated GovernanceVoteOption[]       @relation("VoteOptionCreator")
   governanceVotesCast          GovernanceVoteRecord[]       @relation("VoteCaster")
   governanceBallots            GovernanceBallot[]           @relation("VoteBallot")
+  governanceDecisionsCreated   GovernanceDecision[]         @relation("DecisionCreator")
+  minutesAcknowledgements      MeetingMinutesAcknowledgement[] @relation("MinutesAcknowledgeUser")
 
   @@index([email])
 }
@@ -330,6 +332,7 @@ model Circle {
   constitutionConflicts  ConstitutionRuleConflict[]
   meetings               Meeting[]
   governanceVotes        GovernanceVote[]
+  governanceDecisions    GovernanceDecision[]
 }
 
 model CircleMember {
@@ -4217,6 +4220,7 @@ model MeetingMinutes {
   meeting   Meeting                @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   createdBy User                   @relation("MinutesCreator", fields: [createdById], references: [id])
   versions  MeetingMinutesVersion[]
+  acknowledgements MeetingMinutesAcknowledgement[]
 
   @@index([meetingId])
 }
@@ -4264,6 +4268,7 @@ model GovernanceVote {
   options   GovernanceVoteOption[]
   ballots   GovernanceBallot[]
   records   GovernanceVoteRecord[]
+  decision  GovernanceDecision?
 
   @@index([circleId, status])
   @@index([meetingId])
@@ -4324,4 +4329,46 @@ model GovernanceVoteRecord {
   @@unique([ballotId, rank])
   @@index([voteId])
   @@index([optionId])
+}
+
+/**
+ * Immutable record created when a governance vote is finalized, linking the
+ * motion and its formal decision to the vote result. There is no update path —
+ * finalized decisions are permanent and audited via GOV_DECISION_RECORDED.
+ */
+model GovernanceDecision {
+  id             String         @id @default(cuid())
+  circleId       String
+  voteId         String         @unique
+  createdById    String
+  title          String
+  motionCategory MotionCategory @default(GENERAL_MOTION)
+  outcome        String
+  result         Json
+  effectiveAt    DateTime?
+  createdAt      DateTime       @default(now())
+
+  circle    Circle         @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  vote      GovernanceVote @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("DecisionCreator", fields: [createdById], references: [id])
+
+  @@index([circleId])
+}
+
+/**
+ * Tracks each member's acknowledgement of published meeting minutes within a
+ * circle. Members are eligible once the minutes are PUBLISHED; duplication is
+ * prevented by the unique (minutesId, userId) pair.
+ */
+model MeetingMinutesAcknowledgement {
+  id        String   @id @default(cuid())
+  minutesId String
+  userId    String
+  acknowledgedAt DateTime @default(now())
+
+  minutes MeetingMinutes @relation(fields: [minutesId], references: [id], onDelete: Cascade)
+  user    User           @relation("MinutesAcknowledgeUser", fields: [userId], references: [id])
+
+  @@unique([minutesId, userId])
+  @@index([minutesId])
 }

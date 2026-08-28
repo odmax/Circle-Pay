@@ -3,9 +3,10 @@ import type { GovernanceVoteStatus, GovernanceVoteType, MotionCategory } from "@
 import { requireCirclePermission, hasCirclePermission } from "@/lib/permissions/circle-permissions"
 import { CIRCLE_PERMISSIONS } from "@/lib/permissions/circlePermissions"
 import { createAuditLog } from "@/lib/services/audit.service"
-import { notifyCircleMembers } from "@/lib/services/notification.service"
+import { notifyCircleMembers, createNotification } from "@/lib/services/notification.service"
 import { getConstitutionRules, evaluateGovernanceVoteCompliance } from "@/lib/services/constitution-rules.service"
 import { createApprovalRequest } from "@/lib/services/approval.service"
+import type { Prisma } from "@/generated/prisma"
 
 async function validateMember(circleId: string, userId: string) {
   const m = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId, userId } } })
@@ -311,7 +312,21 @@ export async function finalizeVote(circleId: string, voteId: string, userId: str
     data: { status: "FINALIZED", finalizedAt: new Date(), result: result },
   })
 
-  createAuditLog({ userId, circleId, action: "GOV_DECISION_RECORDED", entityType: "GovernanceVote", entityId: voteId, newValues: result }).catch(() => {})
+  // Link the finalized result to an immutable decision/motion record (no update path).
+  const decision = await prisma.governanceDecision.create({
+    data: {
+      circleId,
+      voteId,
+      createdById: userId,
+      title: vote.title,
+      motionCategory: vote.motionCategory,
+      outcome: result.outcome,
+      result: result as unknown as Prisma.InputJsonValue,
+      effectiveAt: new Date(),
+    },
+  })
+
+  createAuditLog({ userId, circleId, action: "GOV_DECISION_RECORDED", entityType: "GovernanceDecision", entityId: decision.id, newValues: result }).catch(() => {})
 
   notifyCircleMembers(circleId, userId, {
     type: "VOTE_RESULT",
@@ -340,4 +355,57 @@ export async function hasVotedSerially(circleId: string, voteId: string, userId:
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOVERNANCE_VOTE_VIEW })
   const v = await prisma.governanceBallot.findUnique({ where: { voteId_userId: { voteId, userId } } })
   return !!v
+}
+
+/** Immutable decisions recorded from finalized governance votes. */
+export async function getCircleDecisions(circleId: string, userId: string) {
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOVERNANCE_RESULT_VIEW })
+  return prisma.governanceDecision.findMany({
+    where: { circleId },
+    include: { vote: { select: { id: true, title: true, type: true } }, createdBy: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "desc" },
+  })
+}
+
+export async function getDecision(circleId: string, decisionId: string, userId: string) {
+  await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.GOVERNANCE_RESULT_VIEW })
+  const decision = await prisma.governanceDecision.findUnique({
+    where: { id: decisionId, circleId },
+    include: { vote: { select: { id: true, title: true, type: true, anonymous: true } }, createdBy: { select: { id: true, name: true } } },
+  })
+  if (!decision) throw new Error("Decision not found")
+  return decision
+}
+
+/**
+ * Scheduling primitive for VOTE_CLOSING_SOON notifications for OPEN votes with a
+ * closesAt within `leadHours`. Sends to members who may still vote (have not yet
+ * cast a ballot). Returns the number of notifications sent.
+ */
+export async function sendVoteClosingSoon(circleId: string, voteId: string, leadHours = 24): Promise<number> {
+  const vote = await getVoteOrThrow(circleId, voteId)
+  if (vote.status !== "OPEN" || !vote.closesAt) return 0
+  const now = Date.now()
+  const delta = new Date(vote.closesAt).getTime() - now
+  if (delta > leadHours * 3600000 || delta < 0) return 0
+
+  const [members, ballots] = await Promise.all([
+    prisma.circleMember.findMany({ where: { circleId }, select: { userId: true } }),
+    prisma.governanceBallot.findMany({ where: { voteId }, select: { userId: true } }),
+  ])
+  const voted = new Set(ballots.map((b) => b.userId))
+  let sent = 0
+  for (const m of members) {
+    if (voted.has(m.userId)) continue
+    await createNotification({
+      userId: m.userId,
+      circleId,
+      type: "VOTE_CLOSING_SOON",
+      title: `Vote closing soon: ${vote.title}`,
+      message: `Casting closes ${new Date(vote.closesAt).toLocaleString()}`,
+      link: `/circles/${circleId}/votes/${voteId}`,
+    }).catch(() => {})
+    sent++
+  }
+  return sent
 }
