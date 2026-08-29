@@ -46,12 +46,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ circleI
     if (action === "confirm") {
       const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.FUNDING_RECORD })
       if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      if (!body.txId) return NextResponse.json({ error: "txId required" }, { status: 400 })
+      const tx = await prisma.projectCapitalTransaction.findUnique({ where: { id: body.txId }, include: { participant: { select: { userId: true } } } })
+      if (!tx || tx.projectId !== projectId) return NextResponse.json({ error: "Not found" }, { status: 404 })
+      // Members cannot approve their own restricted transaction.
+      if (tx.participant.userId && tx.participant.userId === s.user.id) {
+        const senior = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.PROJECT_APPROVE })
+        if (!senior) return NextResponse.json({ error: "You cannot approve your own transaction" }, { status: 403 })
+      }
       return NextResponse.json(await confirmCapitalTransaction(body.txId, s.user.id))
     }
 
     if (action === "reject") {
       const allowed = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.FUNDING_RECORD })
       if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      if (!body.txId) return NextResponse.json({ error: "txId required" }, { status: 400 })
+      const tx = await prisma.projectCapitalTransaction.findUnique({ where: { id: body.txId }, include: { participant: { select: { userId: true } } } })
+      if (!tx || tx.projectId !== projectId) return NextResponse.json({ error: "Not found" }, { status: 404 })
+      if (tx.participant.userId && tx.participant.userId === s.user.id) {
+        const senior = await hasCirclePermission({ userId: s.user.id, circleId, permission: CIRCLE_PERMISSIONS.PROJECT_APPROVE })
+        if (!senior) return NextResponse.json({ error: "You cannot reject your own transaction" }, { status: 403 })
+      }
       return NextResponse.json(await rejectCapitalTransaction(body.txId, s.user.id, body.reason))
     }
 

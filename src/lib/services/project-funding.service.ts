@@ -124,11 +124,18 @@ export async function createProjectContribution(projectId: string, userId: strin
   return prisma.projectContribution.create({ data: { projectId, userId, fundingRoundId: data.fundingRoundId || null, amount: data.amount, proofReference: data.reference || null } })
 }
 
-export async function submitProjectContributionProof(contributionId: string, userId: string, reference: string) {
+export async function submitProjectContributionProof(contributionId: string, userId: string, props?: { reference?: string; proofUrl?: string }) {
   const c = await prisma.projectContribution.findUnique({ where: { id: contributionId } })
   if (!c || c.userId !== userId) throw new Error("Not found")
   if (c.status !== "PENDING" && c.status !== "REJECTED") throw new Error("Invalid status")
-  return prisma.projectContribution.update({ where: { id: contributionId }, data: { status: "PROOF_SUBMITTED", proofReference: reference } })
+  return prisma.projectContribution.update({
+    where: { id: contributionId },
+    data: {
+      status: "PROOF_SUBMITTED",
+      proofReference: props?.reference || c.proofReference,
+      proofUrl: props?.proofUrl || c.proofUrl,
+    },
+  })
 }
 
 export async function confirmProjectContribution(contributionId: string, adminId: string) {
@@ -140,6 +147,17 @@ export async function confirmProjectContribution(contributionId: string, adminId
   if (c.fundingRoundId) await prisma.projectFundingRound.update({ where: { id: c.fundingRoundId }, data: { currentAmount: { increment: Number(c.amount) } } })
   await addProjectActivity(c.projectId, adminId, "contribution_confirmed", `Contribution of R${Number(c.amount).toLocaleString()} confirmed`)
   recordContributionToLedger(c.project.circleId, `project-contribution:${c.id}`, Number(c.amount), c.userId).catch(() => {})
+  try {
+    const { createNotification } = await import("@/lib/services/notification.service")
+    await createNotification({
+      userId: c.userId,
+      circleId: c.project.circleId,
+      type: "CONTRIBUTION_MADE",
+      title: "Investment confirmed",
+      message: `Your R${Number(c.amount).toLocaleString()} contribution to "${c.project.name}" was confirmed.`,
+      link: `/circles/${c.project.circleId}/projects/${c.projectId}`,
+    }).catch(() => {})
+  } catch {}
   return updated
 }
 

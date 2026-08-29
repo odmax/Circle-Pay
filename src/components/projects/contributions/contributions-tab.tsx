@@ -34,6 +34,7 @@ export function ContributionsTab({ circle, circleId, projectId }: ContributionsT
   const symbol = circle?.currency || "ZAR"
 
   const [proofReference, setProofReference] = useState("")
+  const [proofFile, setProofFile] = useState<File | null>(null)
 
   const [newTx, setNewTx] = useState({ participantId: "", amount: "", classification: "REQUIRED_EQUITY", reference: "" })
 
@@ -92,22 +93,25 @@ export function ContributionsTab({ circle, circleId, projectId }: ContributionsT
     if (!selectedTx) return
     setSubmitting(true)
     try {
+      const fd = new FormData()
+      if (proofFile) fd.append("file", proofFile)
+      if (proofReference.trim()) fd.append("reference", proofReference.trim())
       const r = await fetch(`/api/circles/${circleId}/projects/${projectId}/capital/${selectedTx.id}/proof`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference: proofReference }),
+        body: fd,
       })
       if (!r.ok) throw new Error("Failed")
       toast.success("Proof submitted")
       setShowProofDialog(false)
       setProofReference("")
+      setProofFile(null)
       fetchTransactions()
     } catch {
       toast.error("Failed to submit proof")
     } finally {
       setSubmitting(false)
     }
-  }, [circleId, projectId, selectedTx, proofReference, fetchTransactions])
+  }, [circleId, projectId, selectedTx, proofReference, proofFile, fetchTransactions])
 
   const filtered = useMemo(() => transactions.filter((tx) => {
     if (filterClassification !== "all" && tx.classification !== filterClassification) return false
@@ -266,7 +270,21 @@ export function ContributionsTab({ circle, circleId, projectId }: ContributionsT
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Reference / Note</Label>
-              <Textarea value={proofReference} onChange={(e) => setProofReference(e.target.value)} placeholder="Bank reference, transaction ID, or note..." className="rounded-xl" rows={3} />
+              <Textarea value={proofReference} onChange={(e) => setProofReference(e.target.value)} placeholder="Bank reference, transaction ID, or note..." className="rounded-xl" rows={2} />
+            </div>
+            <div className="space-y-2">
+              <Label>Proof image / PDF</Label>
+              <label className="flex items-center gap-3 rounded-xl border border-dashed p-3 cursor-pointer hover:bg-muted/40 transition-colors">
+                <span className="size-9 rounded-lg bg-brand/10 flex items-center justify-center shrink-0">
+                  <Upload className="size-4 text-brand" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium truncate">{proofFile ? proofFile.name : "Choose file (JPG, PNG, WebP, PDF · max 5MB)"}</span>
+                  {proofFile && <span className="block text-[10px] text-muted-foreground">{(proofFile.size / 1024).toFixed(0)} KB</span>}
+                </span>
+                <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.webp,.heic,.pdf" onChange={(e) => setProofFile(e.target.files?.[0] || null)} />
+              </label>
+              <p className="text-[10px] text-muted-foreground">Optional — a bank proof speeds up confirmation.</p>
             </div>
           </div>
           <DialogFooter>

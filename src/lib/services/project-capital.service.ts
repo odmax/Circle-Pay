@@ -49,14 +49,25 @@ export async function recordCapitalTransaction(projectId: string, participantId:
   return tx
 }
 
-export async function submitCapitalTransaction(txId: string, userId: string, proofUrl?: string) {
-  const tx = await prisma.projectCapitalTransaction.findUnique({ where: { id: txId } })
+export async function submitCapitalTransaction(txId: string, userId: string, props?: { proofUrl?: string; reference?: string }) {
+  const tx = await prisma.projectCapitalTransaction.findUnique({
+    where: { id: txId },
+    include: { participant: { select: { userId: true } } },
+  })
   if (!tx) throw new Error("Transaction not found")
   if (tx.status !== "PENDING") throw new Error("Transaction is not pending")
+  // Members may only submit proof for their own investment.
+  if (tx.participant.userId && tx.participant.userId !== userId) {
+    throw new Error("You can only submit proof for your own transaction")
+  }
 
   return prisma.projectCapitalTransaction.update({
     where: { id: txId },
-    data: { status: "SUBMITTED", proofUrl: proofUrl || tx.proofUrl },
+    data: {
+      status: "SUBMITTED",
+      proofUrl: props?.proofUrl || tx.proofUrl,
+      reference: props?.reference || tx.reference,
+    },
   })
 }
 
@@ -98,6 +109,20 @@ export async function confirmCapitalTransaction(txId: string, adminId: string) {
 
   await addProjectActivity(tx.projectId, adminId, "capital_tx_confirmed", `Capital transaction of R${Number(tx.amount).toLocaleString()} confirmed`, `Classification: ${tx.classification}`)
   recordContributionToLedger(tx.project.circleId, `project-capital:${tx.id}`, Number(tx.amount), tx.participant.userId || "").catch(() => {})
+
+  if (tx.participant.userId) {
+    try {
+      const { createNotification } = await import("@/lib/services/notification.service")
+      await createNotification({
+        userId: tx.participant.userId,
+        circleId: tx.project.circleId,
+        type: "CONTRIBUTION_MADE",
+        title: "Investment confirmed",
+        message: `Your R${Number(tx.amount).toLocaleString()} capital contribution was confirmed.`,
+        link: `/circles/${tx.project.circleId}/projects/${tx.projectId}`,
+      }).catch(() => {})
+    } catch {}
+  }
 
   const project = await prisma.project.findUnique({ where: { id: tx.projectId }, select: { currentAmount: true, targetAmount: true } })
   if (project?.targetAmount && Number(project.currentAmount) >= Number(project.targetAmount)) {
