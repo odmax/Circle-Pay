@@ -30,7 +30,7 @@ export async function POST(
     // Validate + store via the shared upload infrastructure (max 5MB, JPEG/PNG/WebP/HEIC/PDF).
     const buffer = Buffer.from(await file.arrayBuffer())
     validateProofFile({ size: file.size, type: file.type, name: file.name })
-    const result = await uploadProofImage(buffer, file.name, session.user.id)
+    const result = await uploadProofImage(buffer, file.name, session.user.id, circleId)
 
     const amount = amountRaw != null && amountRaw !== "" ? Number(amountRaw) : undefined
     if (amount != null && Number.isNaN(amount)) {

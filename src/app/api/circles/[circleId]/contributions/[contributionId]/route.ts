@@ -54,7 +54,7 @@ export async function POST(
       const canReview = await hasCirclePermission({ userId: session.user.id, circleId, permission: CIRCLE_PERMISSIONS.CONTRIBUTION_REVIEW })
       if (!isOwner && !canReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-      const upload = await uploadProofImage(buffer, file.name, session.user.id)
+      const upload = await uploadProofImage(buffer, file.name, session.user.id, circleId)
 
       await prisma.contribution.update({
         where: { id: contributionId, circleId },

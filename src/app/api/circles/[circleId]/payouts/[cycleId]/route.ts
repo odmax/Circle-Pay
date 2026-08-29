@@ -139,7 +139,7 @@ export async function POST(
       }
 
       const buffer = Buffer.from(await file.arrayBuffer())
-      const upload = await uploadProofImage(buffer, file.name, session.user.id)
+      const upload = await uploadProofImage(buffer, file.name, session.user.id, circleId)
       const result = await uploadPayoutProof(
         circleId,
         cycleId,

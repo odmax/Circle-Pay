@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cir
       if (file) {
         const buffer = Buffer.from(await file.arrayBuffer())
         validateProofFile({ size: file.size, type: file.type, name: file.name })
-        const result = await uploadProofImage(buffer, file.name, session.user.id)
+        const result = await uploadProofImage(buffer, file.name, session.user.id, circleId)
         receiptUrl = result.proofUrl
         receiptFilename = file.name
       }

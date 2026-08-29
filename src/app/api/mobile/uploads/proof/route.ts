@@ -26,8 +26,8 @@ export async function POST(req: Request) {
       const buffer = Buffer.from(await file.arrayBuffer())
       validateProofFile({ size: file.size, type: file.type, name: file.name })
 
-      // Upload
-      const result = await uploadProofImage(buffer, file.name, user.id)
+      // Upload (scoped to the payment intent's real circle — not user-supplied input)
+      const result = await uploadProofImage(buffer, file.name, user.id, intent.circleId)
 
       // Update payment intent
       await prisma.circlePaymentIntent.update({
