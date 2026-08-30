@@ -141,3 +141,89 @@ export const PROJECT_HEALTH_COLOR: Record<ProjectHealth, string> = {
   watch: "border-amber-200 bg-amber-50 text-amber-700",
   risk: "border-red-200 bg-red-50 text-red-700",
 }
+
+// ─── Portfolio Alerts (pure, deterministic) ─────────────────
+
+export interface PortfolioAlert {
+  id: string
+  level: "info" | "warning" | "risk"
+  title: string
+  description: string
+  projectId?: string
+  projectName?: string
+}
+
+export interface PortfolioAlertProject {
+  id: string
+  name: string
+  status: string
+  fundingPercent: number
+  funded: number
+  target: number
+  netProfit: number
+  revenue: number
+  expenses: number
+  pendingApprovals: number
+}
+
+export interface ComputePortfolioAlertsOptions {
+  projects: PortfolioAlertProject[]
+  overBudgetProjectIds?: string[]
+  upcomingDistributions?: Array<{ id: string; projectId: string; name: string; amount: number; status: string }>
+  monthly?: MonthlyPoint[]
+}
+
+export function computePortfolioAlerts(opts: ComputePortfolioAlertsOptions): PortfolioAlert[] {
+  const alerts: PortfolioAlert[] = []
+  const overBudget = new Set(opts.overBudgetProjectIds || [])
+  const monthly = opts.monthly || []
+
+  for (const p of opts.projects) {
+    const warn = (level: PortfolioAlert["level"], title: string, description: string) =>
+      alerts.push({ id: `p-${p.id}`, level, title, description, projectId: p.id, projectName: p.name })
+
+    if (p.fundingPercent < 100 && (p.status === "FUNDING_OPEN" || p.status === "PARTIALLY_FUNDED" || p.status === "FUNDING_SETUP")) {
+      const gap = computeFundingProgress(p.funded, p.target).gap
+      warn(
+        p.fundingPercent === 0 ? "risk" : "warning",
+        `${p.name}: funding shortfall`,
+        gap > 0 ? `${gap.toLocaleString()} still needed to reach target.` : "Round is not yet fully subscribed.",
+      )
+    }
+    if (p.netProfit < 0) warn("risk", `${p.name}: operating at a loss`, `Net position is ${p.netProfit.toLocaleString()}.`)
+    if (overBudget.has(p.id)) warn("warning", `${p.name}: over budget`, "One or more budget categories exceed approved amounts.")
+    if (p.pendingApprovals > 0) warn("warning", `${p.name}: approvals pending`, `${p.pendingApprovals} capital/expense item(s) await review.`)
+
+    const activeStatus = ["ACTIVE", "REVENUE_GENERATING", "FULLY_FUNDED"].includes(p.status)
+    if (activeStatus && p.revenue === 0 && p.expenses === 0) warn("info", `${p.name}: missing financial data`, "Active project with no revenue or expenses recorded yet.")
+    if (activeStatus && p.revenue === 0 && p.expenses > 0) warn("warning", `${p.name}: no revenue yet`, "Expenses recorded but no revenue has been booked.")
+  }
+
+  // Revenue decline (portfolio level, month-over-month).
+  const withData = monthly.filter((m) => m.revenue > 0 || m.expense > 0)
+  if (withData.length >= 2) {
+    const last = withData[withData.length - 1]
+    const prev = withData[withData.length - 2]
+    if (prev.revenue > 0 && last.revenue < prev.revenue * 0.8) {
+      alerts.push({
+        id: "revenue-decline",
+        level: "warning",
+        title: "Portfolio revenue decline",
+        description: `${last.label} revenue (${last.revenue.toLocaleString()}) is down vs ${prev.label} (${prev.revenue.toLocaleString()}).`,
+      })
+    }
+  }
+
+  for (const d of (opts.upcomingDistributions || []).slice(0, 3)) {
+    alerts.push({
+      id: `dist-${d.id}`,
+      level: "info",
+      title: `Distribution due`,
+      description: `"${d.name}" · ${d.amount.toLocaleString()} (${d.status.replace(/_/g, " ")}).`,
+      projectId: d.projectId,
+      projectName: d.projectId,
+    })
+  }
+
+  return alerts
+}
