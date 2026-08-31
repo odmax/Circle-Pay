@@ -46,6 +46,7 @@ const tabs = {
   myStatement: { key: "my-statement", label: "Statement", icon: "FileText", href: "/my-statement" },
   projects: { key: "projects", label: "Projects", icon: "FolderKanban", href: "/projects" },
   portfolio: { key: "portfolio", label: "Portfolio", icon: "Gauge", href: "/portfolio" },
+  opportunities: { key: "opportunities", label: "Opportunities", icon: "Rocket", href: "/opportunities" },
   constitution: { key: "constitution", label: "Constitution", icon: "ScrollText", href: "/constitution" },
 } as const
 
@@ -62,7 +63,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "payoutOrder", label: "Payout Order", type: "text", placeholder: "Member names in order" },
     ],
     defaultSettings: { contributionFrequency: "monthly", payoutMethod: "rotation" },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.polls, tabs.assistant, tabs.contributions, tabs.members, tabs.payouts, tabs.constitution, tabs.balances, tabs.reports, tabs.wallet, tabs.activity, tabs.insights],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.polls, tabs.assistant, tabs.contributions, tabs.members, tabs.payouts, tabs.constitution, tabs.balances, tabs.reports, tabs.wallet, tabs.activity, tabs.insights],
   },
   HOUSEMATE: {
     label: "Housemates",
@@ -74,7 +75,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "groceriesEnabled", label: "Track Groceries", type: "toggle" },
     ],
     defaultSettings: { utilitiesEnabled: true, groceriesEnabled: true },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.expenses, tabs.contributions, tabs.balances, tabs.members, tabs.activity],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.expenses, tabs.contributions, tabs.balances, tabs.members, tabs.activity],
   },
   TRAVEL: {
     label: "Travel Group",
@@ -86,7 +87,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "budgetPerPerson", label: "Budget Per Person", type: "currency", placeholder: "5000" },
     ],
     defaultSettings: {},
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.contributions, tabs.expenses, tabs.balances, tabs.members, tabs.activity],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.contributions, tabs.expenses, tabs.balances, tabs.members, tabs.activity],
   },
   WEDDING: {
     label: "Wedding",
@@ -99,7 +100,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "vendorTracking", label: "Enable Vendor Tracking", type: "toggle" },
     ],
     defaultSettings: { vendorTracking: false },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.goals, tabs.contributions, tabs.expenses, tabs.members, tabs.activity],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.goals, tabs.contributions, tabs.expenses, tabs.members, tabs.activity],
   },
   SAVINGS: {
     label: "Savings Group",
@@ -112,7 +113,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "goalDeadline", label: "Goal Deadline", type: "date" },
     ],
     defaultSettings: { savingFrequency: "monthly" },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.goals, tabs.contributions, tabs.members, tabs.reports, tabs.wallet, tabs.activity, tabs.insights],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.goals, tabs.contributions, tabs.members, tabs.reports, tabs.wallet, tabs.activity, tabs.insights],
   },
   FAMILY: {
     label: "Family",
@@ -124,7 +125,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "emergencyFund", label: "Enable Emergency Fund", type: "toggle" },
     ],
     defaultSettings: { contributionFrequency: "monthly", emergencyFund: false },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.goals, tabs.expenses, tabs.members, tabs.wallet, tabs.activity],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.goals, tabs.expenses, tabs.members, tabs.wallet, tabs.activity],
   },
   CHURCH: {
     label: "Church Group",
@@ -136,7 +137,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "projectName", label: "Project Name", type: "text", placeholder: "Building Fund" },
     ],
     defaultSettings: { contributionType: "offering" },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.contributions, tabs.goals, tabs.members, tabs.expenses, tabs.reports, tabs.wallet, tabs.activity],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.contributions, tabs.goals, tabs.members, tabs.expenses, tabs.reports, tabs.wallet, tabs.activity],
   },
   INVESTMENT: {
     label: "Investment Club",
@@ -148,7 +149,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "targetReturn", label: "Target Return %", type: "number", placeholder: "15" },
     ],
     defaultSettings: { riskLevel: "medium" },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.events, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.goals, tabs.members, tabs.activity, tabs.reports, tabs.insights],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.events, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.goals, tabs.members, tabs.activity, tabs.reports, tabs.insights],
   },
   CUSTOM: {
     label: "Custom",
@@ -161,7 +162,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "enableBalances", label: "Enable Balances", type: "toggle" },
     ],
     defaultSettings: { enableContributions: true, enableExpenses: true, enableGoals: true, enableBalances: true },
-    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.expenses, tabs.goals, tabs.balances, tabs.constitution, tabs.members, tabs.activity],
+    tabs: [tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.expenses, tabs.goals, tabs.balances, tabs.constitution, tabs.members, tabs.activity],
   },
 }
 

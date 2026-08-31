@@ -171,6 +171,11 @@ model User {
   groceryAllocationsCreated     GroceryAllocation[]             @relation("GroceryAllocationCreator")
   groceryAllocations            GroceryAllocation[]             @relation("GroceryAllocationRecipient")
   groceryExpensesCreated        GroceryExpense[]                @relation("GroceryExpenseCreator")
+  opportunitiesCreated          InvestmentOpportunity[]          @relation("OpportunityCreator")
+  opportunityDocumentsUploaded  InvestmentOpportunityDocument[]  @relation("OpportunityDocUploader")
+  opportunityCommitments        InvestmentOpportunityCommitment[] @relation("OpportunityCommitter")
+  capitalCallsCreated           CapitalCall[]                    @relation("CapitalCallCreator")
+  capitalCallAllocations        CapitalCallAllocation[]          @relation("CapitalCallMember")
 
   @@index([email])
 }
@@ -371,6 +376,8 @@ model Circle {
   loanProofs             LoanProof[]
   groceryConfig           CircleGroceryConfig?
   groceryCampaigns        GroceryCampaign[]
+  investmentOpportunities InvestmentOpportunity[]
+  capitalCalls            CapitalCall[]
 }
 
 model CircleMember {
@@ -795,6 +802,16 @@ enum NotificationType {
   APPROVAL_WORKFLOW_COMPLETED
 PROJECT_CREATED
   PROJECT_UPDATE_PUBLISHED
+  OPPORTUNITY_OPENED
+  OPPORTUNITY_CLOSING_SOON
+  OPPORTUNITY_FUNDED
+  OPPORTUNITY_CANCELLED
+  CAPITAL_CALL_ISSUED
+  CAPITAL_CALL_OVERDUE
+  COMMITMENT_RECEIVED
+  COMMITMENT_CONFIRMED
+  COMMITMENT_REJECTED
+  PROOF_REQUIRES_REVIEW
   FEED_POST_CREATED
   AI_INSIGHT
   FINANCIAL_RISK
@@ -1176,6 +1193,168 @@ model ProjectActivity {
 }
 
 // ─── AI Insights ─────────────────────────────────────────
+
+// ─── Investment Opportunities & Capital Calls ────────────────
+
+enum InvestmentOpportunityStatus {
+  DRAFT
+  OPEN
+  FUNDED
+  CLOSED
+  CANCELLED
+}
+
+enum InvestmentCommitmentStatus {
+  PENDING
+  PAID
+  CONFIRMED
+  REJECTED
+  WITHDRAWN
+  CANCELLED
+}
+
+enum CapitalCallStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  COMPLETED
+  CANCELLED
+}
+
+enum CapitalCallAllocationMethod {
+  EQUAL
+  PERCENTAGE
+  CUSTOM
+  OPEN
+}
+
+model InvestmentOpportunity {
+  id                String                        @id @default(cuid())
+  circleId          String
+  createdById       String
+  title             String
+  description       String?
+  type              String                        @default("general")
+  targetAmount      Decimal                       @db.Decimal(12, 2)
+  minimumInvestment Decimal?                      @db.Decimal(12, 2)
+  maximumInvestment Decimal?                      @db.Decimal(12, 2)
+  openDate          DateTime?
+  closingDate       DateTime?
+  expectedReturn    Decimal?                      @db.Decimal(6, 2)
+  expectedDuration  String?
+  riskLevel         String                        @default("MEDIUM")
+  coverImage        String?
+  status            InvestmentOpportunityStatus   @default(DRAFT)
+  requiresApproval  Boolean                       @default(false)
+  requiresVote      Boolean                       @default(false)
+  approvedById      String?
+  approvedAt        DateTime?
+  openedById        String?
+  openedAt          DateTime?
+  fundedAt          DateTime?
+  closedAt          DateTime?
+  cancelledAt       DateTime?
+  projectId         String?
+  metadata          Json?
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
+
+  circle      Circle                            @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy   User                              @relation("OpportunityCreator", fields: [createdById], references: [id])
+  commitments InvestmentOpportunityCommitment[]
+  documents   InvestmentOpportunityDocument[]
+
+  @@index([circleId])
+  @@index([status])
+  @@index([closingDate])
+}
+
+model InvestmentOpportunityDocument {
+  id            String                @id @default(cuid())
+  opportunityId String
+  uploadedById  String
+  name          String
+  url           String
+  mimeType      String?
+  size          Int?
+  createdAt     DateTime              @default(now())
+
+  opportunity InvestmentOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  uploadedBy  User                   @relation("OpportunityDocUploader", fields: [uploadedById], references: [id])
+
+  @@index([opportunityId])
+}
+
+model InvestmentOpportunityCommitment {
+  id               String                     @id @default(cuid())
+  opportunityId    String
+  userId           String
+  amount           Decimal                    @db.Decimal(12, 2)
+  status           InvestmentCommitmentStatus @default(PENDING)
+  proofUrl         String?
+  proofReference   String?
+  proofSubmittedAt DateTime?
+  confirmedById    String?
+  confirmedAt      DateTime?
+  rejectedById     String?
+  rejectedAt       DateTime?
+  rejectionReason  String?
+  withdrawnAt      DateTime?
+  metadata         Json?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  opportunity InvestmentOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  user        User                   @relation("OpportunityCommitter", fields: [userId], references: [id])
+
+  @@index([opportunityId])
+  @@index([userId])
+  @@index([status])
+}
+
+model CapitalCall {
+  id                  String                         @id @default(cuid())
+  circleId            String
+  createdById         String
+  opportunityId       String?
+  projectId           String?
+  title               String
+  purpose             String?
+  amountRequired      Decimal                        @db.Decimal(12, 2)
+  allocationMethod    CapitalCallAllocationMethod    @default(EQUAL)
+  minimumContribution Decimal?                       @db.Decimal(12, 2)
+  issuedAt            DateTime?
+  dueDate             DateTime?
+  openedAt            DateTime?
+  closedAt            DateTime?
+  fundedAt            DateTime?
+  status              CapitalCallStatus              @default(DRAFT)
+  metadata            Json?
+  createdAt           DateTime                       @default(now())
+  updatedAt           DateTime                       @updatedAt
+
+  circle      Circle                 @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy   User                   @relation("CapitalCallCreator", fields: [createdById], references: [id])
+  allocations CapitalCallAllocation[]
+
+  @@index([circleId])
+  @@index([status])
+}
+
+model CapitalCallAllocation {
+  id              String     @id @default(cuid())
+  capitalCallId   String
+  userId          String
+  requestedAmount Decimal?   @db.Decimal(12, 2)
+  metadata        Json?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  capitalCall CapitalCall @relation(fields: [capitalCallId], references: [id], onDelete: Cascade)
+  user        User        @relation("CapitalCallMember", fields: [userId], references: [id])
+
+  @@unique([capitalCallId, userId])
+}
 
 enum AIInsightType {
   CONTRIBUTION_PATTERN

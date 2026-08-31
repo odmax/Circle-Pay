@@ -142,6 +142,40 @@ export const PROJECT_HEALTH_COLOR: Record<ProjectHealth, string> = {
   risk: "border-red-200 bg-red-50 text-red-700",
 }
 
+export function slugifyOpportunity(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "opportunity"
+}
+
+export interface OpportunityMineInput {
+  id: string
+  title: string
+  status: string
+  myCommitted: number
+  myConfirmed: number
+  myPending: number
+  raised: number
+  expectedReturn: number | null
+  closingDate: string | null
+  projectId: string | null
+}
+
+export function getMyOpportunities(opportunities: OpportunityMineInput[]) {
+  return opportunities
+    .filter((o) => o.myCommitted > 0)
+    .map((o) => ({
+      id: o.id,
+      title: o.title,
+      status: o.status,
+      committed: o.myCommitted,
+      confirmed: o.myConfirmed,
+      pending: o.myPending,
+      ownershipEstimate: o.raised > 0 ? Math.round((o.myConfirmed / o.raised) * 10000) / 100 : 0,
+      expectedReturn: o.expectedReturn != null ? Math.round(o.myConfirmed * (o.expectedReturn / 100) * 100) / 100 : null,
+      closingDate: o.closingDate,
+      projectId: o.projectId,
+    }))
+}
+
 // ─── Portfolio Alerts (pure, deterministic) ─────────────────
 
 export interface PortfolioAlert {
