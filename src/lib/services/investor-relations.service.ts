@@ -22,8 +22,9 @@ export async function isProjectInvestor(projectId: string, userId: string): Prom
   return !!c
 }
 
-async function notifyInvestorsOnly(circleId: string, projectId: string, type: any, title: string, message: string, link?: string) {
-  const ids = await getProjectInvestorUserIds(projectId)
+async function notifyInvestorsOnly(circleId: string, projectId: string, type: any, title: string, message: string, link?: string, excludeUserId?: string) {
+  let ids = await getProjectInvestorUserIds(projectId)
+  if (excludeUserId) ids = ids.filter((id) => id !== excludeUserId)
   if (ids.length === 0) return
   const { createBulkNotifications } = await import("@/lib/services/notification.service")
   await createBulkNotifications(ids.map((userId) => ({ userId, circleId, type, title, message, link: link || null }))).catch(() => {})
@@ -51,8 +52,14 @@ function canSeeUpdate(viewer: ViewerCtx, visibility: string): boolean {
 export async function listProjectUpdates(projectId: string, circleId: string, viewer: ViewerCtx) {
   const updates = await prisma.projectUpdate.findMany({
     where: { projectId, circleId },
-    include: { createdBy: { select: { name: true } }, attachments: true, acknowledgments: true },
+    include: {
+      createdBy: { select: { name: true } },
+      attachments: true,
+      acknowledgments: true,
+      discussions: { include: { user: { select: { name: true } } }, orderBy: { createdAt: "asc" } },
+    },
     orderBy: { publishedAt: "desc" },
+    take: 30,
   })
   const visible = updates.filter((u) => canSeeUpdate(viewer, u.visibility))
   return visible.map((u) => ({
@@ -67,6 +74,7 @@ export async function listProjectUpdates(projectId: string, circleId: string, vi
     attachments: u.attachments.map((a) => ({ id: a.id, name: a.name, url: a.url, mimeType: a.mimeType, size: a.size ?? 0 })),
     acknowledged: viewer.isManager ? u.acknowledgments.length : 0,
     myAcknowledged: u.acknowledgments.some((a) => a.userId === viewer.viewerUserId),
+    discussions: u.discussions.map((d) => ({ id: d.id, kind: d.kind, content: d.content, reaction: d.reaction, userId: d.userId, userName: d.user?.name ?? null, createdAt: d.createdAt.toISOString() })),
   }))
 }
 
@@ -302,7 +310,7 @@ export async function answerInvestorQuestion(projectId: string, questionId: stri
   const { createNotification } = await import("@/lib/services/notification.service")
   await createNotification({ userId: q.userId, circleId, type: "INVESTOR_QUESTION_ANSWERED", title: "Your question was answered", message: data.answer.trim(), link: `/circles/${circleId}/projects/${projectId}/investors?questions` }).catch(() => {})
   if (data.publishToInvestors) {
-    await notifyInvestorsOnly(circleId, projectId, "INVESTOR_QUESTION_ANSWERED", "A question was answered", q.question, `/circles/${circleId}/projects/${projectId}/investors?questions`)
+    await notifyInvestorsOnly(circleId, projectId, "INVESTOR_QUESTION_ANSWERED", "A question was answered", q.question, `/circles/${circleId}/projects/${projectId}/investors?questions`, q.userId)
   }
   return updated
 }

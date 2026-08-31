@@ -122,6 +122,7 @@ type UpdateItem = {
   id: string; type: string; title: string; content: string | null; visibility: string; isImportant: boolean;
   publishedAt: string; createdByName: string | null; acknowledged: number; myAcknowledged: boolean;
   attachments: Array<{ id: string; name: string; url: string; mimeType: string | null; size: number }>
+  discussions: Array<{ id: string; kind: string; content: string | null; reaction: string | null; userId: string; userName: string | null; createdAt: string }>
 }
 
 function UpdatesSection({ circleId, projectId, isManager }: { circleId: string; projectId: string; isManager: boolean }) {
@@ -171,7 +172,7 @@ function UpdatesSection({ circleId, projectId, isManager }: { circleId: string; 
               </div>
             </div>
             {openComment === u.id && (
-              <UpdateCommentBox circleId={circleId} projectId={projectId} updateId={u.id} onDone={refresh} />
+              <UpdateCommentBox circleId={circleId} projectId={projectId} updateId={u.id} discussions={u.discussions} onDone={refresh} />
             )}
           </CardContent>
         </Card>
@@ -186,7 +187,13 @@ function UpdatesSection({ circleId, projectId, isManager }: { circleId: string; 
   )
 }
 
-function UpdateCommentBox({ circleId, projectId, updateId, onDone }: { circleId: string; projectId: string; updateId: string; onDone: () => void }) {
+function UpdateCommentBox({ circleId, projectId, updateId, discussions, onDone }: {
+  circleId: string
+  projectId: string
+  updateId: string
+  discussions: UpdateItem["discussions"]
+  onDone: () => void
+}) {
   const [text, setText] = useState("")
   const submit = async (kind: string) => {
     if (!text.trim()) return
@@ -196,6 +203,17 @@ function UpdateCommentBox({ circleId, projectId, updateId, onDone }: { circleId:
   }
   return (
     <div className="mt-3 space-y-2 border-t pt-3">
+      {discussions.length > 0 && (
+        <div className="space-y-2 max-h-56 overflow-y-auto">
+          {discussions.map((d) => (
+            <div key={d.id} className="text-sm rounded-lg bg-muted/40 px-3 py-2">
+              <p className="font-medium text-xs">{d.userName || "member"}{d.kind === "QUESTION" ? " asked" : d.kind === "REACTION" ? " reacted" : ""}</p>
+              <p className="text-muted-foreground text-xs mt-0.5">{d.kind === "REACTION" ? `${d.reaction} ${d.content || ""}` : d.content}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(d.createdAt)}</p>
+            </div>
+          ))}
+        </div>
+      )}
       <Textarea value={text} onChange={(e) => setText(e.target.value)} className="rounded-xl" rows={2} placeholder="Comment or ask a question..." />
       <div className="flex gap-2">
         <Button size="sm" variant="outline" className="rounded-xl h-8" onClick={() => submit("comment")}><MessageCircle className="size-3.5 mr-1" /> Comment</Button>

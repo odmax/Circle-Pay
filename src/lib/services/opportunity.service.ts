@@ -212,6 +212,11 @@ async function notifyOpportunityApprovers(circleId: string, type: any, title: st
   }
 }
 
+async function notifyOpportunityMember(userId: string, circleId: string, type: any, title: string, message: string, link?: string) {
+  const { createNotification } = await import("@/lib/services/notification.service")
+  await createNotification({ userId, circleId, type, title, message, link: link || null }).catch(() => {})
+}
+
 export async function approveOpportunity(circleId: string, opportunityId: string, approverId: string) {
   const opp = await opportunityInCircle(circleId, opportunityId)
   if (!opp.requiresApproval) throw new Error("This opportunity does not require approval")
@@ -334,7 +339,7 @@ export async function approveCommitment(circleId: string, commitmentId: string, 
     data: { status: "CONFIRMED", confirmedById: adminId, confirmedAt: new Date() },
   })
   await createAuditLog({ userId: adminId, circleId, action: "OPPORTUNITY_COMMITMENT_CONFIRMED", entityType: "InvestmentOpportunityCommitment", entityId: commitmentId })
-  await notifyOpportunityMembers(circleId, c.opportunity.id, "COMMITMENT_CONFIRMED", `Your commitment on ${c.opportunity.title} was confirmed`, `${asNum(c.amount).toLocaleString()} confirmed.`)
+  await notifyOpportunityMember(c.userId, circleId, "COMMITMENT_CONFIRMED", `Your commitment on ${c.opportunity.title} was confirmed`, `${asNum(c.amount).toLocaleString()} confirmed.`, `/circles/${circleId}/opportunities/${c.opportunity.id}`)
   await maybeFundOpportunity(circleId, c.opportunity)
   return updated
 }
@@ -349,7 +354,7 @@ export async function rejectCommitment(circleId: string, commitmentId: string, a
     data: { status: "REJECTED", rejectedById: adminId, rejectedAt: new Date(), rejectionReason: reason || null },
   })
   await createAuditLog({ userId: adminId, circleId, action: "OPPORTUNITY_COMMITMENT_REJECTED", entityType: "InvestmentOpportunityCommitment", entityId: commitmentId, reason: reason || null })
-  await notifyOpportunityMembers(circleId, c.opportunity.id, "COMMITMENT_REJECTED", `Your commitment on ${c.opportunity.title} was rejected`, reason ? `Reason: ${reason}` : "Please contact management.")
+  await notifyOpportunityMember(c.userId, circleId, "COMMITMENT_REJECTED", `Your commitment on ${c.opportunity.title} was rejected`, reason ? `Reason: ${reason}` : "Please contact management.", `/circles/${circleId}/opportunities/${c.opportunity.id}`)
   return updated
 }
 
