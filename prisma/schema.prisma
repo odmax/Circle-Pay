@@ -185,6 +185,11 @@ model User {
   investorQuestionsAnswered     InvestorQuestion[]               @relation("QuestionAnswerer")
   investorDocumentsUploaded     InvestorProjectDocument[]        @relation("InvestorDocumentUploader")
   travelTripsCreated           TravelTrip[]                     @relation("TravelTripCreator")
+  travelItineraryItemsCreated TravelItineraryItem[]            @relation("TravelItineraryCreator")
+  travelItineraryPaidFor      TravelItineraryItem[]            @relation("TravelItineraryPayer")
+  travelBookingsCreated       TravelBooking[]                  @relation("TravelBookingCreator")
+  travelBookingDocsUploaded   TravelBookingDocument[]          @relation("TravelBookingDocUploader")
+  travelItineraryAssignments  TravelItineraryAssignment[]      @relation("TravelItineraryAssignee")
 
   @@index([email])
 }
@@ -1608,8 +1613,127 @@ model TravelTrip {
 
   circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
   createdBy User   @relation("TravelTripCreator", fields: [createdById], references: [id])
+  itineraryItems TravelItineraryItem[]
+  bookings       TravelBooking[]
 
   @@index([circleId])
+}
+
+// ─── Travel Circle: Itinerary & Bookings ────────────────────
+
+enum TravelItineraryType {
+  FLIGHT
+  HOTEL
+  TRANSPORT
+  ACTIVITY
+  RESTAURANT
+  MEETING_POINT
+  FREE_TIME
+  CUSTOM
+}
+
+enum TravelItemStatus {
+  PLANNED
+  BOOKED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum TravelPaymentStatus {
+  PENDING
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
+model TravelItineraryItem {
+  id               String             @id @default(cuid())
+  circleId         String
+  tripId           String
+  createdById      String
+  type             TravelItineraryType @default(CUSTOM)
+  title            String
+  date             DateTime?
+  startTime        String?
+  endTime          String?
+  location         String?
+  description      String?
+  bookingReference String?
+  cost             Decimal?           @db.Decimal(12, 2)
+  paidById         String?
+  status           TravelItemStatus   @default(PLANNED)
+  notes            String?
+  metadata         Json?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  trip      TravelTrip                  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  createdBy User                        @relation("TravelItineraryCreator", fields: [createdById], references: [id])
+  paidBy    User?                       @relation("TravelItineraryPayer", fields: [paidById], references: [id])
+  booking   TravelBooking?
+  assigned  TravelItineraryAssignment[]
+
+  @@index([tripId])
+  @@index([circleId])
+  @@index([type])
+}
+
+model TravelBooking {
+  id                String              @id @default(cuid())
+  circleId          String
+  tripId            String
+  createdById       String
+  itineraryItemId   String?             @unique
+  provider          String?
+  reference         String?
+  bookingDate       DateTime?
+  amount            Decimal?            @db.Decimal(12, 2)
+  currency          String              @default("ZAR")
+  paymentStatus     TravelPaymentStatus @default(UNPAID)
+  paidAt            DateTime?
+  cancellationNotes String?
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  trip          TravelTrip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  createdBy     User                     @relation("TravelBookingCreator", fields: [createdById], references: [id])
+  item          TravelItineraryItem?     @relation(fields: [itineraryItemId], references: [id], onDelete: SetNull)
+  documents     TravelBookingDocument[]
+
+  @@index([tripId])
+  @@index([circleId])
+}
+
+model TravelBookingDocument {
+  id           String   @id @default(cuid())
+  bookingId    String
+  uploadedById String
+  name         String
+  url          String
+  mimeType     String?
+  size         Int?
+  createdAt    DateTime @default(now())
+
+  booking    TravelBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  uploadedBy User          @relation("TravelBookingDocUploader", fields: [uploadedById], references: [id])
+
+  @@index([bookingId])
+}
+
+model TravelItineraryAssignment {
+  id              String               @id @default(cuid())
+  itineraryItemId String
+  userId          String
+  createdAt       DateTime             @default(now())
+
+  item TravelItineraryItem @relation(fields: [itineraryItemId], references: [id], onDelete: Cascade)
+  user User                @relation("TravelItineraryAssignee", fields: [userId], references: [id])
+
+  @@unique([itineraryItemId, userId])
 }
 
 enum AIInsightType {

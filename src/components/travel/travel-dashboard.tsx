@@ -36,6 +36,15 @@ interface TravelTripData {
   alerts: Array<{ id: string; level: string; title: string; description: string }>
   memberCount: number
   membersPaid: number
+  itinerary: {
+    todayOrNext: { id: string; title: string; type: string; date: string | null; startTime: string | null } | null
+    nextFlight: { id: string; title: string; date: string | null; startTime: string | null } | null
+    hotel: { id: string; title: string; date: string | null } | null
+    nextActivity: { id: string; title: string; date: string | null; startTime: string | null } | null
+    bookingCompletionPct: number
+    missingBookingsCount: number
+    missingDocumentsCount: number
+  }
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -307,6 +316,18 @@ export function TravelDashboard({ circleId, circleName, currency, canManage }: {
         </Card>
       </div>
 
+      {/* Itinerary widgets */}
+      <Card className="rounded-2xl">
+        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center justify-between"><span className="flex items-center gap-2"><Calendar className="size-4" /> Itinerary</span><Link href={`${base}/itinerary`} className="text-xs text-brand font-medium hover:underline">Full itinerary</Link></CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <MiniIt label="Today / next" value={data.itinerary.todayOrNext ? data.itinerary.todayOrNext.title : "—"} sub={data.itinerary.todayOrNext ? `${data.itinerary.todayOrNext.type.replace(/_/g, " ")}${data.itinerary.todayOrNext.startTime ? ` · ${data.itinerary.todayOrNext.startTime}` : ""}` : ""} />
+          <MiniIt label="Next flight" value={data.itinerary.nextFlight ? data.itinerary.nextFlight.title : "—"} sub={data.itinerary.nextFlight?.date ? formatDate(data.itinerary.nextFlight.date) : ""} />
+          <MiniIt label="Hotel / check-in" value={data.itinerary.hotel ? data.itinerary.hotel.title : "—"} sub={data.itinerary.hotel?.date ? formatDate(data.itinerary.hotel.date) : ""} />
+          <MiniIt label="Upcoming activity" value={data.itinerary.nextActivity ? data.itinerary.nextActivity.title : "—"} sub={data.itinerary.nextActivity?.date ? formatDate(data.itinerary.nextActivity.date) : ""} />
+          <MiniIt label="Bookings complete" value={`${data.itinerary.bookingCompletionPct}%`} sub={data.itinerary.missingBookingsCount > 0 || data.itinerary.missingDocumentsCount > 0 ? `${data.itinerary.missingBookingsCount} unbooked · ${data.itinerary.missingDocumentsCount} missing docs` : "All set"} />
+        </CardContent>
+      </Card>
+
       {/* Trip details */}
       {t.notes || t.emergencyContact ? (
         <Card className="rounded-2xl">
@@ -339,6 +360,10 @@ function Widget({ icon, label, value, tone = "" }: { icon: React.ReactNode; labe
       <p className={`text-sm sm:text-base font-bold truncate ${tone}`}>{value}</p>
     </CardContent></Card>
   )
+}
+
+function MiniIt({ label, value, sub = "" }: { label: string; value: string; sub?: string }) {
+  return <div className="rounded-xl border p-3 min-w-0"><p className="text-[10px] text-muted-foreground">{label}</p><p className="text-sm font-bold mt-0.5 truncate">{value}</p>{sub && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{sub}</p>}</div>
 }
 
 function Mini({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {

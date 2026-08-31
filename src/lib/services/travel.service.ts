@@ -9,6 +9,7 @@ import {
   formatTripCurrency,
   type TravelAlert,
 } from "@/lib/services/travel-metrics"
+import { getItineraryDashboardSummary } from "@/lib/services/travel-itinerary.service"
 
 function asNum(v: unknown): number {
   const n = Number(v)
@@ -41,6 +42,15 @@ export interface TravelDashboard {
   alerts: TravelAlert[]
   memberCount: number
   membersPaid: number
+  itinerary: {
+    todayOrNext: { id: string; title: string; type: string; date: string | null; startTime: string | null } | null
+    nextFlight: { id: string; title: string; date: string | null; startTime: string | null } | null
+    hotel: { id: string; title: string; date: string | null } | null
+    nextActivity: { id: string; title: string; date: string | null; startTime: string | null } | null
+    bookingCompletionPct: number
+    missingBookingsCount: number
+    missingDocumentsCount: number
+  }
 }
 
 export async function getTravelDashboard(circleId: string, viewerUserId: string): Promise<TravelDashboard> {
@@ -110,6 +120,9 @@ export async function getTravelDashboard(circleId: string, viewerUserId: string)
     myPendingWithoutProof,
   })
 
+  const summary = trip ? await getItineraryDashboardSummary(circleId, trip.id) : null
+  const strip = (v: any) => (v ? { id: v.id, title: v.title, type: v.type, date: v.date, startTime: v.startTime } : null)
+
   return {
     trip: trip ? {
       id: trip.id,
@@ -136,6 +149,15 @@ export async function getTravelDashboard(circleId: string, viewerUserId: string)
     alerts,
     memberCount,
     membersPaid,
+    itinerary: {
+      todayOrNext: summary?.todayOrNext ? strip(summary.todayOrNext) : null,
+      nextFlight: summary?.nextFlight ? strip(summary.nextFlight) : null,
+      hotel: summary?.hotel ? { id: summary.hotel.id, title: summary.hotel.title, date: summary.hotel.date } : null,
+      nextActivity: summary?.nextActivity ? strip(summary.nextActivity) : null,
+      bookingCompletionPct: summary?.bookingCompletionPct ?? 0,
+      missingBookingsCount: summary?.missingBookings.length ?? 0,
+      missingDocumentsCount: summary?.missingDocuments.length ?? 0,
+    },
   }
 }
 
