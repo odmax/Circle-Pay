@@ -16,6 +16,7 @@ import type { ProjectData, CircleData } from "../types"
 import { PROJECT_HEALTH_LABEL } from "../investment-types"
 import { ProgressBar, DonutChart, GroupedBarChart, AreaLineChart } from "../charts"
 import { InvestDialog } from "../invest-dialog"
+import { InvestorRelationsPanel } from "../investors/investor-panel"
 
 interface OverviewTabProps {
   project: ProjectData
@@ -375,6 +376,8 @@ export function OverviewTab({ project, circle, circleId, projectId }: OverviewTa
           )}
         </CardContent>
       </Card>
+
+      <InvestorRelationsPanel circleId={circleId} projectId={projectId} symbol={symbol} />
 
       <InvestDialog open={showInvest} onOpenChange={setShowInvest} circleId={circleId} projectId={projectId} currency={symbol} onSuccess={refresh} />
     </div>

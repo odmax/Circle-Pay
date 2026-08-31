@@ -176,6 +176,14 @@ model User {
   opportunityCommitments        InvestmentOpportunityCommitment[] @relation("OpportunityCommitter")
   capitalCallsCreated           CapitalCall[]                    @relation("CapitalCallCreator")
   capitalCallAllocations        CapitalCallAllocation[]          @relation("CapitalCallMember")
+  updatesAuthored               ProjectUpdate[]                  @relation("UpdateAuthor")
+  updateAttachments             ProjectUpdateAttachment[]        @relation("UpdateAttachmentUploader")
+  updateAcknowledgments         ProjectUpdateAcknowledgment[]    @relation("UpdateAcknowledger")
+  updateDiscussions             ProjectUpdateDiscussion[]        @relation("UpdateDiscussant")
+  milestonesCreated             ProjectMilestone[]               @relation("MilestoneCreator")
+  investorQuestionsAsked        InvestorQuestion[]               @relation("QuestionAsker")
+  investorQuestionsAnswered     InvestorQuestion[]               @relation("QuestionAnswerer")
+  investorDocumentsUploaded     InvestorProjectDocument[]        @relation("InvestorDocumentUploader")
 
   @@index([email])
 }
@@ -812,6 +820,14 @@ PROJECT_CREATED
   COMMITMENT_CONFIRMED
   COMMITMENT_REJECTED
   PROOF_REQUIRES_REVIEW
+  INVESTOR_UPDATE_PUBLISHED
+  MILESTONE_REACHED
+  MILESTONE_DELAYED
+  INVESTOR_FINANCIAL_REPORT
+  MATERIAL_RISK
+  INVESTOR_QUESTION_ANSWERED
+  INVESTOR_DOCUMENT_PUBLISHED
+  INVESTOR_MEETING
   FEED_POST_CREATED
   AI_INSIGHT
   FINANCIAL_RISK
@@ -1167,11 +1183,15 @@ model Project {
   fundingAllocations   ProjectFundingAllocation[]
   fundingCommitments   ProjectFundingCommitment[]
   investorAgreements   ProjectInvestorAgreement[]
-  ownershipSnapshots   ProjectOwnershipSnapshot[]
+ownershipSnapshots   ProjectOwnershipSnapshot[]
   ownershipEntries     ProjectOwnershipEntry[]
   financialStatements  ProjectFinancialStatement[]
   distributionPeriods  ProjectDistributionPeriod[]
   waterfallConfig      ProjectWaterfallConfig?
+  projectUpdates       ProjectUpdate[]
+  milestones           ProjectMilestone[]
+  investorQuestions    InvestorQuestion[]
+  investorDocuments    InvestorProjectDocument[]
 
   @@unique([circleId, slug])
   @@index([circleId])
@@ -1354,6 +1374,205 @@ model CapitalCallAllocation {
   user        User        @relation("CapitalCallMember", fields: [userId], references: [id])
 
   @@unique([capitalCallId, userId])
+}
+
+// ─── Investor Relations: Updates, Milestones, Q&A, Documents ──
+
+enum ProjectUpdateType {
+  GENERAL
+  FINANCIAL
+  MILESTONE
+  RISK
+  DISTRIBUTION
+  DOCUMENT
+}
+
+enum ProjectUpdateVisibility {
+  INVESTORS_ONLY
+  ALL_MEMBERS
+}
+
+enum ProjectUpdateDiscussionKind {
+  COMMENT
+  QUESTION
+  REACTION
+}
+
+enum ProjectMilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  AT_RISK
+  DELAYED
+  COMPLETED
+  CANCELLED
+}
+
+enum InvestorQuestionVisibility {
+  PUBLIC
+  INVESTORS_ONLY
+}
+
+enum InvestorQuestionStatus {
+  OPEN
+  ANSWERED
+  RESOLVED
+}
+
+enum InvestorDocumentCategory {
+  AGREEMENT
+  FINANCIAL_STATEMENT
+  REPORT
+  RECEIPT
+  MEETING
+  DISTRIBUTION
+  MILESTONE_EVIDENCE
+  OTHER
+}
+
+enum InvestorDocumentVisibility {
+  INVESTORS_ONLY
+  ALL_MEMBERS
+}
+
+model ProjectUpdate {
+  id            String                   @id @default(cuid())
+  projectId     String
+  circleId      String
+  createdById   String
+  type          ProjectUpdateType        @default(GENERAL)
+  title         String
+  content       String?
+  visibility    ProjectUpdateVisibility  @default(INVESTORS_ONLY)
+  isImportant   Boolean                  @default(false)
+  publishedAt   DateTime                 @default(now())
+  metadata      Json?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  project        Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy      User                       @relation("UpdateAuthor", fields: [createdById], references: [id])
+  attachments    ProjectUpdateAttachment[]
+  acknowledgments ProjectUpdateAcknowledgment[]
+  discussions    ProjectUpdateDiscussion[]
+
+  @@index([projectId])
+  @@index([circleId])
+  @@index([type])
+}
+
+model ProjectUpdateAttachment {
+  id           String  @id @default(cuid())
+  updateId     String
+  uploadedById String
+  name         String
+  url          String
+  mimeType     String?
+  size         Int?
+  createdAt    DateTime @default(now())
+
+  update     ProjectUpdate @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  uploadedBy User          @relation("UpdateAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([updateId])
+}
+
+model ProjectUpdateAcknowledgment {
+  id              String   @id @default(cuid())
+  updateId        String
+  userId          String
+  acknowledgedAt  DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  update ProjectUpdate @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  user   User          @relation("UpdateAcknowledger", fields: [userId], references: [id])
+
+  @@unique([updateId, userId])
+}
+
+model ProjectUpdateDiscussion {
+  id        String                      @id @default(cuid())
+  updateId  String
+  userId    String
+  kind      ProjectUpdateDiscussionKind @default(COMMENT)
+  content   String?
+  reaction  String?
+  createdAt DateTime                    @default(now())
+
+  update ProjectUpdate @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  user   User          @relation("UpdateDiscussant", fields: [userId], references: [id])
+
+  @@index([updateId])
+}
+
+model ProjectMilestone {
+  id           String                 @id @default(cuid())
+  projectId    String
+  circleId     String
+  createdById  String
+  title        String
+  description  String?
+  targetDate   DateTime?
+  status       ProjectMilestoneStatus @default(PLANNED)
+  progress     Int                    @default(0)
+  budget       Decimal?               @db.Decimal(12, 2)
+  actualCost   Decimal                @db.Decimal(12, 2) @default(0)
+  completedAt  DateTime?
+  metadata     Json?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  project   Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User                    @relation("MilestoneCreator", fields: [createdById], references: [id])
+
+  @@index([projectId])
+}
+
+model InvestorQuestion {
+  id               String                     @id @default(cuid())
+  projectId        String
+  circleId         String
+  userId           String
+  question         String
+  visibility       InvestorQuestionVisibility @default(INVESTORS_ONLY)
+  status           InvestorQuestionStatus     @default(OPEN)
+  answer           String?
+  answeredById     String?
+  answeredAt       DateTime?
+  publishedToInvestors Boolean                @default(false)
+  resolvedById     String?
+  resolvedAt       DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User    @relation("QuestionAsker", fields: [userId], references: [id])
+  answeredBy  User?   @relation("QuestionAnswerer", fields: [answeredById], references: [id])
+
+  @@index([projectId])
+  @@index([visibility])
+}
+
+model InvestorProjectDocument {
+  id            String                      @id @default(cuid())
+  projectId     String
+  circleId      String
+  uploadedById  String
+  milestoneId   String?
+  category      InvestorDocumentCategory    @default(OTHER)
+  name          String
+  description   String?
+  url           String
+  mimeType      String?
+  size          Int?
+  visibility    InvestorDocumentVisibility  @default(INVESTORS_ONLY)
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User           @relation("InvestorDocumentUploader", fields: [uploadedById], references: [id])
+
+  @@index([projectId])
+  @@index([milestoneId])
 }
 
 enum AIInsightType {
@@ -4357,9 +4576,10 @@ model Meeting {
   isOnline              Boolean       @default(false)
   meetingLink           String?
   agenda                String?
-  noticePeriodDays      Int?
+noticePeriodDays      Int?
   attendanceRequirement Int?
   quorumPercent         Int?
+  projectId             String?
   deletedAt             DateTime?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt

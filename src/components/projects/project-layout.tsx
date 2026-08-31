@@ -1,6 +1,6 @@
 "use client"
 
-import { FolderKanban, Wallet, FileText, Receipt, Coins, TrendingUp, PieChart, BarChart3, Clock, Waves, FileBarChart } from "lucide-react"
+import { FolderKanban, Wallet, FileText, Receipt, Coins, TrendingUp, PieChart, BarChart3, Clock, Waves, FileBarChart, Users } from "lucide-react"
 import { ProjectHeader } from "./project-header"
 import { ProjectTabs } from "./project-tabs"
 import { useProjectContext } from "./project-context"
@@ -19,6 +19,7 @@ const PROJECT_TABS = [
   { id: "distributions", label: "Distributions", icon: <Waves className="size-3.5" />, href: "distributions" },
   { id: "statements", label: "Statements", icon: <FileBarChart className="size-3.5" />, href: "statements" },
   { id: "reports", label: "Reports", icon: <FileText className="size-3.5" />, href: "reports" },
+  { id: "investors", label: "Investors", icon: <Users className="size-3.5" />, href: "investors" },
   { id: "timeline", label: "Timeline", icon: <Clock className="size-3.5" />, href: "timeline" },
 ]
 
