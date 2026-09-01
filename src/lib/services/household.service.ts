@@ -10,6 +10,7 @@ import {
 import { getMonthlyBillsSummary, periodOf } from "@/lib/services/household-bills.service"
 import { getGroceriesSummary } from "@/lib/services/household-purchase.service"
 import { listChores } from "@/lib/services/household-chores.service"
+import { getLeaseRooms } from "@/lib/services/household-lease.service"
 
 function asNum(v: unknown): number {
   const n = Number(v)
@@ -103,6 +104,23 @@ export async function getHouseholdDashboard(circleId: string, viewerUserId: stri
     billsSummary: config ? await getMonthlyBillsSummary(circleId, periodOf(new Date()), viewerUserId) : null,
     groceries: config ? await getGroceriesSummary(circleId, viewerUserId) : null,
     chores: config ? await choresSummary(circleId, viewerUserId) : null,
+    lease: config ? await leaseSummary(circleId, viewerUserId) : null,
+  }
+}
+
+async function leaseSummary(circleId: string, viewerUserId: string) {
+  const l = await getLeaseRooms(circleId, viewerUserId)
+  return {
+    leaseStatus: l.leaseStatus,
+    daysLeft: l.daysLeft,
+    roomsCount: l.rooms.length,
+    occupiedCount: l.rooms.filter((r) => !r.vacant).length,
+    vacantCount: l.vacantRooms,
+    myRoom: l.my?.room?.roomName ?? null,
+    myRentShare: l.my?.rentShare ?? 0,
+    myDepositStatus: l.my?.deposit?.status ?? null,
+    upcomingMoveOuts: l.upcomingMoveOuts.length,
+    refundsDue: l.refundsDue.length,
   }
 }
 

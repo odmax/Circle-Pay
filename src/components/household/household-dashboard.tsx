@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Home, Settings2, Wallet, PiggyBank, TrendingDown, Users, Clock, Receipt,
-  ArrowUpRight, BellRing, ShieldAlert, Scale, AlertTriangle, Info, Plus, RefreshCcw, Upload, ShoppingCart, ClipboardCheck,
+  ArrowUpRight, BellRing, ShieldAlert, Scale, AlertTriangle, Info, Plus, RefreshCcw, Upload, ShoppingCart, ClipboardCheck, KeyRound,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,7 +20,7 @@ import { toast } from "sonner"
 import { formatDate } from "@/components/projects/types"
 import { CURRENCIES } from "@/lib/constants"
 
-type Bound = { config: any; metrics: any; rentStatus: { paid: boolean; status: string; label: string }; nextRentDue: string; my: any; upcomingBills: Array<{ id: string; name: string; amount: number; dueDate: string | null }>; expenses: Array<{ id: string; title: string; amount: number; category: string; expenseDate: string; receiptUrl: string | null; paidByName: string | null }>; balances: any; notices: Array<{ id: string; content: string; createdAt: string; authorName: string | null }>; alerts: Array<{ id: string; level: string; title: string; description: string }>; billsSummary?: any; groceries?: any; chores?: any }
+type Bound = { config: any; metrics: any; rentStatus: { paid: boolean; status: string; label: string }; nextRentDue: string; my: any; upcomingBills: Array<{ id: string; name: string; amount: number; dueDate: string | null }>; expenses: Array<{ id: string; title: string; amount: number; category: string; expenseDate: string; receiptUrl: string | null; paidByName: string | null }>; balances: any; notices: Array<{ id: string; content: string; createdAt: string; authorName: string | null }>; alerts: Array<{ id: string; level: string; title: string; description: string }>; billsSummary?: any; groceries?: any; chores?: any; lease?: any }
 type BillInstance = { id: string; billId: string; name: string; category: string; provider: string | null; status: string; expected: number; actual: number | null; paid: number; outstanding: number; dueDate: string | null; responsibleMemberId: string | null; myShare: number; myPaid: number; myOutstanding: number; billFileUrl: string | null }
 
 function money(n: number, code: string): string {
@@ -150,6 +150,20 @@ export function HouseholdDashboard({ circleId, circleName, currency, canManage }
         </div>
       )}
 
+      {data.lease && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Widget icon={<KeyRound className="size-4" />} label="Lease expiry" value={data.lease.leaseStatus ? data.lease.leaseStatus : "—"} sub={data.lease.daysLeft != null ? `${data.lease.daysLeft} days left` : ""} tone={data.lease.leaseStatus === "EXPIRING" ? "text-amber-600" : data.lease.leaseStatus === "ENDED" ? "text-red-500" : ""} />
+          <Widget icon={<Home className="size-4" />} label="Rooms occupied" value={`${data.lease.occupiedCount || 0}/${data.lease.roomsCount || 0}`} />
+          <Widget icon={<Home className="size-4" />} label="My room" value={data.lease.myRoom || "—"} sub={data.lease.myRentShare ? `rent share ${money(data.lease.myRentShare, symbol)}` : ""} />
+          <Widget icon={<KeyRound className="size-4" />} label="My deposit" value={data.lease.myDepositStatus || "—"} />
+          <Widget icon={<Users className="size-4" />} label="Move-outs (30d)" value={String(data.lease.upcomingMoveOuts || 0)} tone={(data.lease.upcomingMoveOuts || 0) > 0 ? "text-amber-600" : ""} />
+          <Widget icon={<KeyRound className="size-4" />} label="Refunds due" value={String(data.lease.refundsDue || 0)} tone={(data.lease.refundsDue || 0) > 0 ? "text-emerald-600" : ""} />
+          <Widget icon={<Home className="size-4" />} label="Vacant rooms" value={String(data.lease.vacantCount || 0)} tone={(data.lease.vacantCount || 0) > 0 ? "text-amber-600" : ""} />
+          <div className="rounded-2xl border p-3 flex items-center justify-center"><Link href={`${base}/lease`} className="inline-flex items-center rounded-xl border px-3 py-1.5 text-xs font-medium hover:bg-muted/50 transition-colors"><KeyRound className="size-3.5 mr-1" /> Open Lease</Link></div>
+        </div>
+      )}
+
+      {/* Chores widgets */}
       {data.chores && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Widget icon={<Home className="size-4" />} label="My chores today" value={String(data.chores.myToday || 0)} />

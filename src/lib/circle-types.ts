@@ -54,6 +54,7 @@ const tabs = {
   house: { key: "house", label: "Home", icon: "Home", href: "/household" },
   groceries: { key: "groceries", label: "Groceries", icon: "ShoppingCart", href: "/groceries" },
   chores: { key: "chores", label: "Chores", icon: "ClipboardCheck", href: "/chores" },
+  lease: { key: "lease", label: "Lease", icon: "KeyRound", href: "/lease" },
   opportunities: { key: "opportunities", label: "Opportunities", icon: "Rocket", href: "/opportunities" },
   constitution: { key: "constitution", label: "Constitution", icon: "ScrollText", href: "/constitution" },
 } as const
@@ -83,7 +84,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "groceriesEnabled", label: "Track Groceries", type: "toggle" },
     ],
     defaultSettings: { utilitiesEnabled: true, groceriesEnabled: true },
-    tabs: [tabs.house, tabs.groceries, tabs.chores, tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.expenses, tabs.contributions, tabs.balances, tabs.members, tabs.activity],
+    tabs: [tabs.house, tabs.groceries, tabs.chores, tabs.lease, tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.expenses, tabs.contributions, tabs.balances, tabs.members, tabs.activity],
   },
   TRAVEL: {
     label: "Travel Group",
