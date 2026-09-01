@@ -83,6 +83,7 @@ export async function getItinerary(circleId: string, tripId: string, viewerUserI
         documents: canSeeDocs ? docs.map((d) => ({ id: d.id, name: d.name, url: d.url, size: d.size ?? 0 })) : [],
       } : null,
       documentCount: docs.length,
+      updatedAt: it.updatedAt.toISOString(),
     }
   })
 
@@ -205,7 +206,9 @@ export async function updateItineraryItem(circleId: string, itemId: string, user
   }
 
   const updated = await prisma.travelItineraryItem.update({ where: { id: itemId }, data: safe })
-  await createAuditLog({ userId, circleId, action: "TRAVEL_ITINERARY_UPDATED", entityType: "TravelItineraryItem", entityId: itemId, newValues: safe })
+  const oldValues: Record<string, unknown> = {}
+  for (const k of Object.keys(safe)) oldValues[k] = (item as any)[k]
+  await createAuditLog({ userId, circleId, action: "TRAVEL_ITINERARY_UPDATED", entityType: "TravelItineraryItem", entityId: itemId, newValues: safe, oldValues })
 
   if (data.booking) {
     await upsertBookingForItem(circleId, itemId, userId, item.tripId, item.type, data.booking)

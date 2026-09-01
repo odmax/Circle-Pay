@@ -49,6 +49,7 @@ const tabs = {
   trip: { key: "trip", label: "Trip", icon: "Plane", href: "/trip" },
   itinerary: { key: "itinerary", label: "Itinerary", icon: "CalendarRange", href: "/itinerary" },
   budget: { key: "budget", label: "Budget", icon: "Wallet", href: "/travel-budget" },
+  documents: { key: "documents", label: "Docs", icon: "FileText", href: "/travel-documents" },
   opportunities: { key: "opportunities", label: "Opportunities", icon: "Rocket", href: "/opportunities" },
   constitution: { key: "constitution", label: "Constitution", icon: "ScrollText", href: "/constitution" },
 } as const
@@ -152,7 +153,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "targetReturn", label: "Target Return %", type: "number", placeholder: "15" },
     ],
     defaultSettings: { riskLevel: "medium" },
-    tabs: [tabs.trip, tabs.itinerary, tabs.budget, tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.events, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.goals, tabs.members, tabs.activity, tabs.reports, tabs.insights],
+    tabs: [tabs.trip, tabs.itinerary, tabs.budget, tabs.documents, tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.events, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.assistant, tabs.contributions, tabs.goals, tabs.members, tabs.activity, tabs.reports, tabs.insights],
   },
   CUSTOM: {
     label: "Custom",

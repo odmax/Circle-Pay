@@ -11,6 +11,7 @@ import {
 } from "@/lib/services/travel-metrics"
 import { getItineraryDashboardSummary } from "@/lib/services/travel-itinerary.service"
 import { getTravelFinances } from "@/lib/services/travel-finance.service"
+import { getTodayContext, getTravelDocumentSummary } from "@/lib/services/travel-document.service"
 
 function asNum(v: unknown): number {
   const n = Number(v)
@@ -61,6 +62,21 @@ export interface TravelDashboard {
     myPaid: number
     myOutstanding: number
     unsettledBalances: number
+  }
+  today: {
+    todayItems: Array<{ id: string; title: string; type: string; startTime: string | null; endTime: string | null; location: string | null; status: string; bookingReference: string | null }>
+    nextItem: { id: string; title: string; type: string; date: string | null; startTime: string | null; location: string | null } | null
+    meetingPoint: { title: string; location: string | null; startTime: string | null } | null
+    transport: { title: string; startTime: string | null; location: string | null } | null
+    hotel: { title: string } | null
+    upcomingBooking: { title: string; type: string; date: string | null; bookingReference: string | null; startTime: string | null } | null
+    liveSpendToday: number
+  }
+  docs: {
+    requireAll: boolean
+    docCount: number
+    missing: string[]
+    expiring: Array<{ type: string; days: number }>
   }
 }
 
@@ -181,6 +197,8 @@ export async function getTravelDashboard(circleId: string, viewerUserId: string)
       myOutstanding: finances.my ? Math.max(0, Math.round((finances.my.share - finances.my.memberPaidExpenses - finances.my.contributions) * 100) / 100) : 0,
       unsettledBalances: (finances.balances as any)?.allBalances?.length ?? 0,
     } : { totalSpent: 0, budgetRemaining: 0, spendPct: 0, topCategory: null, overBudgetByCategory: [], myPaid: 0, myOutstanding: 0, unsettledBalances: 0 },
+    today: trip && summary ? { ...(await getTodayContext(circleId, trip.id, viewerUserId)), liveSpendToday: finances?.daily?.find((d) => d.date === new Date().toISOString().slice(0, 10))?.total ?? 0 } : { todayItems: [], nextItem: null, meetingPoint: null, transport: null, hotel: null, upcomingBooking: null, liveSpendToday: 0 },
+    docs: trip ? await getTravelDocumentSummary(circleId, trip.id, viewerUserId) : { requireAll: false, docCount: 0, missing: [], expiring: [] },
   }
 }
 

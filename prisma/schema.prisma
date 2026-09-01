@@ -190,6 +190,8 @@ model User {
   travelBookingsCreated       TravelBooking[]                  @relation("TravelBookingCreator")
   travelBookingDocsUploaded   TravelBookingDocument[]          @relation("TravelBookingDocUploader")
   travelItineraryAssignments  TravelItineraryAssignment[]      @relation("TravelItineraryAssignee")
+  travelDocsOwned            TravelDocument[]                @relation("TravelDocOwner")
+  travelDocsUploaded         TravelDocument[]                @relation("TravelDocUploader")
 
   @@index([email])
 }
@@ -837,6 +839,8 @@ PROJECT_CREATED
   INVESTOR_QUESTION_ANSWERED
   INVESTOR_DOCUMENT_PUBLISHED
   INVESTOR_MEETING
+  TRAVEL_DOC_EXPIRING
+  TRAVEL_DOC_MISSING
   FEED_POST_CREATED
   AI_INSIGHT
   FINANCIAL_RISK
@@ -1611,6 +1615,7 @@ model TravelTrip {
   emergencyContact    String?
   notes               String?
   budgetByCategory    Json?
+  metadata            Json?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -1618,6 +1623,7 @@ model TravelTrip {
   createdBy User   @relation("TravelTripCreator", fields: [createdById], references: [id])
   itineraryItems TravelItineraryItem[]
   bookings       TravelBooking[]
+  documents      TravelDocument[]
 
   @@index([circleId])
 }
@@ -1737,6 +1743,45 @@ model TravelItineraryAssignment {
   user User                @relation("TravelItineraryAssignee", fields: [userId], references: [id])
 
   @@unique([itineraryItemId, userId])
+}
+
+// ─── Travel Circle: Travel Documents ────────────────────────
+
+enum TravelDocumentType {
+  PASSPORT
+  VISA
+  FLIGHT_TICKET
+  HOTEL_CONFIRMATION
+  TRAVEL_INSURANCE
+  BOOKING_CONFIRMATION
+  VACCINATION_HEALTH
+  OTHER
+}
+
+model TravelDocument {
+  id             String             @id @default(cuid())
+  circleId       String
+  tripId         String
+  ownerUserId    String
+  createdById    String
+  type           TravelDocumentType @default(OTHER)
+  name           String?
+  url            String
+  mimeType       String?
+  size           Int?
+  expiryDate     DateTime?
+  relatedItemId  String?
+  notes          String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  trip      TravelTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  owner     User       @relation("TravelDocOwner", fields: [ownerUserId], references: [id])
+  createdBy User       @relation("TravelDocUploader", fields: [createdById], references: [id])
+
+  @@index([tripId])
+  @@index([ownerUserId])
+  @@index([circleId])
 }
 
 enum AIInsightType {

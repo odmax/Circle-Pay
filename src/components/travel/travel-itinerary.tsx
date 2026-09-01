@@ -31,6 +31,12 @@ type ItineraryItem = {
     documents: Array<{ id: string; name: string; url: string; size: number | null }>
   } | null
   documentCount: number
+  updatedAt: string
+}
+
+function recentlyChanged(it: { updatedAt: string; status: string }): boolean {
+  if (!it.updatedAt) return false
+  return Date.now() - new Date(it.updatedAt).getTime() < 36 * 3600000
 }
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
@@ -196,6 +202,7 @@ function ItineraryCard({ it, circleId, symbol, canManage, onEdit, onRefresh }: {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-semibold">{it.title}</h3>
+                {recentlyChanged(it) && <Badge variant="outline" className="text-[9px] border-sky-200 bg-sky-50 text-sky-700">Changed</Badge>}
                 <Badge variant="outline" className={`text-[10px] ${ITEM_STATUS_COLORS[it.status] || ""}`}>{it.status.replace(/_/g, " ")}</Badge>
                 {it.booking && <Badge variant="outline" className={`text-[10px] ${PAYMENT_COLORS[it.booking.paymentStatus] || ""}`}>Payment: {it.booking.paymentStatus.replace(/_/g, " ")}</Badge>}
               </div>

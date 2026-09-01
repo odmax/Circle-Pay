@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { sweepOpportunityReminders } from "@/lib/services/opportunity.service"
 import { sweepCapitalCallReminders } from "@/lib/services/capital-call.service"
 import { sweepTravelItineraryReminders } from "@/lib/services/travel-itinerary.service"
+import { sweepTravelDocumentAlerts } from "@/lib/services/travel-document.service"
 import { prisma } from "@/lib/prisma"
 
 // Daily sweep: closing-soon opportunities and overdue capital calls. Guarded by
@@ -17,12 +18,13 @@ export async function POST(request: NextRequest) {
     const circles = await prisma.circle.findMany({ where: { deletedAt: null }, select: { id: true } })
     const results: Record<string, string[]> = {}
     for (const c of circles) {
-      const [oppResult, callResult, travelResult] = await Promise.all([
+      const [oppResult, callResult, travelResult, docResult] = await Promise.all([
         sweepOpportunityReminders(c.id).catch(() => [] as string[]),
         sweepCapitalCallReminders(c.id).catch(() => [] as string[]),
         sweepTravelItineraryReminders(c.id).catch(() => [] as string[]),
+        sweepTravelDocumentAlerts(c.id).catch(() => [] as string[]),
       ])
-      results[c.id] = [...oppResult, ...callResult, ...travelResult]
+      results[c.id] = [...oppResult, ...callResult, ...travelResult, ...docResult]
     }
     return NextResponse.json({ results })
   } catch (error) {

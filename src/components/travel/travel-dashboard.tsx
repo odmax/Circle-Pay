@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   Plane, MapPin, Calendar, Wallet, CircleDollarSign, PiggyBank, TrendingDown,
   Users, Clock, Megaphone, AlertTriangle, MessageCircle, Vote,
-  ArrowUpRight, Settings2, BellRing, ShieldAlert, Info, Compass,
+  ArrowUpRight, Settings2, BellRing, ShieldAlert, Info, Compass, Plus, Scale,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -55,6 +55,16 @@ interface TravelTripData {
     myOutstanding: number
     unsettledBalances: number
   }
+  today: {
+    todayItems: Array<{ id: string; title: string; type: string; startTime: string | null; endTime: string | null; location: string | null; status: string; bookingReference: string | null }>
+    nextItem: { id: string; title: string; type: string; date: string | null; startTime: string | null; location: string | null } | null
+    meetingPoint: { title: string; location: string | null; startTime: string | null } | null
+    transport: { title: string; startTime: string | null; location: string | null } | null
+    hotel: { title: string } | null
+    upcomingBooking: { title: string; type: string; date: string | null; bookingReference: string | null; startTime: string | null } | null
+    liveSpendToday: number
+  }
+  docs: { requireAll: boolean; docCount: number; missing: string[]; expiring: Array<{ type: string; days: number }> }
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -335,6 +345,68 @@ export function TravelDashboard({ circleId, circleName, currency, canManage }: {
           <MiniIt label="Hotel / check-in" value={data.itinerary.hotel ? data.itinerary.hotel.title : "—"} sub={data.itinerary.hotel?.date ? formatDate(data.itinerary.hotel.date) : ""} />
           <MiniIt label="Upcoming activity" value={data.itinerary.nextActivity ? data.itinerary.nextActivity.title : "—"} sub={data.itinerary.nextActivity?.date ? formatDate(data.itinerary.nextActivity.date) : ""} />
           <MiniIt label="Bookings complete" value={`${data.itinerary.bookingCompletionPct}%`} sub={data.itinerary.missingBookingsCount > 0 || data.itinerary.missingDocumentsCount > 0 ? `${data.itinerary.missingBookingsCount} unbooked · ${data.itinerary.missingDocumentsCount} missing docs` : "All set"} />
+        </CardContent>
+      </Card>
+
+      {/* Live trip / Today experience */}
+      {t.status === "ACTIVE" && (
+        <Card className="rounded-2xl border-brand/30 bg-brand/5">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2"><Plane className="size-4 text-brand" /><h3 className="font-bold">Live trip · today</h3></div>
+              <span className="text-xs text-muted-foreground">{new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
+            </div>
+
+            <div className="grid gap-3 mt-3 lg:grid-cols-3">
+              <div className="rounded-xl border bg-popover p-3">
+                <p className="text-[10px] text-muted-foreground">Today&apos;s itinerary</p>
+                {data.today.todayItems.length === 0 ? <p className="text-sm py-2">Nothing planned today.</p> : (
+                  <div className="space-y-1.5 mt-1">
+                    {data.today.todayItems.map((i) => (
+                      <div key={i.id} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="min-w-0 truncate">{i.title}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">{i.startTime || ""}{i.location ? ` · ${i.location}` : ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border bg-popover p-3">
+                <p className="text-[10px] text-muted-foreground">What happens next</p>
+                <div className="space-y-1.5 mt-1 text-sm">
+                  {data.today.upcomingBooking ? <p><span className="font-medium">{data.today.upcomingBooking.title}</span>{data.today.upcomingBooking.startTime ? ` · ${data.today.upcomingBooking.startTime}` : ""}{data.today.upcomingBooking.bookingReference ? ` · ref ${data.today.upcomingBooking.bookingReference}` : ""}</p> : null}
+                  {data.today.hotel ? <p><span className="font-medium">Stay:</span> {data.today.hotel.title}</p> : null}
+                  {data.today.transport ? <p><span className="font-medium">Transport:</span> {data.today.transport.title}{data.today.transport.startTime ? ` · ${data.today.transport.startTime}` : ""}</p> : null}
+                  {!data.today.upcomingBooking && !data.today.hotel && !data.today.transport && <p className="text-muted-foreground">All set — enjoy the trip!</p>}
+                  {data.today.meetingPoint && <p className="text-xs text-muted-foreground"><Plane className="size-3 inline mr-1" /> Meet: {data.today.meetingPoint.title}{data.today.meetingPoint.location ? ` @ ${data.today.meetingPoint.location}` : ""}</p>}
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-popover p-3">
+                <p className="text-[10px] text-muted-foreground">Live & quick actions</p>
+                <div className="space-y-1.5 mt-1 text-sm">
+                  <p><span className="font-medium">Spent today:</span> {money(data.today.liveSpendToday, symbol)}</p>
+                  {t.emergencyContact && <p className="text-xs text-amber-600 flex items-center gap-1"><ShieldAlert className="size-3" /> Emergency: {t.emergencyContact}</p>}
+                </div>
+                <div className="flex gap-2 flex-wrap mt-2">
+                  <Button render={<Link href={`${base}/travel-budget`} />} size="sm" className="rounded-xl h-8"><Plus className="size-3.5 mr-1" /> Quick expense</Button>
+                  <Button render={<Link href={`${base}/travel-budget`} />} variant="outline" size="sm" className="rounded-xl h-8"><Scale className="size-3.5 mr-1" /> Settlement</Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Documents widget */}
+      <Card className="rounded-2xl">
+        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center justify-between"><span className="flex items-center gap-2"><ShieldAlert className="size-4" /> Travel documents</span><Link href={`${base}/travel-documents`} className="text-xs text-brand font-medium hover:underline">Manage</Link></CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MiniIt label="My documents" value={String(data.docs.docCount)} />
+          <MiniIt label="Required missing" value={data.docs.missing.length > 0 ? data.docs.missing.join(", ").replace(/_/g, " ") : "All set"} tone={data.docs.missing.length > 0 ? "text-amber-600" : "text-emerald-600"} />
+          <MiniIt label="Expiring soon" value={data.docs.expiring.length > 0 ? data.docs.expiring.map((e) => `${e.type.replace(/_/g, " ")} (${e.days}d)`).join(", ") : "—"} tone={data.docs.expiring.length > 0 ? "text-red-500" : ""} />
+          <MiniIt label="Documents" value="private" sub={data.docs.requireAll ? "Required for this trip" : ""} />
         </CardContent>
       </Card>
 
