@@ -1595,6 +1595,9 @@ enum TravelTripStatus {
   CONFIRMED
   ACTIVE
   COMPLETED
+  RECONCILING
+  PENDING_SETTLEMENT
+  CLOSED
   CANCELLED
 }
 
@@ -1616,6 +1619,11 @@ model TravelTrip {
   notes               String?
   budgetByCategory    Json?
   metadata            Json?
+  reconcilingAt       DateTime?
+  pendingSettlementAt DateTime?
+  closedAt            DateTime?
+  finalizedAt         DateTime?
+  tripSummary         Json?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -1624,7 +1632,25 @@ model TravelTrip {
   itineraryItems TravelItineraryItem[]
   bookings       TravelBooking[]
   documents      TravelDocument[]
+  statements     TravelStatementSnapshot[]
 
+  @@index([circleId])
+}
+
+// ─── Travel Circle: Final Statement Snapshots (immutable) ───
+
+model TravelStatementSnapshot {
+  id        String   @id @default(cuid())
+  circleId  String
+  tripId    String
+  userId    String
+  name      String?
+  data      Json
+  createdAt DateTime @default(now())
+
+  trip TravelTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, userId])
   @@index([circleId])
 }
 
