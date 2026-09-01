@@ -148,3 +148,47 @@ export function computeTravelAlerts(input: {
 export function formatTripCurrency(amount: number, code: string): string {
   return `${code === "ZAR" ? "R" : code + " "}${(Number(amount) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
 }
+
+export interface TravelCategoryBudget {
+  category: string
+  budgeted: number
+  spent: number
+  remaining: number
+}
+
+export function computeTravelCategoryBudget(byCategory: Array<{ category: string; budgeted: number; spent: number }>): TravelCategoryBudget[] {
+  return byCategory.map((c) => ({ category: c.category, budgeted: c.budgeted, spent: c.spent, remaining: Math.round((c.budgeted - c.spent) * 100) / 100 }))
+}
+
+export interface TravelReconciliationInput {
+  members: Array<{ userId: string; name: string }>
+  contributions: Record<string, number>
+  paidExpenses: Record<string, number>
+  share: Record<string, number>
+  settledGiven: Record<string, number>
+  settledReceived: Record<string, number>
+}
+
+export interface TravelReconciliationRow {
+  userId: string
+  name: string
+  contributions: number
+  memberPaidExpenses: number
+  share: number
+  settledGiven: number
+  settledReceived: number
+  finalBalance: number
+}
+
+// Contributions + member-paid expenses − shared expense share − settlements = final balance.
+export function computeTravelReconciliation(input: TravelReconciliationInput): TravelReconciliationRow[] {
+  return input.members.map((m) => {
+    const contributions = Math.round((input.contributions[m.userId] || 0) * 100) / 100
+    const memberPaidExpenses = Math.round((input.paidExpenses[m.userId] || 0) * 100) / 100
+    const share = Math.round((input.share[m.userId] || 0) * 100) / 100
+    const given = Math.round((input.settledGiven[m.userId] || 0) * 100) / 100
+    const received = Math.round((input.settledReceived[m.userId] || 0) * 100) / 100
+    const finalBalance = Math.round((contributions + memberPaidExpenses - share - given + received) * 100) / 100
+    return { userId: m.userId, name: m.name, contributions, memberPaidExpenses, share, settledGiven: given, settledReceived: received, finalBalance }
+  })
+}

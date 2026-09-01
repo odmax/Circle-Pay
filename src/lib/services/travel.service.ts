@@ -10,6 +10,7 @@ import {
   type TravelAlert,
 } from "@/lib/services/travel-metrics"
 import { getItineraryDashboardSummary } from "@/lib/services/travel-itinerary.service"
+import { getTravelFinances } from "@/lib/services/travel-finance.service"
 
 function asNum(v: unknown): number {
   const n = Number(v)
@@ -50,6 +51,16 @@ export interface TravelDashboard {
     bookingCompletionPct: number
     missingBookingsCount: number
     missingDocumentsCount: number
+  }
+  finances: {
+    totalSpent: number
+    budgetRemaining: number
+    spendPct: number
+    topCategory: string | null
+    overBudgetByCategory: string[]
+    myPaid: number
+    myOutstanding: number
+    unsettledBalances: number
   }
 }
 
@@ -123,6 +134,8 @@ export async function getTravelDashboard(circleId: string, viewerUserId: string)
   const summary = trip ? await getItineraryDashboardSummary(circleId, trip.id) : null
   const strip = (v: any) => (v ? { id: v.id, title: v.title, type: v.type, date: v.date, startTime: v.startTime } : null)
 
+  const finances = trip ? await getTravelFinances(circleId, trip.id, viewerUserId) : null
+
   return {
     trip: trip ? {
       id: trip.id,
@@ -158,6 +171,16 @@ export async function getTravelDashboard(circleId: string, viewerUserId: string)
       missingBookingsCount: summary?.missingBookings.length ?? 0,
       missingDocumentsCount: summary?.missingDocuments.length ?? 0,
     },
+    finances: finances ? {
+      totalSpent: finances.budget.totalSpent,
+      budgetRemaining: finances.budget.remaining,
+      spendPct: finances.budget.spendPct,
+      topCategory: finances.budget.topCategory,
+      overBudgetByCategory: finances.budget.overBudgetByCategory,
+      myPaid: finances.my ? Math.round((finances.my.memberPaidExpenses + finances.my.contributions) * 100) / 100 : 0,
+      myOutstanding: finances.my ? Math.max(0, Math.round((finances.my.share - finances.my.memberPaidExpenses - finances.my.contributions) * 100) / 100) : 0,
+      unsettledBalances: (finances.balances as any)?.allBalances?.length ?? 0,
+    } : { totalSpent: 0, budgetRemaining: 0, spendPct: 0, topCategory: null, overBudgetByCategory: [], myPaid: 0, myOutstanding: 0, unsettledBalances: 0 },
   }
 }
 

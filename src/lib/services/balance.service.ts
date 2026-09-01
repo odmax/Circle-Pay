@@ -71,7 +71,7 @@ export async function listSettlements(circleId: string, userId: string, status?:
 export async function createSettlement(
   circleId: string,
   userId: string,
-  data: { debtorId: string; creditorId: string; amount: number; settlementDate: string; note?: string | null }
+  data: { debtorId: string; creditorId: string; amount: number; settlementDate: string; note?: string | null; proofUrl?: string | null }
 ) {
   await requireCirclePermission({ userId, circleId, permission: CIRCLE_PERMISSIONS.SETTLEMENT_CREATE })
 
@@ -99,6 +99,12 @@ export async function createSettlement(
     throw new Error(`Settlement amount cannot exceed outstanding balance of ${maxAmount}`)
   }
 
+  // Prevent double settlement: no duplicate pending settlement between the same pair.
+  const duplicate = await prisma.settlement.findFirst({
+    where: { circleId, debtorId: data.debtorId, creditorId: data.creditorId, status: "PENDING", deletedAt: null },
+  })
+  if (duplicate) throw new Error("A pending settlement between these members already exists")
+
   const settlement = await prisma.settlement.create({
     data: {
       circleId,
@@ -106,6 +112,7 @@ export async function createSettlement(
       creditorId: data.creditorId,
       amount: data.amount,
       note: data.note || null,
+      proofUrl: data.proofUrl || null,
       settlementDate: new Date(data.settlementDate),
       createdById: userId,
     },

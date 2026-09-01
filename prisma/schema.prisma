@@ -685,6 +685,7 @@ model Expense {
   splitType   SplitType @default(EQUAL)
   expenseDate DateTime  @default(now())
   receiptUrl  String?
+  travelItemId String?
   deletedAt   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -743,6 +744,7 @@ model Settlement {
   creditorId     String
   amount         Decimal          @db.Decimal(12, 2)
   note           String?
+  proofUrl       String?
   settlementDate DateTime         @default(now())
   status         SettlementStatus @default(PENDING)
   createdById    String
@@ -1608,6 +1610,7 @@ model TravelTrip {
   meetingPoint        String?
   emergencyContact    String?
   notes               String?
+  budgetByCategory    Json?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 

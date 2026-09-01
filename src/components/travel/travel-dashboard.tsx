@@ -45,6 +45,16 @@ interface TravelTripData {
     missingBookingsCount: number
     missingDocumentsCount: number
   }
+  finances: {
+    totalSpent: number
+    budgetRemaining: number
+    spendPct: number
+    topCategory: string | null
+    overBudgetByCategory: string[]
+    myPaid: number
+    myOutstanding: number
+    unsettledBalances: number
+  }
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -328,6 +338,18 @@ export function TravelDashboard({ circleId, circleName, currency, canManage }: {
         </CardContent>
       </Card>
 
+      {/* Finances widgets */}
+      <Card className="rounded-2xl">
+        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center justify-between"><span className="flex items-center gap-2"><Wallet className="size-4" /> Travel finances</span><Link href={`${base}/travel-budget`} className="text-xs text-brand font-medium hover:underline">Budget & settlements</Link></CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <MiniIt label="Total spent" value={money(data.finances.totalSpent, symbol)} />
+          <MiniIt label="Budget remaining" value={money(data.finances.budgetRemaining, symbol)} />
+          <MiniIt label="My paid" value={money(data.finances.myPaid, symbol)} />
+          <MiniIt label="My outstanding" value={money(data.finances.myOutstanding, symbol)} tone={data.finances.myOutstanding > 0 ? "text-amber-600" : "text-emerald-600"} />
+          <MiniIt label="Top category" value={data.finances.topCategory ? data.finances.topCategory.replace(/_/g, " ") : "—"} sub={data.finances.overBudgetByCategory.length > 0 ? `Over budget: ${data.finances.overBudgetByCategory.join(", ")}` : data.finances.unsettledBalances > 0 ? `${data.finances.unsettledBalances} unsettled` : ""} />
+        </CardContent>
+      </Card>
+
       {/* Trip details */}
       {t.notes || t.emergencyContact ? (
         <Card className="rounded-2xl">
@@ -362,8 +384,8 @@ function Widget({ icon, label, value, tone = "" }: { icon: React.ReactNode; labe
   )
 }
 
-function MiniIt({ label, value, sub = "" }: { label: string; value: string; sub?: string }) {
-  return <div className="rounded-xl border p-3 min-w-0"><p className="text-[10px] text-muted-foreground">{label}</p><p className="text-sm font-bold mt-0.5 truncate">{value}</p>{sub && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{sub}</p>}</div>
+function MiniIt({ label, value, sub = "", tone = "" }: { label: string; value: string; sub?: string; tone?: string }) {
+  return <div className="rounded-xl border p-3 min-w-0"><p className="text-[10px] text-muted-foreground">{label}</p><p className={`text-sm font-bold mt-0.5 truncate ${tone}`}>{value}</p>{sub && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{sub}</p>}</div>
 }
 
 function Mini({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
