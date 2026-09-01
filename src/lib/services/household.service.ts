@@ -9,6 +9,7 @@ import {
 } from "@/lib/services/household-metrics"
 import { getMonthlyBillsSummary, periodOf } from "@/lib/services/household-bills.service"
 import { getGroceriesSummary } from "@/lib/services/household-purchase.service"
+import { listChores } from "@/lib/services/household-chores.service"
 
 function asNum(v: unknown): number {
   const n = Number(v)
@@ -101,6 +102,20 @@ export async function getHouseholdDashboard(circleId: string, viewerUserId: stri
     upcomingBills: recentBills,
     billsSummary: config ? await getMonthlyBillsSummary(circleId, periodOf(new Date()), viewerUserId) : null,
     groceries: config ? await getGroceriesSummary(circleId, viewerUserId) : null,
+    chores: config ? await choresSummary(circleId, viewerUserId) : null,
+  }
+}
+
+async function choresSummary(circleId: string, viewerUserId: string) {
+  const l = await listChores(circleId, viewerUserId)
+  return {
+    myToday: l.today.filter((c: any) => c.isMine).length,
+    today: l.today.length,
+    completedThisWeek: l.completedThisWeek,
+    overdue: l.overdue.length,
+    next: l.nextResponsibility ? { title: l.nextResponsibility.title, status: l.nextResponsibility.status, dueDate: l.nextResponsibility.dueDate, isMine: l.nextResponsibility.isMine } : null,
+    completionPct: l.completionPct,
+    uneven: l.uneven,
   }
 }
 

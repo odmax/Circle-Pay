@@ -198,6 +198,11 @@ model User {
   sharedPurchasesCreated    HouseholdSharedPurchase[]     @relation("SharedPurchaseCreator")
   groceryRunsCreated        HouseholdGroceryRun[]         @relation("GroceryRunCreator")
   groceryItemsAdded         HouseholdGroceryItem[]        @relation("GroceryItemAdder")
+  choreTemplatesCreated     HouseholdChoreTemplate[]      @relation("ChoreTemplateCreator")
+  choresAssigned            HouseholdChore[]              @relation("ChoreAssignee")
+  choresCompletedBy         HouseholdChore[]              @relation("ChoreCompleter")
+  choreSwapsRequested       HouseholdChoreSwap[]          @relation("ChoreSwapRequester")
+  choreSwapsResponded       HouseholdChoreSwap[]          @relation("ChoreSwapResponder")
 
   @@index([email])
 }
@@ -407,6 +412,9 @@ model Circle {
   householdBillPayments   HouseholdBillPayment[]
   sharedPurchases         HouseholdSharedPurchase[]
   groceryRuns             HouseholdGroceryRun[]
+  choreTemplates          HouseholdChoreTemplate[]
+  chores                  HouseholdChore[]
+  choreSwaps              HouseholdChoreSwap[]
 }
 
 model CircleMember {
@@ -858,6 +866,11 @@ PROJECT_CREATED
   BILL_PAYMENT_RECORDED
   BILL_SETTLED
   BILL_ACTUAL_UPLOADED
+  CHORE_ASSIGNED
+  CHORE_DUE
+  CHORE_OVERDUE
+  CHORE_SWAP_REQUEST
+  CHORE_SWAP_DECISION
   FEED_POST_CREATED
   AI_INSIGHT
   FINANCIAL_RISK
@@ -2002,6 +2015,91 @@ model HouseholdGroceryItem {
 
   @@unique([runId, name])
   @@index([runId])
+}
+
+// ─── Housemate Circle: Chores & Responsibilities ───────────
+
+model HouseholdChoreTemplate {
+  id              String   @id @default(cuid())
+  circleId        String
+  createdById     String
+  title           String
+  description     String?
+  category        String   @default("CLEANING")
+  frequency       String   @default("WEEKLY")
+  dueTime         String?
+  priority        Int      @default(0)
+  points          Int      @default(0)
+  assigneeIds     Json?
+  rotationType    String   @default("FIXED")
+  rotationMembers Json?
+  active          Boolean  @default(true)
+  archived        Boolean  @default(false)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  circle    Circle           @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User             @relation("ChoreTemplateCreator", fields: [createdById], references: [id])
+  instances HouseholdChore[]
+
+  @@index([circleId, category])
+}
+
+model HouseholdChore {
+  id             String    @id @default(cuid())
+  templateId     String
+  circleId       String
+  ocKey          String
+  title          String
+  description    String?
+  category       String?
+  assigneeId     String?
+  dueDate        DateTime?
+  dueTime        String?
+  frequency      String
+  priority       Int       @default(0)
+  points         Int       @default(0)
+  status         String    @default("UPCOMING")
+  swappedFromId  String?
+  completedById  String?
+  completedAt    DateTime?
+  completionNote String?
+  proofUrl       String?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  template  HouseholdChoreTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  circle    Circle                 @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  assignee  User?                  @relation("ChoreAssignee", fields: [assigneeId], references: [id])
+  completedBy User?                @relation("ChoreCompleter", fields: [completedById], references: [id])
+  swaps     HouseholdChoreSwap[]
+
+  @@unique([templateId, ocKey])
+  @@index([circleId, status])
+}
+
+model HouseholdChoreSwap {
+  id             String   @id @default(cuid())
+  circleId       String
+  choreId        String
+  fromUserId     String
+  toUserId       String
+  status         String   @default("PENDING")
+  requestedById  String
+  note           String?
+  respondedById  String?
+  respondedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  circle      Circle        @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  chore       HouseholdChore @relation(fields: [choreId], references: [id], onDelete: Cascade)
+  requestedBy User          @relation("ChoreSwapRequester", fields: [requestedById], references: [id])
+  respondedBy User?         @relation("ChoreSwapResponder", fields: [respondedById], references: [id])
+
+  @@index([circleId, status])
 }
 
 enum AIInsightType {

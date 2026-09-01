@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Home, Settings2, Wallet, PiggyBank, TrendingDown, Users, Clock, Receipt,
-  ArrowUpRight, BellRing, ShieldAlert, Scale, AlertTriangle, Info, Plus, RefreshCcw, Upload, ShoppingCart,
+  ArrowUpRight, BellRing, ShieldAlert, Scale, AlertTriangle, Info, Plus, RefreshCcw, Upload, ShoppingCart, ClipboardCheck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,7 +20,7 @@ import { toast } from "sonner"
 import { formatDate } from "@/components/projects/types"
 import { CURRENCIES } from "@/lib/constants"
 
-type Bound = { config: any; metrics: any; rentStatus: { paid: boolean; status: string; label: string }; nextRentDue: string; my: any; upcomingBills: Array<{ id: string; name: string; amount: number; dueDate: string | null }>; expenses: Array<{ id: string; title: string; amount: number; category: string; expenseDate: string; receiptUrl: string | null; paidByName: string | null }>; balances: any; notices: Array<{ id: string; content: string; createdAt: string; authorName: string | null }>; alerts: Array<{ id: string; level: string; title: string; description: string }>; billsSummary?: any; groceries?: any }
+type Bound = { config: any; metrics: any; rentStatus: { paid: boolean; status: string; label: string }; nextRentDue: string; my: any; upcomingBills: Array<{ id: string; name: string; amount: number; dueDate: string | null }>; expenses: Array<{ id: string; title: string; amount: number; category: string; expenseDate: string; receiptUrl: string | null; paidByName: string | null }>; balances: any; notices: Array<{ id: string; content: string; createdAt: string; authorName: string | null }>; alerts: Array<{ id: string; level: string; title: string; description: string }>; billsSummary?: any; groceries?: any; chores?: any }
 type BillInstance = { id: string; billId: string; name: string; category: string; provider: string | null; status: string; expected: number; actual: number | null; paid: number; outstanding: number; dueDate: string | null; responsibleMemberId: string | null; myShare: number; myPaid: number; myOutstanding: number; billFileUrl: string | null }
 
 function money(n: number, code: string): string {
@@ -147,6 +147,19 @@ export function HouseholdDashboard({ circleId, circleName, currency, canManage }
           <Widget icon={<ShoppingCart className="size-4" />} label="Upcoming grocery run" value={data.groceries.upcomingRun ? data.groceries.upcomingRun.title : "—"} sub={data.groceries.upcomingRun ? `${data.groceries.upcomingRun.status.replace(/_/g, " ")} · ${data.groceries.upcomingRun.purchasedCount}/${data.groceries.upcomingRun.totalItems} bought` : ""} />
           <Widget icon={<Scale className="size-4" />} label="Unsettled purchase balances" value={String(data.groceries.unsettledBalances || 0)} tone={(data.groceries.unsettledBalances || 0) > 0 ? "text-amber-600" : ""} />
           <div className="rounded-2xl border p-3 flex items-center justify-center"><Link href={`${base}/groceries`} className="inline-flex items-center rounded-xl border px-3 py-1.5 text-xs font-medium hover:bg-muted/50 transition-colors"><ShoppingCart className="size-3.5 mr-1" /> Open Groceries</Link></div>
+        </div>
+      )}
+
+      {data.chores && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Widget icon={<Home className="size-4" />} label="My chores today" value={String(data.chores.myToday || 0)} />
+          <Widget icon={<Home className="size-4" />} label="Household chores today" value={String(data.chores.today || 0)} />
+          <Widget icon={<ClipboardCheck className="size-4" />} label="Completed this week" value={String(data.chores.completedThisWeek || 0)} />
+          <Widget icon={<AlertTriangle className="size-4" />} label="Overdue chores" value={String(data.chores.overdue || 0)} tone={(data.chores.overdue || 0) > 0 ? "text-red-500" : ""} />
+          <Widget icon={<Home className="size-4" />} label="Next responsibility" value={data.chores.next ? data.chores.next.title : "—"} sub={data.chores.next ? `${data.chores.next.status.toLowerCase()}${data.chores.next.isMine ? " · yours" : ""}` : ""} />
+          <Widget icon={<Home className="size-4" />} label="Household completion" value={`${data.chores.completionPct || 0}%`} />
+          <Widget icon={<ShoppingCart className="size-4" />} label="Groceries shopper" value={data.groceries?.upcomingRun ? data.groceries.upcomingRun.title : "—"} sub={data.groceries?.upcomingRun ? data.groceries.upcomingRun.status.toLowerCase() : ""} />
+          <div className="rounded-2xl border p-3 flex items-center justify-center"><Link href={`${base}/chores`} className="inline-flex items-center rounded-xl border px-3 py-1.5 text-xs font-medium hover:bg-muted/50 transition-colors"><ClipboardCheck className="size-3.5 mr-1" /> Open Chores</Link></div>
         </div>
       )}
 
