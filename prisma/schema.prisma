@@ -192,6 +192,7 @@ model User {
   travelItineraryAssignments  TravelItineraryAssignment[]      @relation("TravelItineraryAssignee")
   travelDocsOwned            TravelDocument[]                @relation("TravelDocOwner")
   travelDocsUploaded         TravelDocument[]                @relation("TravelDocUploader")
+  householdsCreated          HouseholdConfig[]              @relation("HouseholdCreator")
 
   @@index([email])
 }
@@ -395,6 +396,7 @@ model Circle {
   investmentOpportunities InvestmentOpportunity[]
   capitalCalls            CapitalCall[]
   travelTrip              TravelTrip?
+  householdConfig         HouseholdConfig?
 }
 
 model CircleMember {
@@ -1807,6 +1809,35 @@ model TravelDocument {
 
   @@index([tripId])
   @@index([ownerUserId])
+  @@index([circleId])
+}
+
+// ─── Housemate Circle: Household Setup ──────────────────────
+
+model HouseholdConfig {
+  id               String   @id @default(cuid())
+  circleId         String   @unique
+  createdById      String
+  name             String
+  address          String?
+  leaseStart       DateTime?
+  leaseEnd         DateTime?
+  monthlyRent      Decimal? @db.Decimal(12, 2)
+  rentDueDay       Int?
+  deposit          Decimal? @db.Decimal(12, 2)
+  currency         String   @default("ZAR")
+  rooms            Int      @default(1)
+  utilityCategories Json?
+  bills            Json?
+  rules            String?
+  emergencyContact String?
+  landlordContact  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("HouseholdCreator", fields: [createdById], references: [id])
+
   @@index([circleId])
 }
 

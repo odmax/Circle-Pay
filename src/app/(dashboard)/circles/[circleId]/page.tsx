@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 import Link from "next/link"
 import {
-  ArrowLeft, Users, PiggyBank, Target, Settings, BookOpen, Repeat, TrendingUp, Clock, Lightbulb, Receipt, Scale, Check, FileText, Wallet, MessageCircle, Calendar, Vote, Sparkles, Zap, DollarSign, User, FolderKanban, MessageSquare, AlertCircle, ScrollText, Gauge, Rocket, Plane, CalendarRange, Lock,
+  ArrowLeft, Users, PiggyBank, Target, Settings, BookOpen, Repeat, TrendingUp, Clock, Lightbulb, Receipt, Scale, Check, FileText, Wallet, MessageCircle, Calendar, Vote, Sparkles, Zap, DollarSign, User, FolderKanban, MessageSquare, AlertCircle, ScrollText, Gauge, Rocket, Plane, CalendarRange, Lock, Home,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,7 +36,7 @@ import type { MemberRole } from "@/generated/prisma"
 
 const tabIconMap: Record<string, React.ElementType> = {
   Users, PiggyBank, Target, BookOpen, Settings, TrendingUp, Receipt, Scale,
-  Clock, Lightbulb, FileText, Wallet, MessageCircle, Calendar, Vote, Sparkles, Zap, DollarSign, User, FolderKanban, ScrollText, Gauge, Rocket, Plane, CalendarRange, Lock,
+  Clock, Lightbulb, FileText, Wallet, MessageCircle, Calendar, Vote, Sparkles, Zap, DollarSign, User, FolderKanban, ScrollText, Gauge, Rocket, Plane, CalendarRange, Lock, Home,
 }
 
 export default async function CircleOverviewPage({
