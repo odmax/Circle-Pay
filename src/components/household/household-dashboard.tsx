@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Home, Settings2, Wallet, PiggyBank, TrendingDown, Users, Clock, Receipt,
-  ArrowUpRight, BellRing, ShieldAlert, Scale, AlertTriangle, Info,
+  ArrowUpRight, BellRing, ShieldAlert, Scale, AlertTriangle, Info, Plus, RefreshCcw, Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,7 +20,8 @@ import { toast } from "sonner"
 import { formatDate } from "@/components/projects/types"
 import { CURRENCIES } from "@/lib/constants"
 
-type Bound = { config: any; metrics: any; rentStatus: { paid: boolean; status: string; label: string }; nextRentDue: string; my: any; bills: Array<{ id: string; name: string; amount: number; dueDate: string | null }>; expenses: Array<{ id: string; title: string; amount: number; category: string; expenseDate: string; receiptUrl: string | null; paidByName: string | null }>; balances: any; notices: Array<{ id: string; content: string; createdAt: string; authorName: string | null }>; alerts: Array<{ id: string; level: string; title: string; description: string }> }
+type Bound = { config: any; metrics: any; rentStatus: { paid: boolean; status: string; label: string }; nextRentDue: string; my: any; upcomingBills: Array<{ id: string; name: string; amount: number; dueDate: string | null }>; expenses: Array<{ id: string; title: string; amount: number; category: string; expenseDate: string; receiptUrl: string | null; paidByName: string | null }>; balances: any; notices: Array<{ id: string; content: string; createdAt: string; authorName: string | null }>; alerts: Array<{ id: string; level: string; title: string; description: string }>; billsSummary?: any }
+type BillInstance = { id: string; billId: string; name: string; category: string; provider: string | null; status: string; expected: number; actual: number | null; paid: number; outstanding: number; dueDate: string | null; responsibleMemberId: string | null; myShare: number; myPaid: number; myOutstanding: number; billFileUrl: string | null }
 
 function money(n: number, code: string): string {
   const symbol = CURRENCIES.find((c) => c.code === code)?.symbol ?? code
@@ -34,6 +35,13 @@ const RENT_COLORS: Record<string, string> = {
   due_soon: "border-amber-200 bg-amber-50 text-amber-700",
   upcoming: "border-blue-200 bg-blue-50 text-blue-700",
 }
+const BILL_COLORS: Record<string, string> = {
+  UPCOMING: "border-slate-200 bg-slate-50 text-slate-600",
+  DUE: "border-amber-200 bg-amber-50 text-amber-700",
+  OVERDUE: "border-red-200 bg-red-50 text-red-700",
+  PARTIALLY_PAID: "border-purple-200 bg-purple-50 text-purple-700",
+  PAID: "border-emerald-200 bg-emerald-50 text-emerald-700",
+}
 
 export function HouseholdDashboard({ circleId, circleName, currency, canManage }: {
   circleId: string
@@ -46,6 +54,9 @@ export function HouseholdDashboard({ circleId, circleName, currency, canManage }
   const [reloadKey, setReloadKey] = useState(0)
   const [showSetup, setShowSetup] = useState(false)
   const [reminding, setReminding] = useState(false)
+  const [showCreateBill, setShowCreateBill] = useState(false)
+  const [payingBill, setPayingBill] = useState<BillInstance | null>(null)
+  const [actualBill, setActualBill] = useState<BillInstance | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -151,9 +162,9 @@ export function HouseholdDashboard({ circleId, circleName, currency, canManage }
         <Card className="rounded-2xl">
           <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Clock className="size-4" /> Upcoming bills</CardTitle></CardHeader>
           <CardContent>
-            {data.bills.length === 0 ? <p className="text-sm text-muted-foreground py-3 text-center">No recurring bills set.</p> : (
+            {data.upcomingBills.length === 0 ? <p className="text-sm text-muted-foreground py-3 text-center">No recurring bills set.</p> : (
               <div className="space-y-1.5">
-                {data.bills.map((b) => <div key={b.id} className="flex items-center justify-between text-sm rounded-lg border px-3 py-2"><span className="min-w-0 truncate">{b.name}</span><span className="flex items-center gap-3 shrink-0 text-xs"><span className="font-medium">{money(b.amount, symbol)}</span>{b.dueDate ? <span className="text-muted-foreground">{formatDate(b.dueDate)}</span> : <span>—</span>}</span></div>)}
+                {data.upcomingBills.map((b) => <div key={b.id} className="flex items-center justify-between text-sm rounded-lg border px-3 py-2"><span className="min-w-0 truncate">{b.name}</span><span className="flex items-center gap-3 shrink-0 text-xs"><span className="font-medium">{money(b.amount, symbol)}</span>{b.dueDate ? <span className="text-muted-foreground">{formatDate(b.dueDate)}</span> : <span>—</span>}</span></div>)}
               </div>
             )}
           </CardContent>
@@ -173,6 +184,46 @@ export function HouseholdDashboard({ circleId, circleName, currency, canManage }
       </div>
 
       <Card className="rounded-2xl">
+        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Receipt className="size-4" /> Bills & utilities</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {data.billsSummary ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <MiniIt label="Bills due this week" value={String(data.billsSummary.dueThisWeekCount || 0)} tone={(data.billsSummary.dueThisWeekCount || 0) > 0 ? "text-amber-600" : ""} />
+                <MiniIt label="Utilities (bill)" value={money(data.billsSummary.utilitiesThisMonth || 0, symbol)} />
+                <MiniIt label="Paid vs outstanding" value={`${money(data.billsSummary.paidTotal || 0, symbol)} / ${money(data.billsSummary.outstandingTotal || 0, symbol)}`} tone={(data.billsSummary.outstandingTotal || 0) > 0 ? "text-amber-600" : "text-emerald-600"} />
+                <MiniIt label="Overdue bills" value={String(data.billsSummary.overdueCount || 0)} tone={(data.billsSummary.overdueCount || 0) > 0 ? "text-red-500" : ""} />
+              </div>
+              {canManage && <div className="flex gap-2 flex-wrap"><Button size="sm" className="rounded-xl h-8" onClick={() => setShowCreateBill(true)}><Plus className="size-3.5 mr-1" /> Create bill</Button><Button size="sm" variant="outline" className="rounded-xl h-8" onClick={() => generateCycle(circleId, refresh)}><RefreshCcw className="size-3.5 mr-1" /> Generate cycle</Button></div>}
+              {(data.billsSummary.bills || []).length === 0 ? <p className="text-sm text-muted-foreground py-2 text-center">No bills yet this month. Create a recurring bill to get started.</p> : (
+                <div className="space-y-1.5">
+                  {(data.billsSummary.bills || []).map((b: BillInstance) => (
+                    <div key={b.id} className="rounded-lg border px-3 py-2 text-sm">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="min-w-0"><p className="font-medium truncate">{b.name}</p><div className="flex items-center gap-2 flex-wrap text-[10px] text-muted-foreground"><Badge variant="outline" className="text-[9px]">{b.category.replace(/_/g, " ")}</Badge>{b.dueDate ? `Due ${new Date(b.dueDate).toDateString()}` : ""}</div></div>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap"><Badge variant="outline" className={`text-[10px] ${BILL_COLORS[b.status] || ""}`}>{b.status.replace(/_/g, " ")}</Badge><span className="font-semibold">{money(b.outstanding, symbol)} / {money(b.expected, symbol)}</span></div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap mt-1.5 text-[10px] text-muted-foreground">
+                        <span>Your share {money(b.myShare, symbol)} · paid {money(b.myPaid, symbol)}</span>
+                        {b.myOutstanding > 0 && <span className="text-amber-600 font-medium">{money(b.myOutstanding, symbol)} outstanding</span>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                        {b.myOutstanding > 0 && <Button size="sm" variant="outline" className="rounded-xl h-7 text-xs" onClick={() => { setPayingBill(b) }}><Scale className="size-3.5 mr-1" /> Pay my share</Button>}
+                        {canManage && <Button size="sm" variant="ghost" className="rounded-xl h-7 text-xs" onClick={() => { setActualBill(b) }}>Record actual</Button>}
+                        {b.billFileUrl && <a href={b.billFileUrl} target="_blank" rel="noreferrer" className="text-[10px] text-brand underline">bill file</a>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground py-2 text-center">Set up the household to manage bills.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl">
         <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Scale className="size-4" /> Outstanding settlements</CardTitle></CardHeader>
         <CardContent className="space-y-1.5">
           {data.balances?.allBalances?.length === 0 ? <p className="text-sm text-muted-foreground py-3 text-center">All balances settled.</p> : (data.balances?.allBalances || []).map((b: any, i: number) => (
@@ -182,8 +233,21 @@ export function HouseholdDashboard({ circleId, circleName, currency, canManage }
       </Card>
 
       <SetupDialog open={showSetup} onOpenChange={setShowSetup} circleId={circleId} currency={currency} config={data.config} onSaved={refresh} />
+      <CreateBillDialog open={showCreateBill} onOpenChange={setShowCreateBill} circleId={circleId} members={[]} onSaved={refresh} />
+      <PayBillDialog bill={payingBill} circleId={circleId} symbol={symbol} onClose={() => setPayingBill(null)} onSaved={() => { refresh(); setPayingBill(null) }} />
+      <ActualBillDialog bill={actualBill} circleId={circleId} symbol={symbol} onClose={() => setActualBill(null)} onSaved={() => { refresh(); setActualBill(null) }} />
     </div>
   )
+}
+
+function MiniIt({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
+  return <div className="rounded-xl border p-3 min-w-0"><p className="text-[10px] text-muted-foreground">{label}</p><p className={`text-sm font-bold mt-0.5 truncate ${tone}`}>{value}</p></div>
+}
+
+async function generateCycle(circleId: string, refresh: () => void) {
+  await fetch(`/api/circles/${circleId}/household/bills?action=generate`, { method: "POST" }).catch(() => {})
+  toast.success("Bill cycle generated")
+  refresh()
 }
 
 function Widget({ icon, label, value, tone = "" }: { icon: React.ReactNode; label: string; value: string; tone?: string }) {
@@ -254,4 +318,115 @@ function SetupForm({ circleId, currency, config, onOpenChange, onSaved }: { circ
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="space-y-1.5 min-w-0"><Label className="text-xs">{label}</Label>{children}</div>
+}
+
+function CreateBillDialog({ open, onOpenChange, circleId, onSaved }: { open: boolean; onOpenChange: (o: boolean) => void; circleId: string; members: Array<{ userId: string; name: string }>; onSaved: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Create recurring bill</DialogTitle><DialogDescription>Monthly instances are generated automatically.</DialogDescription></DialogHeader>
+        {open && <CreateBillForm key={String(open)} circleId={circleId} onOpenChange={onOpenChange} onSaved={onSaved} />}
+      </DialogContent>
+    </Dialog>
+  )
+}
+function CreateBillForm({ circleId, onOpenChange, onSaved }: { circleId: string; onOpenChange: (o: boolean) => void; onSaved: () => void }) {
+  const [f, setF] = useState<Record<string, any>>({ name: "", category: "ELECTRICITY", expectedAmount: "", dueDay: "1", splitType: "EQUAL" })
+  const [submitting, setSubmitting] = useState(false)
+  const submit = async () => {
+    if (!f.name?.trim() || !Number(f.expectedAmount)) return toast.error("Name and expected amount are required")
+    setSubmitting(true)
+    try {
+      const r = await fetch(`/api/circles/${circleId}/household/bills`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: f.name, category: f.category, expectedAmount: Number(f.expectedAmount), dueDay: Number(f.dueDay), splitType: f.splitType }) })
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Failed")
+      toast.success("Recurring bill created"); setF({}); onOpenChange(false); onSaved()
+    } catch (e) { toast.error((e as Error).message) } finally { setSubmitting(false) }
+  }
+  return (
+    <div className="space-y-3 py-2">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Name"><Input value={f.name || ""} onChange={(e) => setF({ ...f, name: e.target.value })} className="rounded-xl" /></Field>
+        <Field label="Category"><Select value={f.category || "ELECTRICITY"} onValueChange={(v) => setF({ ...f, category: v || "ELECTRICITY" })}><SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger><SelectContent>{["RENT", "ELECTRICITY", "WATER", "INTERNET", "GAS", "CLEANING", "SECURITY", "STREAMING", "LEVY", "CUSTOM"].map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></Field>
+        <Field label="Expected amount"><Input type="number" value={f.expectedAmount || ""} onChange={(e) => setF({ ...f, expectedAmount: e.target.value })} className="rounded-xl" /></Field>
+        <Field label="Due day (1-28)"><Select value={String(f.dueDay || "1")} onValueChange={(v) => setF({ ...f, dueDay: v || "1" })}><SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger><SelectContent>{Array.from({ length: 28 }).map((_, i) => <SelectItem key={i + 1} value={String(i + 1)}>Day {i + 1}</SelectItem>)}</SelectContent></Select></Field>
+        <Field label="Split method"><Select value={f.splitType || "EQUAL"} onValueChange={(v) => setF({ ...f, splitType: v || "EQUAL" })}><SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EQUAL">Equal</SelectItem><SelectItem value="EXACT">Exact</SelectItem><SelectItem value="PERCENTAGE">Percentage</SelectItem></SelectContent></Select></Field>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">Cancel</Button>
+        <Button onClick={submit} disabled={submitting} className="rounded-xl bg-brand hover:bg-brand-600">{submitting ? "Creating..." : "Create"}</Button>
+      </DialogFooter>
+    </div>
+  )
+}
+
+function PayBillDialog({ bill, circleId, symbol, onClose, onSaved }: { bill: BillInstance | null; circleId: string; symbol: string; onClose: () => void; onSaved: () => void }) {
+  const [amount, setAmount] = useState<string>(bill?.myOutstanding ? String(bill.myOutstanding) : "")
+  const [reference, setReference] = useState("")
+  const [file, setFile] = useState<File | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const submit = async () => {
+    if (!bill || !Number(amount) || Number(amount) <= 0) return toast.error("Enter an amount")
+    setSubmitting(true)
+    try {
+      const fd = new FormData()
+      fd.append("amount", String(Number(amount)))
+      if (reference.trim()) fd.append("reference", reference.trim())
+      if (file) fd.append("file", file)
+      const r = await fetch(`/api/circles/${circleId}/household/bills/${bill.id}/pay`, { method: "POST", body: fd })
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Failed")
+      toast.success("Payment recorded"); setAmount(""); setFile(null); onSaved()
+    } catch (e) { toast.error((e as Error).message) } finally { setSubmitting(false) }
+  }
+  return (
+    <Dialog open={!!bill} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Pay bill: {bill?.name}</DialogTitle><DialogDescription>Your share {bill ? money(bill.myShare, symbol) : ""} · paid {bill ? money(bill.myPaid, symbol) : ""} · outstanding {bill ? money(bill.myOutstanding, symbol) : ""}.</DialogDescription></DialogHeader>
+        <div className="space-y-3 py-2">
+          <Field label={`Amount (${symbol})`}><Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="rounded-xl text-lg font-semibold" /></Field>
+          <Field label="Reference"><Input value={reference} onChange={(e) => setReference(e.target.value)} className="rounded-xl" /></Field>
+          <Field label="Proof (optional)"><label className="flex items-center gap-2 rounded-xl border border-dashed p-2 cursor-pointer hover:bg-muted/40 text-sm truncate"><ArrowUpRight className="size-4 shrink-0 text-brand" /><span className="truncate">{file ? file.name : "Upload proof"}</span><input type="file" className="hidden" accept=".jpg,.jpeg,.png,.webp,.heic,.pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} /></label></Field>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="rounded-xl">Cancel</Button>
+          <Button onClick={submit} disabled={submitting} className="rounded-xl bg-brand hover:bg-brand-600">{submitting ? "Paying..." : "Record payment"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ActualBillDialog({ bill, circleId, symbol, onClose, onSaved }: { bill: BillInstance | null; circleId: string; symbol: string; onClose: () => void; onSaved: () => void }) {
+  const [amount, setAmount] = useState<string>(bill?.expected ? String(bill.expected) : "")
+  const [meter, setMeter] = useState("")
+  const [file, setFile] = useState<File | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const submit = async () => {
+    if (!bill || !Number(amount) || Number(amount) < 0) return toast.error("Enter the actual amount")
+    setSubmitting(true)
+    try {
+      const fd = new FormData()
+      fd.append("actualAmount", String(Number(amount)))
+      if (meter.trim()) fd.append("meter", meter.trim())
+      if (file) fd.append("file", file)
+      const r = await fetch(`/api/circles/${circleId}/household/bills/${bill.id}/actual`, { method: "POST", body: fd })
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Failed")
+      toast.success("Actual bill recorded"); setAmount(""); setFile(null); onSaved()
+    } catch (e) { toast.error((e as Error).message) } finally { setSubmitting(false) }
+  }
+  return (
+    <Dialog open={!!bill} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Record actual bill: {bill?.name}</DialogTitle><DialogDescription>Upload the bill and enter the real amount; participants are notified.</DialogDescription></DialogHeader>
+        <div className="space-y-3 py-2">
+          <Field label={`Actual amount (${symbol})`}><Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="rounded-xl text-lg font-semibold" /></Field>
+          <Field label="Meter / reference"><Input value={meter} onChange={(e) => setMeter(e.target.value)} className="rounded-xl" /></Field>
+          <Field label="Bill file (PDF/image)"><label className="flex items-center gap-2 rounded-xl border border-dashed p-2 cursor-pointer hover:bg-muted/40 text-sm truncate"><Upload className="size-4 shrink-0 text-brand" /><span className="truncate">{file ? file.name : "Upload bill"}</span><input type="file" className="hidden" accept=".jpg,.jpeg,.png,.webp,.heic,.pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} /></label></Field>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="rounded-xl">Cancel</Button>
+          <Button onClick={submit} disabled={submitting} className="rounded-xl bg-brand hover:bg-brand-600">{submitting ? "Saving..." : "Save actual"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }

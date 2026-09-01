@@ -7,6 +7,7 @@ import {
   computeRentStatus,
   computeHouseholdAlerts,
 } from "@/lib/services/household-metrics"
+import { getMonthlyBillsSummary, periodOf } from "@/lib/services/household-bills.service"
 
 function asNum(v: unknown): number {
   const n = Number(v)
@@ -96,6 +97,8 @@ export async function getHouseholdDashboard(circleId: string, viewerUserId: stri
     balances,
     notices: feeds.map((f) => ({ id: f.id, content: f.content, createdAt: f.createdAt.toISOString(), authorName: f.author?.name ?? null })),
     alerts,
+    upcomingBills: recentBills,
+    billsSummary: config ? await getMonthlyBillsSummary(circleId, periodOf(new Date()), viewerUserId) : null,
   }
 }
 

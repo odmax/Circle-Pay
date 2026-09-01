@@ -193,6 +193,8 @@ model User {
   travelDocsOwned            TravelDocument[]                @relation("TravelDocOwner")
   travelDocsUploaded         TravelDocument[]                @relation("TravelDocUploader")
   householdsCreated          HouseholdConfig[]              @relation("HouseholdCreator")
+  householdRecurringBills   HouseholdRecurringBill[]      @relation("HouseholdBillCreator")
+  householdBillPayments     HouseholdBillPayment[]        @relation("HouseholdBillPayer")
 
   @@index([email])
 }
@@ -397,6 +399,9 @@ model Circle {
   capitalCalls            CapitalCall[]
   travelTrip              TravelTrip?
   householdConfig         HouseholdConfig?
+  householdRecurringBills HouseholdRecurringBill[]
+  householdBills          HouseholdBill[]
+  householdBillPayments   HouseholdBillPayment[]
 }
 
 model CircleMember {
@@ -843,6 +848,11 @@ PROJECT_CREATED
   INVESTOR_MEETING
   TRAVEL_DOC_EXPIRING
   TRAVEL_DOC_MISSING
+  BILL_DUE
+  BILL_OVERDUE
+  BILL_PAYMENT_RECORDED
+  BILL_SETTLED
+  BILL_ACTUAL_UPLOADED
   FEED_POST_CREATED
   AI_INSIGHT
   FINANCIAL_RISK
@@ -1839,6 +1849,81 @@ model HouseholdConfig {
   createdBy User   @relation("HouseholdCreator", fields: [createdById], references: [id])
 
   @@index([circleId])
+}
+
+// ─── Housemate Circle: Recurring Bills & Utilities ─────────
+
+model HouseholdRecurringBill {
+  id                      String   @id @default(cuid())
+  circleId                String
+  createdById             String
+  name                    String
+  category                String   @default("CUSTOM")
+  provider                String?
+  expectedAmount          Decimal? @db.Decimal(12, 2)
+  dueDay                  Int?
+  frequency               String   @default("MONTHLY")
+  splitType               String   @default("EQUAL")
+  responsibleMemberId     String?
+  participatingMemberIds  Json?
+  shareConfig             Json?
+  reminderDays            Json?
+  active                  Boolean  @default(true)
+  metadata                Json?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  circle    Circle             @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User               @relation("HouseholdBillCreator", fields: [createdById], references: [id])
+  instances HouseholdBill[]
+
+  @@index([circleId, category])
+}
+
+model HouseholdBill {
+  id                   String   @id @default(cuid())
+  billId               String
+  circleId             String
+  periodKey            String
+  expectedAmount       Decimal? @db.Decimal(12, 2)
+  actualAmount         Decimal? @db.Decimal(12, 2)
+  amountPaid           Decimal  @db.Decimal(12, 2) @default(0)
+  status               String   @default("UPCOMING")
+  dueDate              DateTime?
+  responsibleMemberId  String?
+  shares               Json?
+  metadata             Json?
+  paidAt               DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  bill     HouseholdRecurringBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  circle   Circle                 @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  payments HouseholdBillPayment[]
+
+  @@unique([billId, periodKey])
+  @@index([circleId, status])
+  @@index([dueDate])
+}
+
+model HouseholdBillPayment {
+  id        String   @id @default(cuid())
+  billId    String
+  circleId  String
+  userId    String
+  amount    Decimal  @db.Decimal(12, 2)
+  type      String   @default("SHARE")
+  reference String?
+  proofUrl  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  bill   HouseholdBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  circle Circle        @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user   User          @relation("HouseholdBillPayer", fields: [userId], references: [id])
+
+  @@index([billId])
+  @@index([userId])
 }
 
 enum AIInsightType {
