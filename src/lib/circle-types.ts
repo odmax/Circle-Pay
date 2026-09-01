@@ -52,6 +52,7 @@ const tabs = {
   documents: { key: "documents", label: "Docs", icon: "FileText", href: "/travel-documents" },
   close: { key: "close", label: "Close", icon: "Lock", href: "/trip-close" },
   house: { key: "house", label: "Home", icon: "Home", href: "/household" },
+  groceries: { key: "groceries", label: "Groceries", icon: "ShoppingCart", href: "/groceries" },
   opportunities: { key: "opportunities", label: "Opportunities", icon: "Rocket", href: "/opportunities" },
   constitution: { key: "constitution", label: "Constitution", icon: "ScrollText", href: "/constitution" },
 } as const
@@ -81,7 +82,7 @@ export const CIRCLE_TYPE_CONFIGS: Record<string, CircleTypeConfig> = {
       { key: "groceriesEnabled", label: "Track Groceries", type: "toggle" },
     ],
     defaultSettings: { utilitiesEnabled: true, groceriesEnabled: true },
-    tabs: [tabs.house, tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.expenses, tabs.contributions, tabs.balances, tabs.members, tabs.activity],
+    tabs: [tabs.house, tabs.groceries, tabs.operations, tabs.automations, tabs.payments, tabs.projects, tabs.portfolio, tabs.opportunities, tabs.myStatus, tabs.myStatement, tabs.feed, tabs.events, tabs.assistant, tabs.expenses, tabs.contributions, tabs.balances, tabs.members, tabs.activity],
   },
   TRAVEL: {
     label: "Travel Group",

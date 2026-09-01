@@ -8,6 +8,7 @@ import {
   computeHouseholdAlerts,
 } from "@/lib/services/household-metrics"
 import { getMonthlyBillsSummary, periodOf } from "@/lib/services/household-bills.service"
+import { getGroceriesSummary } from "@/lib/services/household-purchase.service"
 
 function asNum(v: unknown): number {
   const n = Number(v)
@@ -99,6 +100,7 @@ export async function getHouseholdDashboard(circleId: string, viewerUserId: stri
     alerts,
     upcomingBills: recentBills,
     billsSummary: config ? await getMonthlyBillsSummary(circleId, periodOf(new Date()), viewerUserId) : null,
+    groceries: config ? await getGroceriesSummary(circleId, viewerUserId) : null,
   }
 }
 

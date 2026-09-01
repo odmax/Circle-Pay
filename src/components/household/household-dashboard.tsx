@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Home, Settings2, Wallet, PiggyBank, TrendingDown, Users, Clock, Receipt,
-  ArrowUpRight, BellRing, ShieldAlert, Scale, AlertTriangle, Info, Plus, RefreshCcw, Upload,
+  ArrowUpRight, BellRing, ShieldAlert, Scale, AlertTriangle, Info, Plus, RefreshCcw, Upload, ShoppingCart,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,7 +20,7 @@ import { toast } from "sonner"
 import { formatDate } from "@/components/projects/types"
 import { CURRENCIES } from "@/lib/constants"
 
-type Bound = { config: any; metrics: any; rentStatus: { paid: boolean; status: string; label: string }; nextRentDue: string; my: any; upcomingBills: Array<{ id: string; name: string; amount: number; dueDate: string | null }>; expenses: Array<{ id: string; title: string; amount: number; category: string; expenseDate: string; receiptUrl: string | null; paidByName: string | null }>; balances: any; notices: Array<{ id: string; content: string; createdAt: string; authorName: string | null }>; alerts: Array<{ id: string; level: string; title: string; description: string }>; billsSummary?: any }
+type Bound = { config: any; metrics: any; rentStatus: { paid: boolean; status: string; label: string }; nextRentDue: string; my: any; upcomingBills: Array<{ id: string; name: string; amount: number; dueDate: string | null }>; expenses: Array<{ id: string; title: string; amount: number; category: string; expenseDate: string; receiptUrl: string | null; paidByName: string | null }>; balances: any; notices: Array<{ id: string; content: string; createdAt: string; authorName: string | null }>; alerts: Array<{ id: string; level: string; title: string; description: string }>; billsSummary?: any; groceries?: any }
 type BillInstance = { id: string; billId: string; name: string; category: string; provider: string | null; status: string; expected: number; actual: number | null; paid: number; outstanding: number; dueDate: string | null; responsibleMemberId: string | null; myShare: number; myPaid: number; myOutstanding: number; billFileUrl: string | null }
 
 function money(n: number, code: string): string {
@@ -137,6 +137,19 @@ export function HouseholdDashboard({ circleId, circleName, currency, canManage }
         <Widget icon={<Scale className="size-4" />} label="Settlements outstanding" value={String(data.balances?.allBalances?.length || 0)} tone={(data.balances?.allBalances?.length || 0) > 0 ? "text-amber-600" : ""} />
       </div>
 
+      {data.groceries && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Widget icon={<ShoppingCart className="size-4" />} label="Groceries this month" value={money(data.groceries.groceriesThisMonth || 0, symbol)} />
+          <Widget icon={<Wallet className="size-4" />} label="Shared purchases" value={money(data.groceries.sharedThisMonth || 0, symbol)} />
+          <Widget icon={<PiggyBank className="size-4" />} label="My household spend" value={money(data.groceries.mySpend || 0, symbol)} />
+          <Widget icon={<Scale className="size-4" />} label="Owed to me (purchases)" value={money(data.groceries.amountOwedToMe || 0, symbol)} tone={(data.groceries.amountOwedToMe || 0) > 0 ? "text-emerald-600" : ""} />
+          <Widget icon={<Users className="size-4" />} label="Who paid recently" value={data.groceries.lastPayer || "—"} />
+          <Widget icon={<ShoppingCart className="size-4" />} label="Upcoming grocery run" value={data.groceries.upcomingRun ? data.groceries.upcomingRun.title : "—"} sub={data.groceries.upcomingRun ? `${data.groceries.upcomingRun.status.replace(/_/g, " ")} · ${data.groceries.upcomingRun.purchasedCount}/${data.groceries.upcomingRun.totalItems} bought` : ""} />
+          <Widget icon={<Scale className="size-4" />} label="Unsettled purchase balances" value={String(data.groceries.unsettledBalances || 0)} tone={(data.groceries.unsettledBalances || 0) > 0 ? "text-amber-600" : ""} />
+          <div className="rounded-2xl border p-3 flex items-center justify-center"><Link href={`${base}/groceries`} className="inline-flex items-center rounded-xl border px-3 py-1.5 text-xs font-medium hover:bg-muted/50 transition-colors"><ShoppingCart className="size-3.5 mr-1" /> Open Groceries</Link></div>
+        </div>
+      )}
+
       {/* My position */}
       <Card className="rounded-2xl border-brand/20">
         <CardContent className="p-4 sm:p-5">
@@ -250,8 +263,8 @@ async function generateCycle(circleId: string, refresh: () => void) {
   refresh()
 }
 
-function Widget({ icon, label, value, tone = "" }: { icon: React.ReactNode; label: string; value: string; tone?: string }) {
-  return <Card className="rounded-2xl"><CardContent className="p-3 sm:p-4"><div className="flex items-center gap-2 mb-1"><span className="text-muted-foreground">{icon}</span><p className="text-[11px] text-muted-foreground">{label}</p></div><p className={`text-sm sm:text-base font-bold truncate ${tone}`}>{value}</p></CardContent></Card>
+function Widget({ icon, label, value, sub, tone = "" }: { icon: React.ReactNode; label: string; value: string; sub?: string; tone?: string }) {
+  return <Card className="rounded-2xl"><CardContent className="p-3 sm:p-4"><div className="flex items-center gap-2 mb-1"><span className="text-muted-foreground">{icon}</span><p className="text-[11px] text-muted-foreground">{label}</p></div><p className={`text-sm sm:text-base font-bold truncate ${tone}`}>{value}</p>{sub && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{sub}</p>}</CardContent></Card>
 }
 function Mini({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
   return <div className="rounded-xl border p-3"><p className="text-[10px] text-muted-foreground">{label}</p><p className={`text-sm sm:text-base font-bold mt-0.5 truncate ${tone}`}>{value}</p></div>

@@ -195,6 +195,9 @@ model User {
   householdsCreated          HouseholdConfig[]              @relation("HouseholdCreator")
   householdRecurringBills   HouseholdRecurringBill[]      @relation("HouseholdBillCreator")
   householdBillPayments     HouseholdBillPayment[]        @relation("HouseholdBillPayer")
+  sharedPurchasesCreated    HouseholdSharedPurchase[]     @relation("SharedPurchaseCreator")
+  groceryRunsCreated        HouseholdGroceryRun[]         @relation("GroceryRunCreator")
+  groceryItemsAdded         HouseholdGroceryItem[]        @relation("GroceryItemAdder")
 
   @@index([email])
 }
@@ -402,6 +405,8 @@ model Circle {
   householdRecurringBills HouseholdRecurringBill[]
   householdBills          HouseholdBill[]
   householdBillPayments   HouseholdBillPayment[]
+  sharedPurchases         HouseholdSharedPurchase[]
+  groceryRuns             HouseholdGroceryRun[]
 }
 
 model CircleMember {
@@ -1924,6 +1929,79 @@ model HouseholdBillPayment {
 
   @@index([billId])
   @@index([userId])
+}
+
+// ─── Housemate Circle: Shared Purchases & Groceries ────────
+
+model HouseholdSharedPurchase {
+  id              String   @id @default(cuid())
+  circleId        String
+  createdById     String
+  runId           String?
+  title           String
+  category        String   @default("GROCERIES")
+  store           String?
+  amount          Decimal  @db.Decimal(12, 2)
+  purchaseDate    DateTime @default(now())
+  paidById        String
+  splitType       String   @default("EQUAL")
+  participantIds  Json?
+  splitConfig     Json?
+  notes           String?
+  receiptUrl      String?
+  expenseId       String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("SharedPurchaseCreator", fields: [createdById], references: [id])
+
+  @@index([circleId, category])
+  @@index([runId])
+}
+
+model HouseholdGroceryRun {
+  id                  String   @id @default(cuid())
+  circleId            String
+  createdById         String
+  title               String   @default("Grocery run")
+  status              String   @default("PLANNED")
+  assignedShopperId   String?
+  expectedBudget      Decimal? @db.Decimal(12, 2)
+  actualSpend         Decimal? @db.Decimal(12, 2)
+  scheduledFor        DateTime?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  circle    Circle                    @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  createdBy User                      @relation("GroceryRunCreator", fields: [createdById], references: [id])
+  items     HouseholdGroceryItem[]
+
+  @@index([circleId, status])
+}
+
+model HouseholdGroceryItem {
+  id            String   @id @default(cuid())
+  runId         String
+  addedById     String
+  name          String
+  quantity      Int      @default(1)
+  unit          String?
+  category      String?
+  priority      Int      @default(0)
+  purchased     Boolean  @default(false)
+  purchasedById String?
+  purchasedAt   DateTime?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  run     HouseholdGroceryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  addedBy User                @relation("GroceryItemAdder", fields: [addedById], references: [id])
+
+  @@unique([runId, name])
+  @@index([runId])
 }
 
 enum AIInsightType {
